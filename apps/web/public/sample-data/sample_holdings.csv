@@ -1,0 +1,6 @@
+account,account_type,symbol,name,security_type,quantity,average_cost,market_price,market_value,currency
+Demo TFSA,TFSA,VFV.TO,Vanguard S&P 500 Index ETF,etf,45,112.00,148.35,6675.75,CAD
+Demo TFSA,TFSA,XEQT.TO,iShares Core Equity ETF Portfolio,etf,82,29.00,36.42,2986.44,CAD
+Demo TFSA,TFSA,AAPL,Apple Inc.,stock,26,152.00,214.29,5571.54,USD
+Demo TFSA,TFSA,MSFT,Microsoft Corp.,stock,8,320.00,498.84,3990.72,USD
+Demo TFSA,TFSA,CASH,Cash,cash,1800,1.00,1.00,1800.00,CAD

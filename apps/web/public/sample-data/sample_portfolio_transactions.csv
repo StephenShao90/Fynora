@@ -1,0 +1,9 @@
+date,account,symbol,action,quantity,price,amount,fees,currency,description
+2026-04-10,Demo TFSA,CASH,deposit,0,0,2500,0,CAD,Monthly contribution
+2026-04-11,Demo TFSA,VFV.TO,buy,15,142.00,2130,0,CAD,Core ETF purchase
+2026-04-11,Demo TFSA,XEQT.TO,buy,20,34.10,682,0,CAD,Diversified ETF purchase
+2026-05-10,Demo TFSA,CASH,deposit,0,0,500,0,CAD,Monthly contribution
+2026-05-11,Demo TFSA,AAPL,buy,6,186.00,1116,1.50,USD,Individual stock purchase
+2026-05-20,Demo TFSA,VFV.TO,dividend,0,0,32.40,0,CAD,ETF distribution
+2026-06-10,Demo TFSA,CASH,deposit,0,0,600,0,CAD,Monthly contribution
+2026-06-12,Demo TFSA,MSFT,buy,3,460.00,1380,1.50,USD,Individual stock purchase

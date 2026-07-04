@@ -1,0 +1,29 @@
+date,description,merchant,amount,currency,category
+2026-04-01,Payroll deposit,Payroll,3200,USD,Income
+2026-04-02,Apartment rent,Rent,-1225,USD,Housing
+2026-04-03,Metro grocery run,Fresh Market,-86.42,USD,Groceries
+2026-04-05,Netflix monthly,Netflix,-18.99,USD,Subscriptions
+2026-04-06,Spotify student,Spotify,-5.99,USD,Subscriptions
+2026-04-08,UER trip downtown,Uber,-16.30,USD,Transportation
+2026-04-10,Starbucks campus,Starbucks,-6.75,USD,Food
+2026-04-12,Amazon desk lamp,AMZN MKTP,-49.80,USD,Shopping
+2026-04-15,Restaurant with friends,Local Restaurant,-42.15,USD,Food
+2026-05-01,Payroll deposit,Payroll,3200,USD,Income
+2026-05-02,Apartment rent,Rent,-1225,USD,Housing
+2026-05-03,Supermarket groceries,Supermarket,-94.20,USD,Groceries
+2026-05-05,Netflix monthly,Netflix,-18.99,USD,Subscriptions
+2026-05-06,Spotify student,Spotify,-5.99,USD,Subscriptions
+2026-05-08,Apple iCloud,APPLE.COM/BILL,-2.99,USD,Subscriptions
+2026-05-11,Uber Eats dinner,Uber Eats,-28.50,USD,Food
+2026-05-18,Amazon textbooks,Amazon,-87.40,USD,Shopping
+2026-05-19,Duplicate coffee charge,Starbucks,-7.25,USD,Food
+2026-05-20,Duplicate coffee charge,Starbucks,-7.25,USD,Food
+2026-06-01,Payroll deposit,Payroll,3400,USD,Income
+2026-06-02,Apartment rent,Rent,-1225,USD,Housing
+2026-06-03,Grocery shop,Grocery Market,-102.55,USD,Groceries
+2026-06-05,Netflix monthly,Netflix,-18.99,USD,Subscriptions
+2026-06-06,Spotify student,Spotify,-5.99,USD,Subscriptions
+2026-06-09,Uber airport,Uber,-41.20,USD,Transportation
+2026-06-12,Emergency laptop repair,Campus Tech Repair,-780.00,USD,Other
+2026-06-14,McDonald's late dinner,McDonald's,-13.35,USD,Food
+2026-06-18,Walmart household,Walmart,-64.10,USD,Shopping
