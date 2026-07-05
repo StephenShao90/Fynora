@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Fynora",
-  description: "AI-powered spending intelligence and portfolio planning"
+  title: "Clearflow",
+  description: "Payment reconciliation and cash-flow intelligence"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

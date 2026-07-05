@@ -130,3 +130,138 @@ type PlaidConnection struct {
 	UpdatedAt             time.Time `json:"updated_at"`
 	LastSyncedAt          time.Time `json:"last_synced_at,omitempty"`
 }
+
+type Organization struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	Currency  string    `json:"currency"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Customer struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	Name           string    `json:"name"`
+	Email          string    `json:"email"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type Invoice struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	CustomerID     string    `json:"customer_id"`
+	Number         string    `json:"number"`
+	Amount         float64   `json:"amount"`
+	Currency       string    `json:"currency"`
+	Status         string    `json:"status"`
+	DueAt          time.Time `json:"due_at"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type Payment struct {
+	ID                 string    `json:"id"`
+	OrganizationID     string    `json:"organization_id"`
+	Processor          string    `json:"processor"`
+	ProcessorPaymentID string    `json:"processor_payment_id"`
+	CustomerEmail      string    `json:"customer_email"`
+	Amount             float64   `json:"amount"`
+	Currency           string    `json:"currency"`
+	Status             string    `json:"status"`
+	OccurredAt         time.Time `json:"occurred_at"`
+	Description        string    `json:"description"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type Refund struct {
+	ID                string    `json:"id"`
+	OrganizationID    string    `json:"organization_id"`
+	ProcessorRefundID string    `json:"processor_refund_id"`
+	PaymentID         string    `json:"payment_id"`
+	Amount            float64   `json:"amount"`
+	Currency          string    `json:"currency"`
+	OccurredAt        time.Time `json:"occurred_at"`
+}
+
+type Fee struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	ProcessorFeeID string    `json:"processor_fee_id"`
+	PaymentID      string    `json:"payment_id"`
+	Amount         float64   `json:"amount"`
+	Currency       string    `json:"currency"`
+	OccurredAt     time.Time `json:"occurred_at"`
+	Description    string    `json:"description"`
+}
+
+type Payout struct {
+	ID                string    `json:"id"`
+	OrganizationID    string    `json:"organization_id"`
+	Processor         string    `json:"processor"`
+	ProcessorPayoutID string    `json:"processor_payout_id"`
+	Amount            float64   `json:"amount"`
+	Currency          string    `json:"currency"`
+	Status            string    `json:"status"`
+	ExpectedArrivalAt time.Time `json:"expected_arrival_at"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+type BankTransaction struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	Source         string    `json:"source"`
+	ExternalID     string    `json:"external_id"`
+	Amount         float64   `json:"amount"`
+	Direction      string    `json:"direction"`
+	Currency       string    `json:"currency"`
+	Description    string    `json:"description"`
+	PostedAt       time.Time `json:"posted_at"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type ReconciliationRun struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	Status         string    `json:"status"`
+	MatchedCount   int       `json:"matched_count"`
+	ExceptionCount int       `json:"exception_count"`
+	StartedAt      time.Time `json:"started_at"`
+	CompletedAt    time.Time `json:"completed_at"`
+}
+
+type ReconciliationMatch struct {
+	ID                string    `json:"id"`
+	OrganizationID    string    `json:"organization_id"`
+	RunID             string    `json:"run_id"`
+	PayoutID          string    `json:"payout_id"`
+	BankTransactionID string    `json:"bank_transaction_id"`
+	Amount            float64   `json:"amount"`
+	Confidence        float64   `json:"confidence"`
+	Explanation       string    `json:"explanation"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+type ReconciliationException struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	RunID          string    `json:"run_id"`
+	Type           string    `json:"type"`
+	Severity       string    `json:"severity"`
+	Title          string    `json:"title"`
+	Explanation    string    `json:"explanation"`
+	Status         string    `json:"status"`
+	ReferenceID    string    `json:"reference_id"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type AuditLog struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	UserID         string    `json:"user_id"`
+	Action         string    `json:"action"`
+	TargetType     string    `json:"target_type"`
+	TargetID       string    `json:"target_id"`
+	CreatedAt      time.Time `json:"created_at"`
+}

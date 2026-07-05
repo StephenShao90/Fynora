@@ -1,36 +1,43 @@
 "use client";
 
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, Metric, Shell, money } from "@/components/Shell";
 import { Empty, Header } from "@/components/Common";
 import { useApi } from "@/hooks/useApi";
-import type { CashFlow, NamedAmount, Summary, RiskFinding } from "@/types";
+import type { NamedAmount, RiskFinding } from "@/types";
 
 export default function Dashboard() {
-  const cash = useApi<CashFlow>("/insights/cash-flow", {} as CashFlow);
-  const categories = useApi<NamedAmount[]>("/insights/categories", []);
-  const portfolio = useApi<Summary>("/portfolio/summary", {} as Summary);
-  const risks = useApi<RiskFinding[]>("/portfolio/risk", []);
+  const cash = useApi<Record<string, number>>("/cash-flow/summary", {});
+  const forecast = useApi<Array<Record<string, number>>>("/cash-flow/forecast", []);
+  const exceptions = useApi<RiskFinding[]>("/reconciliation/exceptions", []);
+  const payouts = useApi<NamedAmount[]>("/payouts", []);
   return (
     <Shell>
-      <Header title="Dashboard" subtitle="Cash flow, spending leaks, and portfolio health in one view." />
+      <Header title="Dashboard" subtitle="Payment operations, reconciliation health, and cash visibility in one view." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Monthly income" value={money(cash.data.average_monthly_income)} />
-        <Metric label="Monthly expenses" value={money((cash.data.average_fixed_expenses || 0) + (cash.data.average_variable_expenses || 0))} />
-        <Metric label="Net cash flow" value={money(cash.data.average_net_cash_flow)} tone="good" />
-        <Metric label="Portfolio value" value={money(portfolio.data.total_market_value)} />
+        <Metric label="Cash balance" value={money(cash.data.cash_balance)} />
+        <Metric label="Income" value={money(cash.data.income)} tone="good" />
+        <Metric label="Fees + refunds" value={money((cash.data.fees || 0) + (cash.data.refunds || 0))} tone="warn" />
+        <Metric label="Open exceptions" value={`${exceptions.data.length || 0}`} tone={exceptions.data.length ? "warn" : "good"} />
       </div>
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
-        <Card title="Top categories">
+        <Card title="Cash forecast">
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categories.data.slice(0, 8)}><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="amount" fill="#315846" radius={[4, 4, 0, 0]} /></BarChart>
+              <LineChart data={forecast.data}><XAxis dataKey="days" /><YAxis /><Tooltip /><Line type="monotone" dataKey="projected_cash" stroke="#315846" strokeWidth={3} /></LineChart>
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card title="Portfolio warnings">
+        <Card title="Reconciliation exceptions">
           <div className="grid gap-3">
-            {risks.data.length ? risks.data.map((r) => <div key={r.title} className="rounded-md bg-coral/10 p-3"><p className="font-medium">{r.title}</p><p className="text-sm text-ink/65">{r.explanation}</p></div>) : <Empty text="No major concentration warnings detected." />}
+            {exceptions.data.length ? exceptions.data.slice(0, 4).map((r) => <div key={r.title} className="rounded-md bg-coral/10 p-3"><p className="font-medium">{r.title}</p><p className="text-sm text-ink/65">{r.explanation}</p></div>) : <Empty text="No reconciliation exceptions yet. Sync sample data and run reconciliation." />}
+          </div>
+        </Card>
+        <Card title="Payouts">
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={payouts.data.slice(0, 8)}><XAxis dataKey="processor_payout_id" /><YAxis /><Tooltip /><Bar dataKey="amount" fill="#d6a53a" radius={[4, 4, 0, 0]} /></BarChart>
+            </ResponsiveContainer>
           </div>
         </Card>
       </div>

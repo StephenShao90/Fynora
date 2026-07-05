@@ -2,20 +2,58 @@
 
 All protected endpoints require `Authorization: Bearer <token>`.
 
-Health: `GET /health`
+## Health
 
-Auth: `POST /auth/register`, `POST /auth/login`, `POST /auth/demo-token`
+- `GET /health`
 
-User: `GET /me`, `GET /me/advisor-profile`, `PUT /me/advisor-profile`
+## Auth
 
-Transactions: `POST /imports/transactions-csv`, `GET /imports`, `GET /imports/{id}`, `POST /transactions`, `GET /transactions`, `GET /transactions/{id}`, `PATCH /transactions/{id}/category`, `DELETE /transactions/{id}`
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/demo-token`
+- `GET /me`
 
-Insights: `GET /insights/monthly-summary`, `GET /insights/categories`, `GET /insights/merchants`, `GET /insights/subscriptions`, `GET /insights/anomalies`, `GET /insights/duplicate-charges`, `GET /insights/cash-flow`
+## Organizations
 
-Advisor: `GET /advisor/plan`, `GET /advisor/emergency-fund`, `GET /advisor/account-priority`, `POST /advisor/investment-projection`, `POST /advisor/chat`, `POST /advisor/monthly-summary`
+- `POST /organizations`
+- `GET /organizations`
 
-Portfolio: `POST /portfolio/accounts`, `GET /portfolio/accounts`, `POST /portfolio/import/holdings-csv`, `POST /portfolio/import/transactions-csv`, `GET /portfolio/holdings`, `GET /portfolio/summary`, `GET /portfolio/allocation`, `GET /portfolio/performance`, `GET /portfolio/risk`, `GET /portfolio/rebalance-suggestions`, `GET /portfolio/projected-growth`
+## Payment Operations
 
-Market: `GET /market/quote/{symbol}`, `POST /market/quotes`
+- `GET /payments`
+- `GET /payouts`
+- `GET /bank-transactions`
+- `POST /sync/stripe`
+- `POST /sync/bank`
 
-Connections: `GET /connections`, `DELETE /connections/{id}`, `POST /connections/plaid/link-token`, `POST /connections/plaid/exchange-public-token`, `POST /connections/plaid/sync-transactions`
+`POST /sync/stripe` currently loads Stripe-style demo payments, refunds, fees, and payouts. It is intentionally shaped so it can be replaced by real Stripe API/webhook ingestion.
+
+`POST /sync/bank` currently loads demo bank deposits. Real bank data can be connected through Plaid.
+
+## Reconciliation
+
+- `POST /reconciliation/runs`
+- `GET /reconciliation/runs`
+- `GET /reconciliation/runs/{id}`
+- `GET /reconciliation/exceptions`
+- `PATCH /reconciliation/exceptions/{id}`
+
+The reconciliation engine matches processor payouts to bank deposits by amount, arrival date, and description. It creates exceptions for unmatched payouts and unmatched deposits.
+
+## Cash Flow
+
+- `GET /cash-flow/summary`
+- `GET /cash-flow/forecast`
+- `GET /reports/monthly`
+
+## Plaid Connections
+
+- `GET /connections`
+- `DELETE /connections/{id}`
+- `POST /connections/plaid/link-token`
+- `POST /connections/plaid/exchange-public-token`
+- `POST /connections/plaid/sync-transactions`
+
+## Legacy Personal-Finance Endpoints
+
+The codebase still includes Fynora-era personal-finance endpoints for transaction analysis, advisor projections, and portfolio analytics. These remain useful reference modules but are secondary to the Clearflow product direction.

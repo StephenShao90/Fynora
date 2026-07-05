@@ -156,3 +156,148 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_tx_user_symbol ON portfolio_transaction
 CREATE INDEX IF NOT EXISTS idx_brokerage_accounts_user ON brokerage_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_raw_imports_user_created ON raw_imports(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_plaid_connections_user ON plaid_connections(user_id);
+
+CREATE TABLE IF NOT EXISTS organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  currency TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS customers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT,
+  email TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS invoices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+  number TEXT,
+  amount NUMERIC NOT NULL,
+  currency TEXT NOT NULL,
+  status TEXT NOT NULL,
+  due_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  processor TEXT NOT NULL,
+  processor_payment_id TEXT NOT NULL,
+  customer_email TEXT,
+  amount NUMERIC NOT NULL,
+  currency TEXT NOT NULL,
+  status TEXT NOT NULL,
+  occurred_at TIMESTAMP NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  UNIQUE(organization_id, processor_payment_id)
+);
+
+CREATE TABLE IF NOT EXISTS refunds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  processor_refund_id TEXT NOT NULL,
+  payment_id UUID REFERENCES payments(id) ON DELETE SET NULL,
+  amount NUMERIC NOT NULL,
+  currency TEXT NOT NULL,
+  occurred_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS fees (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  processor_fee_id TEXT NOT NULL,
+  payment_id UUID REFERENCES payments(id) ON DELETE SET NULL,
+  amount NUMERIC NOT NULL,
+  currency TEXT NOT NULL,
+  occurred_at TIMESTAMP NOT NULL,
+  description TEXT
+);
+
+CREATE TABLE IF NOT EXISTS payouts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  processor TEXT NOT NULL,
+  processor_payout_id TEXT NOT NULL,
+  amount NUMERIC NOT NULL,
+  currency TEXT NOT NULL,
+  status TEXT NOT NULL,
+  expected_arrival_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  UNIQUE(organization_id, processor_payout_id)
+);
+
+CREATE TABLE IF NOT EXISTS bank_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  source TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  amount NUMERIC NOT NULL,
+  direction TEXT NOT NULL CHECK (direction IN ('credit', 'debit')),
+  currency TEXT NOT NULL,
+  description TEXT,
+  posted_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  UNIQUE(organization_id, external_id)
+);
+
+CREATE TABLE IF NOT EXISTS reconciliation_runs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  matched_count INT NOT NULL DEFAULT 0,
+  exception_count INT NOT NULL DEFAULT 0,
+  started_at TIMESTAMP NOT NULL DEFAULT now(),
+  completed_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS reconciliation_matches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  run_id UUID NOT NULL REFERENCES reconciliation_runs(id) ON DELETE CASCADE,
+  payout_id UUID REFERENCES payouts(id) ON DELETE SET NULL,
+  bank_transaction_id UUID REFERENCES bank_transactions(id) ON DELETE SET NULL,
+  amount NUMERIC NOT NULL,
+  confidence NUMERIC NOT NULL,
+  explanation TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS reconciliation_exceptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  run_id UUID REFERENCES reconciliation_runs(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  title TEXT NOT NULL,
+  explanation TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  reference_id TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_orgs_user ON organizations(user_id);
+CREATE INDEX IF NOT EXISTS idx_payments_org_occurred ON payments(organization_id, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_payouts_org_arrival ON payouts(organization_id, expected_arrival_at);
+CREATE INDEX IF NOT EXISTS idx_bank_tx_org_posted ON bank_transactions(organization_id, posted_at);
+CREATE INDEX IF NOT EXISTS idx_recon_runs_org_started ON reconciliation_runs(organization_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_recon_exceptions_org_status ON reconciliation_exceptions(organization_id, status);

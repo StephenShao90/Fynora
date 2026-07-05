@@ -6,11 +6,10 @@ import { logout } from "@/lib/api";
 
 const nav = [
   ["/dashboard", "Dashboard"],
+  ["/reconciliation", "Reconciliation"],
   ["/imports", "Imports"],
   ["/transactions", "Transactions"],
-  ["/insights", "Insights"],
-  ["/portfolio", "Portfolio"],
-  ["/advisor", "Advisor"],
+  ["/insights", "Cash Flow"],
   ["/settings", "Settings"]
 ];
 
@@ -19,8 +18,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-ink/10 bg-white/90 p-5 lg:block">
-        <Link href="/dashboard" className="text-2xl font-semibold text-ink">Fynora</Link>
-        <p className="mt-2 text-sm text-ink/60">Cash flow, portfolios, and grounded planning.</p>
+        <Link href="/dashboard" className="text-2xl font-semibold text-ink">Clearflow</Link>
+        <p className="mt-2 text-sm text-ink/60">Payment reconciliation and cash-flow intelligence.</p>
         <nav className="mt-8 grid gap-1">
           {nav.map(([href, label]) => (
             <Link key={href} href={href} className={`rounded-md px-3 py-2 text-sm ${path === href ? "bg-mint text-moss" : "text-ink/70 hover:bg-ink/5"}`}>

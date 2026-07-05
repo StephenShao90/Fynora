@@ -2,18 +2,18 @@
 
 ## Backend
 
-- Built a Go-based financial intelligence backend that ingests transaction and portfolio data, archives raw imports through an S3-compatible storage layer, and indexes normalized financial records in PostgreSQL.
-- Designed APIs for JWT authentication, spending analytics, subscription detection, anomaly alerts, portfolio allocation, concentration risk analysis, emergency fund planning, and investment-growth simulations.
-- Implemented structured JSON logging, typed errors, request validation, unit tests, Dockerized local development, and GitHub Actions CI for production-style reliability.
+- Built a Go-based payment reconciliation API that ingests Stripe-style charges, refunds, fees, payouts, and bank transactions, then matches processor payouts to bank deposits using deterministic reconciliation rules.
+- Designed financial operations APIs for organizations, payment sync, bank sync, reconciliation runs, exception management, cash-flow summaries, forecasts, Plaid bank connectivity, and audit logging.
+- Implemented JWT authentication, encrypted Plaid access-token storage, structured logging, PostgreSQL migrations, Dockerized local development, GitHub Actions CI, and Go tests for production-style reliability.
 
 ## Full Stack
 
-- Built Fynora, a full-stack AI personal finance platform with Next.js, Go, PostgreSQL, and JWT auth, enabling users to analyze spending, import portfolios, track holdings, and generate saving/investing plans.
-- Developed interactive dashboards for cash flow, category spending, recurring subscriptions, anomalous charges, portfolio allocation, concentration risk, and long-term investment projections.
-- Integrated an AI advisor chat that explains user spending and portfolio patterns using structured financial analytics while avoiding direct stock-picking recommendations.
+- Built Clearflow, a full-stack payment operations platform with Go, Next.js, TypeScript, PostgreSQL schema design, Plaid Link, and Recharts dashboards for small organizations.
+- Developed a reconciliation dashboard that lets operators sync processor/bank data, run payout-to-deposit matching, review exceptions, resolve breaks, and monitor cash-flow forecasts.
+- Created a polished demo flow for student clubs and small teams, showing matched payouts, refunds, processing fees, unmatched deposits, monthly reports, and cash balance projections.
 
-## Software Engineer
+## Fintech / Payments
 
-- Built an end-to-end financial operating system combining transaction ingestion, portfolio tracking, data normalization, analytics algorithms, AI-assisted summaries, and production-style CI/CD.
-- Designed modular services for authentication, raw event archival, PostgreSQL-backed analytics, portfolio risk analysis, rule-based recommendation engines, and natural-language advisor responses.
-- Delivered a polished demo with sample spending and portfolio data, responsive dashboards, tests, documentation, and deployable cloud-ready architecture.
+- Built a payment reconciliation and cash-flow intelligence system that models core fintech concepts including payouts, settlement timing, refunds, processing fees, bank deposits, reconciliation breaks, and audit logs.
+- Designed an extensible integration layer where mock Stripe sync can be replaced by real Stripe API/webhook ingestion and Plaid bank transactions can feed operational cash-flow analytics.
+- Delivered a backend-heavy portfolio project aligned with payment infrastructure roles: APIs, data integrity, event-style ingestion, idempotent upserts, reconciliation algorithms, and financial exception workflows.

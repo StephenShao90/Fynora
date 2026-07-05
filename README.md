@@ -1,37 +1,47 @@
-# Fynora
+# Clearflow
 
-Fynora is an AI-powered spending intelligence, personal finance planning, and portfolio management platform for students and young professionals. It connects daily spending, monthly cash flow, emergency fund planning, investing capacity, portfolio allocation, concentration risk, and grounded advisor-style explanations.
+Clearflow is a payment reconciliation and cash-flow intelligence platform for small organizations: student clubs, creators, campus businesses, nonprofits, local event teams, tutors, and small service businesses.
 
-Fynora is an educational planning tool, not a registered financial advisor. It does not execute trades, scrape brokerages, store brokerage credentials, or recommend buying or selling specific individual stocks. Projections are hypothetical and not guaranteed.
+It connects payment processor data, bank deposits, and optional CSV/manual imports, then answers the operational questions that small teams usually handle in spreadsheets:
+
+- Which bank deposit came from which Stripe payout?
+- Which charges, refunds, and fees are inside that payout?
+- Which deposits are unmatched?
+- Which payments failed or need follow-up?
+- How much cash is available now?
+- What will cash look like over the next 7, 30, or 60 days?
+
+Clearflow does not move money, execute trades, store bank credentials, or scrape banks. It uses secure providers such as Plaid for bank connectivity and is designed to integrate with processors such as Stripe.
 
 ## Why It Is More Than CRUD
 
-Fynora includes transaction normalization, rule-based categorization, recurring subscription detection, duplicate charge checks, anomaly detection, emergency fund planning, monthly allocation recommendations, investment growth simulation, portfolio allocation analytics, concentration risk checks, mock market data, and deterministic advisor responses grounded in computed user data.
+Clearflow includes processor sync, bank transaction ingestion, payout/deposit matching, exception generation, cash-flow forecasting, audit logs, idempotent-style upserts, Plaid Link integration, and a dashboard built around finance operations workflows. The core value is a reconciliation engine, not a table editor.
 
 ## Architecture
 
 ```text
-User
+Small organization
   |
   v
-Next.js Dashboard
+Next.js Operations Dashboard
   |
   v
 Go API
   |------ PostgreSQL schema
-  |------ Raw Event Store / S3-ready interface
-  |------ Spending Intelligence Engine
-  |------ Portfolio Analytics Engine
-  |------ Market Data Provider
-  |------ Optional AI Advisor API
+  |------ Plaid bank connection
+  |------ Stripe-style payment/payout sync
+  |------ Reconciliation Engine
+  |------ Exception Tracking
+  |------ Cash-Flow Forecasting
+  |------ Audit Logs
 ```
 
 ## Tech Stack
 
 - Frontend: Next.js App Router, TypeScript, React, Tailwind CSS, Recharts
-- Backend: Go, layered internal packages, JWT auth, bcrypt password hashing
-- Data: PostgreSQL migrations plus local demo store for frictionless portfolio demos
-- Storage: local raw event store with S3-ready interface
+- Backend: Go, JWT auth, bcrypt password hashing, structured JSON logging
+- Data: PostgreSQL migrations plus local demo store for frictionless evaluation
+- Integrations: Plaid Link for secure bank connectivity; Stripe-style mock sync ready to replace with real Stripe APIs/webhooks
 - DevOps: Docker Compose, Makefile, GitHub Actions CI
 
 ## Local Setup
@@ -45,9 +55,9 @@ make api
 make web
 ```
 
-Open `http://localhost:3000` and click **Try Demo**. The demo flow seeds a user, advisor profile, transactions, brokerage account, holdings, and portfolio transactions automatically.
+Open `http://localhost:3000` and click **Try Demo**. The demo flow seeds a user, organization, Stripe-style payments, fees, refund, payout, bank deposits, and a reconciliation run.
 
-## Real Bank Data With Plaid
+## Plaid Bank Data
 
 Add your Plaid keys to `.env`:
 
@@ -59,31 +69,39 @@ PLAID_PRODUCTS=transactions
 PLAID_COUNTRY_CODES=US,CA
 ```
 
-Run `make api` from the repo root so the Makefile exports `.env`. In the app, go to **Imports** and click **Connect bank with Plaid**. Plaid handles bank authentication; Fynora receives a temporary public token, exchanges it server-side, encrypts the Plaid access token using `JWT_SECRET`, stores it under `data/plaid-connections.json`, and syncs normalized transactions into the existing Fynora transaction/insight pipeline.
+Run `make api` from the repo root so the Makefile exports `.env`. In the app, go to **Imports** and click **Connect bank with Plaid**. Plaid handles bank authentication; Clearflow receives a temporary public token, exchanges it server-side, encrypts the Plaid access token using `JWT_SECRET`, and stores it under `data/plaid-connections.json`.
 
 Do not commit `.env` or the `data/` directory.
 
 ## API Highlights
 
-- `POST /auth/register`, `POST /auth/login`, `POST /auth/demo-token`, `GET /me`
-- `POST /imports/transactions-csv`, `GET /transactions`
-- `GET /insights/monthly-summary`, `/categories`, `/subscriptions`, `/anomalies`, `/cash-flow`
-- `GET /advisor/plan`, `/emergency-fund`, `/account-priority`, `POST /advisor/investment-projection`, `POST /advisor/chat`
-- `POST /portfolio/import/holdings-csv`, `GET /portfolio/summary`, `/allocation`, `/risk`, `/rebalance-suggestions`, `/projected-growth`
-- `GET /market/quote/{symbol}`, `POST /market/quotes`
-- `POST /connections/plaid/link-token`, `/exchange-public-token`, `/sync-transactions`, `GET /connections`
+- Auth: `POST /auth/register`, `POST /auth/login`, `POST /auth/demo-token`, `GET /me`
+- Organizations: `POST /organizations`, `GET /organizations`
+- Processor/bank sync: `POST /sync/stripe`, `POST /sync/bank`
+- Reconciliation: `POST /reconciliation/runs`, `GET /reconciliation/runs`, `GET /reconciliation/runs/{id}`, `GET /reconciliation/exceptions`, `PATCH /reconciliation/exceptions/{id}`
+- Cash flow: `GET /cash-flow/summary`, `GET /cash-flow/forecast`, `GET /reports/monthly`
+- Operations data: `GET /payments`, `GET /payouts`, `GET /bank-transactions`
+- Plaid: `POST /connections/plaid/link-token`, `POST /connections/plaid/exchange-public-token`, `POST /connections/plaid/sync-transactions`, `GET /connections`
 
-## Broker Integration Strategy
+## Demo Workflow
 
-Fynora starts with manual holdings and CSV imports, including Wealthsimple-style holdings exports. Future real integrations should use official APIs or approved aggregators such as Plaid Investments, SnapTrade, or Flinks. The app should never ask for or store raw brokerage passwords.
+1. Click **Try Demo**.
+2. Open **Reconciliation**.
+3. Review the seeded payout/deposit match and unmatched deposit exception.
+4. Click **Sync Stripe sample**, **Sync bank sample**, and **Run reconciliation** to generate another run.
+5. Open **Dashboard** to see cash balance, fees/refunds, exceptions, payout chart, and cash forecast.
 
-## Sample Data
+## Product Direction
 
-Sample CSVs live in `sample-data/`:
+The next production step is replacing `POST /sync/stripe` mock data with real Stripe OAuth/API sync and webhook ingestion:
 
-- `sample_transactions.csv`
-- `sample_holdings.csv`
-- `sample_portfolio_transactions.csv`
+- `payment_intent.succeeded`
+- `charge.refunded`
+- `payout.paid`
+- `payout.failed`
+- `balance.available`
+
+The second production step is replacing the local memory store with PostgreSQL repositories for all Clearflow resources.
 
 ## Testing
 
@@ -95,13 +113,8 @@ make build
 
 ## Deployment Notes
 
-The frontend can deploy to Vercel with `NEXT_PUBLIC_API_BASE_URL` pointing at the API. The Go API can be containerized for AWS ECS/App Runner or adapted for Lambda. PostgreSQL maps naturally to RDS, and raw imports can move from local storage to S3 behind the existing storage interface.
+The frontend can deploy to Vercel with `NEXT_PUBLIC_API_BASE_URL` pointing at the API. The Go API can run on AWS ECS/App Runner or Lambda. PostgreSQL maps naturally to RDS. Plaid secrets and future Stripe secrets should live in a managed secret store, not in the repo.
 
-## Future Improvements
+## Resume Summary
 
-- Replace the demo memory store with full PostgreSQL repositories in all handlers
-- Add `sqlc` generated queries and repository integration tests
-- Add OAuth-style broker aggregator connections
-- Persist portfolio snapshots for richer performance charts
-- Add OpenAI-compatible advisor calls when `OPENAI_API_KEY` is configured
-- Add frontend component tests and Playwright smoke tests
+Built a Go-based payment reconciliation platform that ingests Stripe-style payouts and bank transactions, matches deposits to payments/refunds/fees, flags reconciliation exceptions, forecasts cash flow, and exposes a production-style API with auth, audit logs, Docker, CI, and a polished Next.js dashboard.

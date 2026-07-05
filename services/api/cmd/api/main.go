@@ -44,25 +44,53 @@ type app struct {
 }
 
 type memoryStore struct {
-	mu                    sync.RWMutex
-	users                 map[string]models.User
-	usersByEmail          map[string]string
-	profiles              map[string]models.AdvisorProfile
-	imports               map[string]models.RawImport
-	transactions          map[string]models.Transaction
-	accounts              map[string]models.BrokerageAccount
-	holdings              map[string]models.Holding
-	portfolioTransactions map[string]models.PortfolioTransaction
-	plaidConnections      map[string]models.PlaidConnection
+	mu                       sync.RWMutex
+	users                    map[string]models.User
+	usersByEmail             map[string]string
+	profiles                 map[string]models.AdvisorProfile
+	imports                  map[string]models.RawImport
+	transactions             map[string]models.Transaction
+	accounts                 map[string]models.BrokerageAccount
+	holdings                 map[string]models.Holding
+	portfolioTransactions    map[string]models.PortfolioTransaction
+	plaidConnections         map[string]models.PlaidConnection
+	organizations            map[string]models.Organization
+	customers                map[string]models.Customer
+	invoices                 map[string]models.Invoice
+	payments                 map[string]models.Payment
+	refunds                  map[string]models.Refund
+	fees                     map[string]models.Fee
+	payouts                  map[string]models.Payout
+	bankTransactions         map[string]models.BankTransaction
+	reconciliationRuns       map[string]models.ReconciliationRun
+	reconciliationMatches    map[string]models.ReconciliationMatch
+	reconciliationExceptions map[string]models.ReconciliationException
+	auditLogs                map[string]models.AuditLog
 }
 
 func newStore() *memoryStore {
 	return &memoryStore{
-		users: map[string]models.User{}, usersByEmail: map[string]string{},
-		profiles: map[string]models.AdvisorProfile{}, imports: map[string]models.RawImport{},
-		transactions: map[string]models.Transaction{}, accounts: map[string]models.BrokerageAccount{},
-		holdings: map[string]models.Holding{}, portfolioTransactions: map[string]models.PortfolioTransaction{},
-		plaidConnections: map[string]models.PlaidConnection{},
+		users:                    map[string]models.User{},
+		usersByEmail:             map[string]string{},
+		profiles:                 map[string]models.AdvisorProfile{},
+		imports:                  map[string]models.RawImport{},
+		transactions:             map[string]models.Transaction{},
+		accounts:                 map[string]models.BrokerageAccount{},
+		holdings:                 map[string]models.Holding{},
+		portfolioTransactions:    map[string]models.PortfolioTransaction{},
+		plaidConnections:         map[string]models.PlaidConnection{},
+		organizations:            map[string]models.Organization{},
+		customers:                map[string]models.Customer{},
+		invoices:                 map[string]models.Invoice{},
+		payments:                 map[string]models.Payment{},
+		refunds:                  map[string]models.Refund{},
+		fees:                     map[string]models.Fee{},
+		payouts:                  map[string]models.Payout{},
+		bankTransactions:         map[string]models.BankTransaction{},
+		reconciliationRuns:       map[string]models.ReconciliationRun{},
+		reconciliationMatches:    map[string]models.ReconciliationMatch{},
+		reconciliationExceptions: map[string]models.ReconciliationException{},
+		auditLogs:                map[string]models.AuditLog{},
 	}
 }
 
@@ -126,6 +154,21 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /connections/plaid/link-token", a.authed(a.createPlaidLinkToken))
 	mux.HandleFunc("POST /connections/plaid/exchange-public-token", a.authed(a.exchangePlaidPublicToken))
 	mux.HandleFunc("POST /connections/plaid/sync-transactions", a.authed(a.syncPlaidTransactions))
+	mux.HandleFunc("POST /organizations", a.authed(a.createOrganization))
+	mux.HandleFunc("GET /organizations", a.authed(a.listOrganizations))
+	mux.HandleFunc("GET /payments", a.authed(a.listPayments))
+	mux.HandleFunc("GET /payouts", a.authed(a.listPayouts))
+	mux.HandleFunc("GET /bank-transactions", a.authed(a.listBankTransactions))
+	mux.HandleFunc("POST /sync/stripe", a.authed(a.syncStripeMock))
+	mux.HandleFunc("POST /sync/bank", a.authed(a.syncBankMock))
+	mux.HandleFunc("POST /reconciliation/runs", a.authed(a.createReconciliationRun))
+	mux.HandleFunc("GET /reconciliation/runs", a.authed(a.listReconciliationRuns))
+	mux.HandleFunc("GET /reconciliation/runs/{id}", a.authed(a.getReconciliationRun))
+	mux.HandleFunc("GET /reconciliation/exceptions", a.authed(a.listReconciliationExceptions))
+	mux.HandleFunc("PATCH /reconciliation/exceptions/{id}", a.authed(a.patchReconciliationException))
+	mux.HandleFunc("GET /cash-flow/summary", a.authed(a.clearflowCashSummary))
+	mux.HandleFunc("GET /cash-flow/forecast", a.authed(a.clearflowCashForecast))
+	mux.HandleFunc("GET /reports/monthly", a.authed(a.clearflowMonthlyReport))
 	mux.HandleFunc("POST /portfolio/import/holdings-csv", a.authed(a.importHoldingsCSV))
 	mux.HandleFunc("POST /portfolio/import/transactions-csv", a.authed(a.importPortfolioTransactionsCSV))
 	mux.HandleFunc("POST /portfolio/holdings", a.authed(a.createHolding))
@@ -1232,7 +1275,6 @@ func (a *app) seedDemo() models.User {
 	holdings, _ := parseHoldingsCSV(u.ID, demoHoldingsCSV(), accountID)
 	ptxs, _ := parsePortfolioTransactionsCSV(u.ID, demoPortfolioTransactionsCSV(), accountID)
 	a.store.mu.Lock()
-	defer a.store.mu.Unlock()
 	for _, t := range txs {
 		a.store.transactions[t.ID] = t
 	}
@@ -1242,6 +1284,8 @@ func (a *app) seedDemo() models.User {
 	for _, tx := range ptxs {
 		a.store.portfolioTransactions[tx.ID] = tx
 	}
+	a.store.mu.Unlock()
+	a.seedClearflowDemo(u.ID)
 	return u
 }
 
