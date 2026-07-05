@@ -111,6 +111,10 @@ make test
 make build
 ```
 
+## Debugging
+
+Backend and frontend logs include request IDs and operation metadata. See `docs/debugging.md` for what to copy back when manually testing issues.
+
 ## Deployment Notes
 
 The frontend can deploy to Vercel with `NEXT_PUBLIC_API_BASE_URL` pointing at the API. The Go API can run on AWS ECS/App Runner or Lambda. PostgreSQL maps naturally to RDS. Plaid secrets and future Stripe secrets should live in a managed secret store, not in the repo.

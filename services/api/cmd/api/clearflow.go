@@ -14,6 +14,7 @@ import (
 )
 
 func (a *app) createOrganization(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	var req struct {
 		Name     string `json:"name"`
 		Type     string `json:"type"`
@@ -37,6 +38,7 @@ func (a *app) createOrganization(w http.ResponseWriter, r *http.Request) {
 	a.store.organizations[org.ID] = org
 	a.auditLocked(org.ID, userID(r), "organization.created", "organization", org.ID)
 	a.store.mu.Unlock()
+	a.logOperation(r, "organization.created", org.ID, map[string]interface{}{"organization_id": org.ID, "name": org.Name, "latency_ms": time.Since(start).Milliseconds()})
 	writeJSON(w, 201, org)
 }
 
@@ -87,6 +89,7 @@ func (a *app) listBankTransactions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) syncStripeMock(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	org := a.ensureOrganization(userID(r))
 	now := time.Now().UTC()
 	payments := []models.Payment{
@@ -124,10 +127,12 @@ func (a *app) syncStripeMock(w http.ResponseWriter, r *http.Request) {
 	a.upsertPayoutLocked(payout)
 	a.auditLocked(org.ID, userID(r), "stripe.mock_synced", "payout", payout.ID)
 	a.store.mu.Unlock()
+	a.logOperation(r, "stripe.sync.completed", org.ID, map[string]interface{}{"organization_id": org.ID, "payments": len(payments), "refunds": 1, "fees": len(fees), "payout_id": payout.ID, "payout_amount": payout.Amount, "latency_ms": time.Since(start).Milliseconds()})
 	writeJSON(w, 200, map[string]interface{}{"payments": len(payments), "refunds": 1, "fees": len(fees), "payout": payout})
 }
 
 func (a *app) syncBankMock(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	org := a.ensureOrganization(userID(r))
 	now := time.Now().UTC()
 	payoutAmount := 0.0
@@ -152,12 +157,15 @@ func (a *app) syncBankMock(w http.ResponseWriter, r *http.Request) {
 	}
 	a.auditLocked(org.ID, userID(r), "bank.mock_synced", "bank_transaction", rows[0].ID)
 	a.store.mu.Unlock()
+	a.logOperation(r, "bank.sync.completed", org.ID, map[string]interface{}{"organization_id": org.ID, "bank_transactions": len(rows), "stripe_deposit_amount": rows[0].Amount, "latency_ms": time.Since(start).Milliseconds()})
 	writeJSON(w, 200, map[string]interface{}{"bank_transactions": len(rows)})
 }
 
 func (a *app) createReconciliationRun(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	org := a.ensureOrganization(userID(r))
 	run := a.reconcileOrganization(org.ID, userID(r))
+	a.logOperation(r, "reconciliation.run.created", org.ID, map[string]interface{}{"organization_id": org.ID, "run_id": run.ID, "matched_count": run.MatchedCount, "exception_count": run.ExceptionCount, "latency_ms": time.Since(start).Milliseconds()})
 	writeJSON(w, 201, run)
 }
 
@@ -215,6 +223,7 @@ func (a *app) listReconciliationExceptions(w http.ResponseWriter, r *http.Reques
 }
 
 func (a *app) patchReconciliationException(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	var req struct {
 		Status string `json:"status"`
 	}
@@ -235,6 +244,7 @@ func (a *app) patchReconciliationException(w http.ResponseWriter, r *http.Reques
 	row.Status = req.Status
 	a.store.reconciliationExceptions[row.ID] = row
 	a.auditLocked(orgID, userID(r), "reconciliation_exception.updated", "reconciliation_exception", row.ID)
+	a.logOperation(r, "reconciliation_exception.updated", orgID, map[string]interface{}{"organization_id": orgID, "exception_id": row.ID, "status": row.Status, "latency_ms": time.Since(start).Milliseconds()})
 	writeJSON(w, 200, row)
 }
 
@@ -316,9 +326,78 @@ func (a *app) clearflowMonthlyReport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]interface{}{"gross_payments": round2(gross), "refunds": round2(refunds), "fees": round2(fees), "net_processor_activity": round2(gross - refunds - fees), "payouts": round2(payouts), "month": time.Now().UTC().Format("2006-01")})
 }
 
+func (a *app) debugClearflowState(w http.ResponseWriter, r *http.Request) {
+	org := a.ensureOrganization(userID(r))
+	a.store.mu.RLock()
+	defer a.store.mu.RUnlock()
+	counts := map[string]int{
+		"payments":     0,
+		"refunds":      0,
+		"fees":         0,
+		"payouts":      0,
+		"bank_tx":      0,
+		"runs":         0,
+		"matches":      0,
+		"exceptions":   0,
+		"open_breaks":  0,
+		"audit_events": 0,
+	}
+	for _, row := range a.store.payments {
+		if row.OrganizationID == org.ID {
+			counts["payments"]++
+		}
+	}
+	for _, row := range a.store.refunds {
+		if row.OrganizationID == org.ID {
+			counts["refunds"]++
+		}
+	}
+	for _, row := range a.store.fees {
+		if row.OrganizationID == org.ID {
+			counts["fees"]++
+		}
+	}
+	for _, row := range a.store.payouts {
+		if row.OrganizationID == org.ID {
+			counts["payouts"]++
+		}
+	}
+	for _, row := range a.store.bankTransactions {
+		if row.OrganizationID == org.ID {
+			counts["bank_tx"]++
+		}
+	}
+	for _, row := range a.store.reconciliationRuns {
+		if row.OrganizationID == org.ID {
+			counts["runs"]++
+		}
+	}
+	for _, row := range a.store.reconciliationMatches {
+		if row.OrganizationID == org.ID {
+			counts["matches"]++
+		}
+	}
+	for _, row := range a.store.reconciliationExceptions {
+		if row.OrganizationID == org.ID {
+			counts["exceptions"]++
+			if row.Status == "open" {
+				counts["open_breaks"]++
+			}
+		}
+	}
+	for _, row := range a.store.auditLogs {
+		if row.OrganizationID == org.ID {
+			counts["audit_events"]++
+		}
+	}
+	writeJSON(w, 200, map[string]interface{}{"organization": org, "counts": counts, "debug_note": "No secrets are included. Pair this with terminal JSON logs when reporting bugs."})
+}
+
 func (a *app) reconcileOrganization(orgID, uid string) models.ReconciliationRun {
 	now := time.Now().UTC()
 	run := models.ReconciliationRun{ID: auth.NewID(), OrganizationID: orgID, Status: "completed", StartedAt: now}
+	evaluatedPayouts := 0
+	evaluatedDeposits := 0
 	a.store.mu.Lock()
 	defer a.store.mu.Unlock()
 	matchedBanks := map[string]bool{}
@@ -326,12 +405,14 @@ func (a *app) reconcileOrganization(orgID, uid string) models.ReconciliationRun 
 		if payout.OrganizationID != orgID {
 			continue
 		}
+		evaluatedPayouts++
 		best := models.BankTransaction{}
 		bestScore := 0.0
 		for _, bank := range a.store.bankTransactions {
 			if bank.OrganizationID != orgID || bank.Direction != "credit" || matchedBanks[bank.ID] {
 				continue
 			}
+			evaluatedDeposits++
 			amountScore := 1 - math.Min(1, math.Abs(bank.Amount-payout.Amount)/math.Max(payout.Amount, 1))
 			dateDistance := math.Abs(bank.PostedAt.Sub(payout.ExpectedArrivalAt).Hours()) / 24
 			dateScore := math.Max(0, 1-dateDistance/5)
@@ -364,6 +445,7 @@ func (a *app) reconcileOrganization(orgID, uid string) models.ReconciliationRun 
 	run.CompletedAt = time.Now().UTC()
 	a.store.reconciliationRuns[run.ID] = run
 	a.auditLocked(orgID, uid, "reconciliation.run_completed", "reconciliation_run", run.ID)
+	a.log.Info("reconciliation.engine.completed", map[string]interface{}{"organization_id": orgID, "run_id": run.ID, "evaluated_payouts": evaluatedPayouts, "evaluated_deposit_candidates": evaluatedDeposits, "matched_count": run.MatchedCount, "exception_count": run.ExceptionCount, "duration_ms": run.CompletedAt.Sub(run.StartedAt).Milliseconds()})
 	return run
 }
 
@@ -514,6 +596,18 @@ func (a *app) addExceptionLocked(orgID, runID, kind, severity, title, explanatio
 func (a *app) auditLocked(orgID, uid, action, targetType, targetID string) {
 	log := models.AuditLog{ID: auth.NewID(), OrganizationID: orgID, UserID: uid, Action: action, TargetType: targetType, TargetID: targetID, CreatedAt: time.Now().UTC()}
 	a.store.auditLogs[log.ID] = log
+}
+
+func (a *app) logOperation(r *http.Request, event, orgID string, fields map[string]interface{}) {
+	if fields == nil {
+		fields = map[string]interface{}{}
+	}
+	fields["event"] = event
+	fields["organization_id"] = orgID
+	fields["request_id"] = r.Header.Get("X-Request-ID")
+	fields["user_id"] = userID(r)
+	fields["path"] = r.URL.Path
+	a.log.Info("clearflow.operation", fields)
 }
 
 func round2(v float64) float64 {

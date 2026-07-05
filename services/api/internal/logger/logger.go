@@ -2,6 +2,7 @@ package logger
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -22,6 +23,9 @@ func (l Logger) Error(message string, fields map[string]interface{}) {
 }
 
 func (l Logger) write(level, message string, fields map[string]interface{}) {
+	if l.base == nil {
+		l.base = log.New(io.Discard, "", 0)
+	}
 	if fields == nil {
 		fields = map[string]interface{}{}
 	}

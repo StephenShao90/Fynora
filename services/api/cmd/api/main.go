@@ -169,6 +169,7 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /cash-flow/summary", a.authed(a.clearflowCashSummary))
 	mux.HandleFunc("GET /cash-flow/forecast", a.authed(a.clearflowCashForecast))
 	mux.HandleFunc("GET /reports/monthly", a.authed(a.clearflowMonthlyReport))
+	mux.HandleFunc("GET /debug/clearflow", a.authed(a.debugClearflowState))
 	mux.HandleFunc("POST /portfolio/import/holdings-csv", a.authed(a.importHoldingsCSV))
 	mux.HandleFunc("POST /portfolio/import/transactions-csv", a.authed(a.importPortfolioTransactionsCSV))
 	mux.HandleFunc("POST /portfolio/holdings", a.authed(a.createHolding))
@@ -1223,9 +1224,28 @@ func (a *app) requestLog(next http.Handler) http.Handler {
 			requestID = auth.NewID()
 			r.Header.Set("X-Request-ID", requestID)
 		}
-		next.ServeHTTP(w, r)
-		a.log.Info("request", map[string]interface{}{"request_id": requestID, "method": r.Method, "path": r.URL.Path, "latency_ms": time.Since(start).Milliseconds(), "user_id": userID(r)})
+		w.Header().Set("X-Request-ID", requestID)
+		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(recorder, r)
+		a.log.Info("http.request", map[string]interface{}{"request_id": requestID, "method": r.Method, "path": r.URL.Path, "query": r.URL.RawQuery, "status": recorder.status, "bytes": recorder.bytes, "latency_ms": time.Since(start).Milliseconds(), "user_id": userID(r)})
 	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *statusRecorder) Write(payload []byte) (int, error) {
+	n, err := r.ResponseWriter.Write(payload)
+	r.bytes += n
+	return n, err
 }
 func (a *app) recover(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
