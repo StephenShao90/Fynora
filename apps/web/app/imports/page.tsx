@@ -7,9 +7,9 @@ import { Header } from "@/components/Common";
 import { api, upload } from "@/lib/api";
 
 const uploads = [
-  ["Transactions CSV", "/imports/transactions-csv", "sample_transactions.csv"],
-  ["Holdings CSV", "/portfolio/import/holdings-csv", "sample_holdings.csv"],
-  ["Portfolio transactions CSV", "/portfolio/import/transactions-csv", "sample_portfolio_transactions.csv"]
+  ["Bank activity CSV", "/imports/transactions-csv", "sample_transactions.csv"],
+  ["Processor export CSV", "/portfolio/import/transactions-csv", "sample_portfolio_transactions.csv"],
+  ["Legacy holdings CSV", "/portfolio/import/holdings-csv", "sample_holdings.csv"]
 ];
 
 type PlaidHandler = {
@@ -109,11 +109,11 @@ export default function Imports() {
   return (
     <Shell>
       <Script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js" onLoad={() => setPlaidReady(true)} />
-      <Header title="Imports" subtitle="Upload bank transactions and brokerage CSV exports without sharing credentials." />
+      <Header title="Data connections" subtitle="Connect bank data through Plaid, then supplement with processor or bank CSV exports while Stripe sync is in mock mode." />
       <div className="mb-5 grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
-        <Card title="Secure bank connection">
+        <Card title="Bank connection">
           <p className="text-sm leading-6 text-ink/65">
-            Plaid handles bank login and MFA. Fynora only receives authorized transaction data and stores the Plaid access token on the backend.
+            Plaid handles bank login and MFA. Clearflow receives authorized transaction data and stores Plaid tokens on the backend only.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <button onClick={connectPlaid} className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white">
@@ -125,7 +125,7 @@ export default function Imports() {
           </div>
           {busy ? <p className="mt-3 text-sm text-moss">{busy}</p> : null}
         </Card>
-        <Card title="Connections">
+        <Card title="Connection status">
           {connections.length ? (
             <div className="grid gap-2">
               {connections.map((connection) => (
