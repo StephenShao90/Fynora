@@ -47,6 +47,22 @@ make web
 
 Open `http://localhost:3000` and click **Try Demo**. The demo flow seeds a user, advisor profile, transactions, brokerage account, holdings, and portfolio transactions automatically.
 
+## Real Bank Data With Plaid
+
+Add your Plaid keys to `.env`:
+
+```bash
+PLAID_CLIENT_ID=...
+PLAID_SECRET=...
+PLAID_ENV=production
+PLAID_PRODUCTS=transactions
+PLAID_COUNTRY_CODES=US,CA
+```
+
+Run `make api` from the repo root so the Makefile exports `.env`. In the app, go to **Imports** and click **Connect bank with Plaid**. Plaid handles bank authentication; Fynora receives a temporary public token, exchanges it server-side, encrypts the Plaid access token using `JWT_SECRET`, stores it under `data/plaid-connections.json`, and syncs normalized transactions into the existing Fynora transaction/insight pipeline.
+
+Do not commit `.env` or the `data/` directory.
+
 ## API Highlights
 
 - `POST /auth/register`, `POST /auth/login`, `POST /auth/demo-token`, `GET /me`
@@ -55,6 +71,7 @@ Open `http://localhost:3000` and click **Try Demo**. The demo flow seeds a user,
 - `GET /advisor/plan`, `/emergency-fund`, `/account-priority`, `POST /advisor/investment-projection`, `POST /advisor/chat`
 - `POST /portfolio/import/holdings-csv`, `GET /portfolio/summary`, `/allocation`, `/risk`, `/rebalance-suggestions`, `/projected-growth`
 - `GET /market/quote/{symbol}`, `POST /market/quotes`
+- `POST /connections/plaid/link-token`, `/exchange-public-token`, `/sync-transactions`, `GET /connections`
 
 ## Broker Integration Strategy
 

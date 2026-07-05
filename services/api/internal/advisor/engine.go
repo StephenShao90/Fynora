@@ -16,28 +16,28 @@ type CategoryTotal struct {
 }
 
 type CashFlowSummary struct {
-	AverageMonthlyIncome    float64 `json:"average_monthly_income"`
-	AverageFixedExpenses    float64 `json:"average_fixed_expenses"`
-	AverageVariableExpenses float64 `json:"average_variable_expenses"`
-	AverageNetCashFlow      float64 `json:"average_net_cash_flow"`
-	SavingsCapacity         float64 `json:"savings_capacity"`
+	AverageMonthlyIncome      float64 `json:"average_monthly_income"`
+	AverageFixedExpenses      float64 `json:"average_fixed_expenses"`
+	AverageVariableExpenses   float64 `json:"average_variable_expenses"`
+	AverageNetCashFlow        float64 `json:"average_net_cash_flow"`
+	SavingsCapacity           float64 `json:"savings_capacity"`
 	SafeSavingsRecommendation float64 `json:"safe_savings_recommendation"`
-	BufferRecommendation    float64 `json:"buffer_recommendation"`
+	BufferRecommendation      float64 `json:"buffer_recommendation"`
 }
 
 type Subscription struct {
 	Merchant      string    `json:"merchant"`
-	Amount       float64   `json:"amount_estimate"`
-	Frequency    string    `json:"frequency"`
+	Amount        float64   `json:"amount_estimate"`
+	Frequency     string    `json:"frequency"`
 	LastChargedAt time.Time `json:"last_charged_at"`
-	Confidence   float64   `json:"confidence"`
+	Confidence    float64   `json:"confidence"`
 }
 
 type Anomaly struct {
-	Reason      string              `json:"reason"`
-	Transaction models.Transaction  `json:"transaction"`
-	Severity    string              `json:"severity"`
-	Explanation string              `json:"explanation"`
+	Reason      string             `json:"reason"`
+	Transaction models.Transaction `json:"transaction"`
+	Severity    string             `json:"severity"`
+	Explanation string             `json:"explanation"`
 }
 
 type EmergencyFundPlan struct {
@@ -50,10 +50,10 @@ type EmergencyFundPlan struct {
 }
 
 type ProjectionPoint struct {
-	Year         int     `json:"year"`
-	Lower        float64 `json:"lower"`
-	Expected     float64 `json:"expected"`
-	Upper        float64 `json:"upper"`
+	Year          int     `json:"year"`
+	Lower         float64 `json:"lower"`
+	Expected      float64 `json:"expected"`
+	Upper         float64 `json:"upper"`
 	Contributions float64 `json:"contributions"`
 }
 
@@ -340,10 +340,14 @@ func totals(m map[string]float64) []CategoryTotal {
 
 func meanSD(vals []float64) (float64, float64) {
 	var sum float64
-	for _, v := range vals { sum += v }
+	for _, v := range vals {
+		sum += v
+	}
 	mean := sum / float64(len(vals))
 	variance := 0.0
-	for _, v := range vals { variance += math.Pow(v-mean, 2) }
+	for _, v := range vals {
+		variance += math.Pow(v-mean, 2)
+	}
 	return mean, math.Sqrt(variance / float64(len(vals)))
 }
 

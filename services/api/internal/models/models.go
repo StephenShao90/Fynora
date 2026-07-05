@@ -117,3 +117,16 @@ type Recommendation struct {
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 	CreatedAt time.Time              `json:"created_at"`
 }
+
+type PlaidConnection struct {
+	ID                    string    `json:"id"`
+	UserID                string    `json:"user_id"`
+	ItemID                string    `json:"item_id"`
+	InstitutionName       string    `json:"institution_name"`
+	AccessTokenCiphertext string    `json:"-"`
+	Cursor                string    `json:"cursor,omitempty"`
+	Products              []string  `json:"products"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
+	LastSyncedAt          time.Time `json:"last_synced_at,omitempty"`
+}

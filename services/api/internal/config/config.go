@@ -13,6 +13,11 @@ type Config struct {
 	OpenAIAPIKey    string
 	OpenAIModel     string
 	MarketProvider  string
+	PlaidClientID   string
+	PlaidSecret     string
+	PlaidEnv        string
+	PlaidProducts   string
+	PlaidCountries  string
 	AppEnv          string
 }
 
@@ -28,6 +33,11 @@ func Load() Config {
 		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
 		OpenAIModel:     env("OPENAI_MODEL", "gpt-4o-mini"),
 		MarketProvider:  env("MARKET_DATA_PROVIDER", "mock"),
+		PlaidClientID:   os.Getenv("PLAID_CLIENT_ID"),
+		PlaidSecret:     os.Getenv("PLAID_SECRET"),
+		PlaidEnv:        env("PLAID_ENV", "sandbox"),
+		PlaidProducts:   env("PLAID_PRODUCTS", "transactions"),
+		PlaidCountries:  env("PLAID_COUNTRY_CODES", "US,CA"),
 		AppEnv:          env("APP_ENV", "development"),
 	}
 }

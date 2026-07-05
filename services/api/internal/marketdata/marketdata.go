@@ -36,12 +36,12 @@ func (MockProvider) GetQuotes(ctx context.Context, symbols []string) ([]Quote, e
 	default:
 	}
 	fixtures := map[string]Quote{
-		"VFV.TO": {Symbol: "VFV.TO", Name: "Vanguard S&P 500 Index ETF", Price: 148.35, Currency: "CAD", PreviousClose: 147.9},
+		"VFV.TO":  {Symbol: "VFV.TO", Name: "Vanguard S&P 500 Index ETF", Price: 148.35, Currency: "CAD", PreviousClose: 147.9},
 		"XEQT.TO": {Symbol: "XEQT.TO", Name: "iShares Core Equity ETF Portfolio", Price: 36.42, Currency: "CAD", PreviousClose: 36.1},
-		"VOO": {Symbol: "VOO", Name: "Vanguard S&P 500 ETF", Price: 545.11, Currency: "USD", PreviousClose: 542.7},
-		"AAPL": {Symbol: "AAPL", Name: "Apple Inc.", Price: 214.29, Currency: "USD", PreviousClose: 211.3},
-		"MSFT": {Symbol: "MSFT", Name: "Microsoft Corp.", Price: 498.84, Currency: "USD", PreviousClose: 496.2},
-		"CASH": {Symbol: "CASH", Name: "Cash", Price: 1, Currency: "CAD", PreviousClose: 1},
+		"VOO":     {Symbol: "VOO", Name: "Vanguard S&P 500 ETF", Price: 545.11, Currency: "USD", PreviousClose: 542.7},
+		"AAPL":    {Symbol: "AAPL", Name: "Apple Inc.", Price: 214.29, Currency: "USD", PreviousClose: 211.3},
+		"MSFT":    {Symbol: "MSFT", Name: "Microsoft Corp.", Price: 498.84, Currency: "USD", PreviousClose: 496.2},
+		"CASH":    {Symbol: "CASH", Name: "Cash", Price: 1, Currency: "CAD", PreviousClose: 1},
 	}
 	now := time.Now().UTC()
 	out := make([]Quote, 0, len(symbols))

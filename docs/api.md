@@ -17,3 +17,5 @@ Advisor: `GET /advisor/plan`, `GET /advisor/emergency-fund`, `GET /advisor/accou
 Portfolio: `POST /portfolio/accounts`, `GET /portfolio/accounts`, `POST /portfolio/import/holdings-csv`, `POST /portfolio/import/transactions-csv`, `GET /portfolio/holdings`, `GET /portfolio/summary`, `GET /portfolio/allocation`, `GET /portfolio/performance`, `GET /portfolio/risk`, `GET /portfolio/rebalance-suggestions`, `GET /portfolio/projected-growth`
 
 Market: `GET /market/quote/{symbol}`, `POST /market/quotes`
+
+Connections: `GET /connections`, `DELETE /connections/{id}`, `POST /connections/plaid/link-token`, `POST /connections/plaid/exchange-public-token`, `POST /connections/plaid/sync-transactions`

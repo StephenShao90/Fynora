@@ -132,6 +132,19 @@ CREATE TABLE IF NOT EXISTS recommendations (
   created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS plaid_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_id TEXT NOT NULL,
+  institution_name TEXT NOT NULL,
+  access_token_ciphertext TEXT NOT NULL,
+  cursor TEXT,
+  products TEXT[] NOT NULL DEFAULT ARRAY['transactions'],
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now(),
+  last_synced_at TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_transactions_user_occurred ON transactions(user_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_category ON transactions(user_id, category);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_merchant ON transactions(user_id, normalized_merchant);
@@ -142,3 +155,4 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_tx_user_occurred ON portfolio_transacti
 CREATE INDEX IF NOT EXISTS idx_portfolio_tx_user_symbol ON portfolio_transactions(user_id, symbol);
 CREATE INDEX IF NOT EXISTS idx_brokerage_accounts_user ON brokerage_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_raw_imports_user_created ON raw_imports(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_plaid_connections_user ON plaid_connections(user_id);

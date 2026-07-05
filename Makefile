@@ -1,5 +1,10 @@
 SHELL := /bin/bash
 
+ifneq (,$(wildcard .env))
+include .env
+export
+endif
+
 .PHONY: install docker-up docker-down migrate seed api web test lint fmt build
 
 install:
