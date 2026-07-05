@@ -6,3 +6,4 @@ coverage
 data
 *.log
 services/api/fynora-api
+services/api/api
