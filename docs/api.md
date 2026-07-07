@@ -5,6 +5,7 @@ All protected endpoints require `Authorization: Bearer <token>`.
 ## Health
 
 - `GET /health`
+- `GET /ready`
 
 ## Auth
 
@@ -22,6 +23,7 @@ All protected endpoints require `Authorization: Bearer <token>`.
 
 - `GET /payments`
 - `GET /payouts`
+- `GET /payouts/{id}/breakdown`
 - `GET /bank-transactions`
 - `POST /sync/stripe`
 - `POST /sync/bank`
@@ -29,6 +31,8 @@ All protected endpoints require `Authorization: Bearer <token>`.
 `POST /sync/stripe` currently loads Stripe-style demo payments, refunds, fees, and payouts. It is intentionally shaped so it can be replaced by real Stripe API/webhook ingestion.
 
 `POST /sync/bank` currently loads demo bank deposits. Real bank data can be connected through Plaid.
+
+`POST /sync/stripe`, `POST /sync/bank`, and `POST /reconciliation/runs` support `Idempotency-Key`. Same key plus same request replays the stored JSON response; same key plus different request returns `409`.
 
 ## Reconciliation
 
@@ -46,6 +50,10 @@ The reconciliation engine matches processor payouts to bank deposits by amount, 
 - `GET /cash-flow/forecast`
 - `GET /reports/monthly`
 
+## OpenAPI
+
+See `docs/openapi.yaml`.
+
 ## Plaid Connections
 
 - `GET /connections`
@@ -53,6 +61,19 @@ The reconciliation engine matches processor payouts to bank deposits by amount, 
 - `POST /connections/plaid/link-token`
 - `POST /connections/plaid/exchange-public-token`
 - `POST /connections/plaid/sync-transactions`
+
+## Integrations
+
+- `GET /api/v1/integrations/stripe/connect-url`
+- `GET /api/v1/integrations/stripe/callback`
+- `GET /api/v1/integrations/stripe/status`
+- `DELETE /api/v1/integrations/stripe`
+- `POST /api/v1/webhooks/processors/stripe`
+- `POST /api/v1/webhooks/plaid`
+
+Stripe OAuth creates a signed, expiring state tied to the organization and user. The callback validates the state, protects provider tokens server-side, stores account metadata, writes audit logs, and emits outbox events. Stripe status never returns raw access or refresh tokens.
+
+Stripe webhooks verify `Stripe-Signature` when `STRIPE_WEBHOOK_SECRET` is configured. Plaid webhook verification can be required with `PLAID_WEBHOOK_VERIFICATION=true`; development mock bypass is available outside production only.
 
 ## Legacy Personal-Finance Endpoints
 

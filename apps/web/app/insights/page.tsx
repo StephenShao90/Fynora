@@ -1,30 +1,101 @@
 "use client";
 
-import { Pie, PieChart, ResponsiveContainer, Cell, Tooltip } from "recharts";
-import { Card, Shell } from "@/components/Shell";
-import { Empty, Header } from "@/components/Common";
+import { useEffect, useState } from "react";
+import { Header } from "@/components/Common";
+import { Shell } from "@/components/Shell";
+import { AnomalyList } from "@/components/insights/AnomalyList";
+import { CashRecommendations } from "@/components/insights/CashRecommendations";
+import { CashflowForecastCard } from "@/components/insights/CashflowForecastCard";
+import { SpendingInsights } from "@/components/insights/SpendingInsights";
+import { ReconciliationMatches } from "@/components/reconciliation/ReconciliationMatches";
+import {
+  getAnomalies,
+  getCashRecommendations,
+  getCashflowForecast,
+  getReconciliationMatches,
+  getSpendingInsights,
+  type AnomalyInsight,
+  type CashRecommendation,
+  type CashflowForecast,
+  type ReconciliationMatch,
+  type SpendingInsights as SpendingInsightsType
+} from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
-import type { NamedAmount, RiskFinding } from "@/types";
 
-const colors = ["#315846", "#f07b63", "#d6a53a", "#5a8bb0", "#7f6aaa", "#94b447"];
+type Run = { id: string; status: string; matched_count: number; exception_count: number; started_at: string };
+type LoadState<T> = { data?: T; loading: boolean; error: string };
 
 export default function Insights() {
-  const categories = useApi<NamedAmount[]>("/insights/categories", []);
-  const subscriptions = useApi<NamedAmount[]>("/insights/subscriptions", []);
-  const anomalies = useApi<RiskFinding[]>("/insights/anomalies", []);
+  const [horizon, setHorizon] = useState(30);
+  const [forecast, setForecast] = useState<LoadState<CashflowForecast>>({ loading: true, error: "" });
+  const [anomalies, setAnomalies] = useState<LoadState<AnomalyInsight[]>>({ data: [], loading: true, error: "" });
+  const [recommendations, setRecommendations] = useState<LoadState<CashRecommendation[]>>({ data: [], loading: true, error: "" });
+  const [spending, setSpending] = useState<LoadState<SpendingInsightsType>>({ loading: true, error: "" });
+  const [matches, setMatches] = useState<LoadState<ReconciliationMatch[]>>({ data: [], loading: true, error: "" });
+  const runs = useApi<Run[]>("/reconciliation/runs", []);
+  const latestRunId = runs.data[0]?.id || "latest";
+
+  useEffect(() => {
+    let cancelled = false;
+    setForecast((current) => ({ ...current, loading: true, error: "" }));
+    getCashflowForecast(horizon)
+      .then((data) => !cancelled && setForecast({ data, loading: false, error: "" }))
+      .catch((err) => !cancelled && setForecast({ loading: false, error: (err as Error).message }));
+    return () => { cancelled = true; };
+  }, [horizon]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAnomalies((current) => ({ ...current, loading: true, error: "" }));
+    getAnomalies()
+      .then((data) => !cancelled && setAnomalies({ data, loading: false, error: "" }))
+      .catch((err) => !cancelled && setAnomalies({ data: [], loading: false, error: (err as Error).message }));
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRecommendations((current) => ({ ...current, loading: true, error: "" }));
+    getCashRecommendations()
+      .then((data) => !cancelled && setRecommendations({ data, loading: false, error: "" }))
+      .catch((err) => !cancelled && setRecommendations({ data: [], loading: false, error: (err as Error).message }));
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSpending((current) => ({ ...current, loading: true, error: "" }));
+    getSpendingInsights()
+      .then((data) => !cancelled && setSpending({ data, loading: false, error: "" }))
+      .catch((err) => !cancelled && setSpending({ loading: false, error: (err as Error).message }));
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMatches((current) => ({ ...current, loading: true, error: "" }));
+    getReconciliationMatches(latestRunId)
+      .then((data) => !cancelled && setMatches({ data, loading: false, error: "" }))
+      .catch((err) => !cancelled && setMatches({ data: [], loading: false, error: (err as Error).message }));
+    return () => { cancelled = true; };
+  }, [latestRunId]);
+
   return (
     <Shell>
-      <Header title="Insights" subtitle="Recurring charges, anomalies, category mix, and merchant behavior." />
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="Category breakdown">
-          <div className="h-80"><ResponsiveContainer><PieChart><Pie data={categories.data} dataKey="amount" nameKey="name">{categories.data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div>
-        </Card>
-        <Card title="Subscriptions">
-          {subscriptions.data.length ? <pre className="text-sm">{JSON.stringify(subscriptions.data, null, 2)}</pre> : <Empty text="No recurring subscriptions detected yet." />}
-        </Card>
-        <Card title="Anomalies">
-          {anomalies.data.length ? <pre className="text-sm">{JSON.stringify(anomalies.data, null, 2)}</pre> : <Empty text="No unusual charges detected." />}
-        </Card>
+      <Header title="Financial intelligence" subtitle="Forecast cash, explain reconciliation outcomes, and surface payment operations issues before they become reporting problems." />
+
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
+        <CashflowForecastCard forecast={forecast.data} horizon={horizon} onHorizonChange={setHorizon} loading={forecast.loading} error={forecast.error} />
+        <CashRecommendations recommendations={recommendations.data || []} loading={recommendations.loading} error={recommendations.error} />
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
+        <AnomalyList anomalies={anomalies.data || []} loading={anomalies.loading} error={anomalies.error} />
+        <ReconciliationMatches matches={matches.data || []} loading={matches.loading || runs.loading} error={matches.error || runs.error} />
+      </div>
+
+      <div className="mt-4">
+        <SpendingInsights spending={spending.data} loading={spending.loading} error={spending.error} />
       </div>
     </Shell>
   );

@@ -1,0 +1,7 @@
+.git
+data
+tmp
+coverage.out
+*.test
+api
+worker

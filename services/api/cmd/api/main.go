@@ -24,23 +24,35 @@ import (
 
 	"github.com/StephenShao90/Fynora/services/api/internal/advisor"
 	"github.com/StephenShao90/Fynora/services/api/internal/auth"
+	"github.com/StephenShao90/Fynora/services/api/internal/authz"
 	"github.com/StephenShao90/Fynora/services/api/internal/config"
+	"github.com/StephenShao90/Fynora/services/api/internal/db"
+	"github.com/StephenShao90/Fynora/services/api/internal/httpapi"
+	"github.com/StephenShao90/Fynora/services/api/internal/idempotency"
 	"github.com/StephenShao90/Fynora/services/api/internal/logger"
 	"github.com/StephenShao90/Fynora/services/api/internal/marketdata"
 	"github.com/StephenShao90/Fynora/services/api/internal/models"
+	"github.com/StephenShao90/Fynora/services/api/internal/observability"
 	"github.com/StephenShao90/Fynora/services/api/internal/plaid"
 	"github.com/StephenShao90/Fynora/services/api/internal/portfolio"
+	"github.com/StephenShao90/Fynora/services/api/internal/ratelimit"
+	"github.com/StephenShao90/Fynora/services/api/internal/redisstore"
+	"github.com/StephenShao90/Fynora/services/api/internal/repository"
 	"github.com/StephenShao90/Fynora/services/api/internal/storage"
 	"github.com/StephenShao90/Fynora/services/api/internal/validation"
 )
 
 type app struct {
-	cfg    config.Config
-	log    logger.Logger
-	store  *memoryStore
-	raw    storage.RawEventStore
-	market marketdata.Provider
-	plaid  plaid.Client
+	cfg              config.Config
+	log              logger.Logger
+	store            *memoryStore
+	raw              storage.RawEventStore
+	market           marketdata.Provider
+	plaid            plaid.Client
+	cfRepo           *repository.ClearflowRepository
+	rateLimiter      ratelimit.Limiter
+	idempotencyLocks idempotency.LockStore
+	tracer           observability.Tracer
 }
 
 type memoryStore struct {
@@ -54,7 +66,9 @@ type memoryStore struct {
 	holdings                 map[string]models.Holding
 	portfolioTransactions    map[string]models.PortfolioTransaction
 	plaidConnections         map[string]models.PlaidConnection
+	plaidItemOrganizations   map[string]string
 	organizations            map[string]models.Organization
+	organizationMembers      map[string]models.OrganizationMember
 	customers                map[string]models.Customer
 	invoices                 map[string]models.Invoice
 	payments                 map[string]models.Payment
@@ -66,6 +80,17 @@ type memoryStore struct {
 	reconciliationMatches    map[string]models.ReconciliationMatch
 	reconciliationExceptions map[string]models.ReconciliationException
 	auditLogs                map[string]models.AuditLog
+	refreshSessions          map[string]models.RefreshSession
+	refreshTokensByHash      map[string]string
+	jobs                     map[string]models.Job
+	idempotencyRecords       map[string]models.IdempotencyRecord
+	rateLimits               map[string]rateLimitBucket
+	outboxEvents             map[string]models.OutboxEvent
+	plaidWebhookEvents       map[string]models.WebhookEvent
+	processorWebhookEvents   map[string]models.WebhookEvent
+	providerConnections      map[string]models.ProviderConnection
+	oauthStates              map[string]models.OAuthState
+	metrics                  opsMetrics
 }
 
 func newStore() *memoryStore {
@@ -79,7 +104,9 @@ func newStore() *memoryStore {
 		holdings:                 map[string]models.Holding{},
 		portfolioTransactions:    map[string]models.PortfolioTransaction{},
 		plaidConnections:         map[string]models.PlaidConnection{},
+		plaidItemOrganizations:   map[string]string{},
 		organizations:            map[string]models.Organization{},
+		organizationMembers:      map[string]models.OrganizationMember{},
 		customers:                map[string]models.Customer{},
 		invoices:                 map[string]models.Invoice{},
 		payments:                 map[string]models.Payment{},
@@ -91,25 +118,91 @@ func newStore() *memoryStore {
 		reconciliationMatches:    map[string]models.ReconciliationMatch{},
 		reconciliationExceptions: map[string]models.ReconciliationException{},
 		auditLogs:                map[string]models.AuditLog{},
+		refreshSessions:          map[string]models.RefreshSession{},
+		refreshTokensByHash:      map[string]string{},
+		jobs:                     map[string]models.Job{},
+		idempotencyRecords:       map[string]models.IdempotencyRecord{},
+		rateLimits:               map[string]rateLimitBucket{},
+		outboxEvents:             map[string]models.OutboxEvent{},
+		plaidWebhookEvents:       map[string]models.WebhookEvent{},
+		processorWebhookEvents:   map[string]models.WebhookEvent{},
+		providerConnections:      map[string]models.ProviderConnection{},
+		oauthStates:              map[string]models.OAuthState{},
 	}
 }
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.ValidateProduction(); err != nil {
+		log.Fatal(err)
+	}
+	tracer, err := observability.NewWithConfig(context.Background(), observability.Config{
+		Enabled:     observability.Enabled(cfg.OTELEnabled),
+		ServiceName: cfg.OTELServiceName,
+		Environment: cfg.OTELEnvironment,
+		Endpoint:    cfg.OTELExporterOTLPEndpoint,
+		Protocol:    cfg.OTELExporterOTLPProtocol,
+		Headers:     cfg.OTELExporterOTLPHeaders,
+		SampleRatio: observability.SampleRatio(cfg.OTELSampleRatio),
+	})
+	if err != nil {
+		if cfg.AppEnv == "production" {
+			log.Fatalf("otel exporter setup failed: %v", err)
+		}
+		log.Printf("otel exporter disabled after setup failure: %v", err)
+		tracer = observability.New(false, cfg.OTELServiceName, cfg.OTELEnvironment)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracer.Shutdown(ctx); err != nil {
+			log.Printf("otel shutdown failed: %v", err)
+		}
+	}()
 	a := &app{
-		cfg:    cfg,
-		log:    logger.New(),
-		store:  newStore(),
-		raw:    storage.NewLocalStore(cfg.LocalStorageDir),
-		market: marketdata.MockProvider{},
-		plaid:  plaid.Client{ClientID: cfg.PlaidClientID, Secret: cfg.PlaidSecret, Env: cfg.PlaidEnv},
+		cfg:              cfg,
+		log:              logger.New(),
+		store:            newStore(),
+		raw:              storage.NewLocalStore(cfg.LocalStorageDir),
+		market:           marketdata.MockProvider{},
+		plaid:            plaid.Client{ClientID: cfg.PlaidClientID, Secret: cfg.PlaidSecret, Env: cfg.PlaidEnv},
+		rateLimiter:      ratelimit.NewMemoryLimiter(),
+		idempotencyLocks: idempotency.NewMemoryLockStore(),
+		tracer:           tracer,
+	}
+	if redisEnabled(cfg.RedisEnabled) {
+		client, err := redisstore.New(cfg.RedisURL, redisEnabled(cfg.RedisTLS))
+		if err == nil {
+			err = client.Ping(context.Background())
+		}
+		if err != nil {
+			if cfg.AppEnv == "production" {
+				log.Fatalf("redis is enabled but unavailable: %v", err)
+			}
+			a.log.Error("redis.connect_failed", map[string]interface{}{"error": err.Error(), "fallback": "memory"})
+		} else {
+			a.rateLimiter = ratelimit.NewRedisLimiter(client)
+			a.idempotencyLocks = idempotency.NewRedisLockStore(client)
+			a.log.Info("redis.connected", map[string]interface{}{"rate_limit": true, "idempotency_locks": true})
+		}
+	}
+	if conn, err := db.Open(context.Background(), cfg.DatabaseURL); err != nil {
+		if cfg.AppEnv == "production" {
+			log.Fatalf("postgres is required in production: %v", err)
+		}
+		a.log.Error("database.connect_failed", map[string]interface{}{"error": err.Error(), "fallback": "clearflow_in_memory"})
+	} else {
+		a.cfRepo = repository.NewClearflow(conn)
+		a.log.Info("database.connected", map[string]interface{}{"driver": "pgx", "clearflow_storage": "postgres"})
 	}
 	if err := a.loadPlaidConnections(); err != nil {
 		a.log.Error("load_plaid_connections_failed", map[string]interface{}{"error": err.Error()})
 	}
 	mux := http.NewServeMux()
 	a.routes(mux)
-	handler := a.recover(a.requestLog(a.withCORS(mux)))
+	handler := a.recover(a.requestLog(a.tracer.Middleware(a.securityHeaders(a.bodyLimit(a.withCORS(mux))), func() {
+		a.incrementMetric(func(m *opsMetrics) { m.OTELTracesStartedTotal++ })
+	})))
 	log.Printf("Fynora API listening on :%s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, handler); err != nil {
 		log.Fatal(err)
@@ -118,10 +211,21 @@ func main() {
 
 func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", a.health)
+	mux.HandleFunc("GET /ready", a.ready)
+	mux.HandleFunc("GET /api/v1/health", a.health)
+	mux.HandleFunc("GET /api/v1/ready", a.ready)
 	mux.HandleFunc("POST /auth/register", a.register)
 	mux.HandleFunc("POST /auth/login", a.login)
 	mux.HandleFunc("POST /auth/demo-token", a.demoToken)
+	mux.HandleFunc("POST /api/v1/auth/register", a.authRateLimited(a.register))
+	mux.HandleFunc("POST /api/v1/auth/login", a.authRateLimited(a.login))
+	mux.HandleFunc("POST /api/v1/auth/demo-token", a.demoToken)
+	mux.HandleFunc("POST /api/v1/auth/refresh", a.authRateLimited(a.refreshToken))
+	mux.HandleFunc("POST /api/v1/auth/logout", a.authRateLimited(a.logout))
+	mux.HandleFunc("GET /api/v1/auth/sessions", a.authed(a.listSessions))
+	mux.HandleFunc("DELETE /api/v1/auth/sessions/{sessionId}", a.authed(a.revokeSession))
 	mux.HandleFunc("GET /me", a.authed(a.me))
+	mux.HandleFunc("GET /api/v1/me", a.authed(a.meV1))
 	mux.HandleFunc("GET /me/advisor-profile", a.authed(a.getProfile))
 	mux.HandleFunc("PUT /me/advisor-profile", a.authed(a.putProfile))
 	mux.HandleFunc("POST /imports/transactions-csv", a.authed(a.importTransactionsCSV))
@@ -151,23 +255,60 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /portfolio/accounts/{id}", a.authed(a.deleteAccount))
 	mux.HandleFunc("GET /connections", a.authed(a.listConnections))
 	mux.HandleFunc("DELETE /connections/{id}", a.authed(a.deleteConnection))
-	mux.HandleFunc("POST /connections/plaid/link-token", a.authed(a.createPlaidLinkToken))
-	mux.HandleFunc("POST /connections/plaid/exchange-public-token", a.authed(a.exchangePlaidPublicToken))
-	mux.HandleFunc("POST /connections/plaid/sync-transactions", a.authed(a.syncPlaidTransactions))
+	mux.HandleFunc("POST /connections/plaid/link-token", a.authed(a.heavyRateLimited(a.createPlaidLinkToken)))
+	mux.HandleFunc("POST /connections/plaid/sandbox-connect", a.authed(a.heavyRateLimited(a.createPlaidSandboxConnection)))
+	mux.HandleFunc("POST /connections/plaid/exchange-public-token", a.authed(a.heavyRateLimited(a.exchangePlaidPublicToken)))
+	mux.HandleFunc("POST /connections/plaid/sync-transactions", a.authed(a.heavyRateLimited(a.syncPlaidTransactions)))
 	mux.HandleFunc("POST /organizations", a.authed(a.createOrganization))
 	mux.HandleFunc("GET /organizations", a.authed(a.listOrganizations))
+	mux.HandleFunc("POST /api/v1/organizations", a.authed(a.createOrganizationV1))
+	mux.HandleFunc("GET /api/v1/organizations", a.authed(a.listOrganizationsV1))
+	mux.HandleFunc("GET /api/v1/organizations/{organizationId}/members", a.authed(a.listOrganizationMembersV1))
+	mux.HandleFunc("POST /api/v1/organizations/{organizationId}/members", a.authed(a.addOrganizationMemberV1))
+	mux.HandleFunc("PATCH /api/v1/organizations/{organizationId}/members/{userId}", a.authed(a.updateOrganizationMemberV1))
+	mux.HandleFunc("DELETE /api/v1/organizations/{organizationId}/members/{userId}", a.authed(a.deleteOrganizationMemberV1))
 	mux.HandleFunc("GET /payments", a.authed(a.listPayments))
+	mux.HandleFunc("GET /api/v1/payments", a.authed(a.listPaymentsV1))
 	mux.HandleFunc("GET /payouts", a.authed(a.listPayouts))
+	mux.HandleFunc("GET /api/v1/payouts", a.authed(a.listPayoutsV1))
+	mux.HandleFunc("GET /api/v1/payouts/{payoutId}/explanation", a.authed(a.payoutExplanationV1))
+	mux.HandleFunc("GET /api/v1/payouts/{id}/breakdown", a.authed(a.payoutExplanationV1))
+	mux.HandleFunc("GET /payouts/{id}/breakdown", a.authed(a.getPayoutBreakdown))
 	mux.HandleFunc("GET /bank-transactions", a.authed(a.listBankTransactions))
+	mux.HandleFunc("GET /api/v1/bank-transactions", a.authed(a.listBankTransactionsV1))
 	mux.HandleFunc("POST /sync/stripe", a.authed(a.syncStripeMock))
+	mux.HandleFunc("POST /api/v1/sync/stripe", a.authed(a.heavyRateLimited(a.syncStripeMockV1)))
 	mux.HandleFunc("POST /sync/bank", a.authed(a.syncBankMock))
+	mux.HandleFunc("POST /api/v1/sync/bank", a.authed(a.heavyRateLimited(a.syncBankMockV1)))
 	mux.HandleFunc("POST /reconciliation/runs", a.authed(a.createReconciliationRun))
+	mux.HandleFunc("POST /api/v1/reconciliation-runs", a.authed(a.heavyRateLimited(a.createReconciliationRunV1)))
 	mux.HandleFunc("GET /reconciliation/runs", a.authed(a.listReconciliationRuns))
+	mux.HandleFunc("GET /api/v1/reconciliation-runs", a.authed(a.listReconciliationRunsV1))
 	mux.HandleFunc("GET /reconciliation/runs/{id}", a.authed(a.getReconciliationRun))
 	mux.HandleFunc("GET /reconciliation/exceptions", a.authed(a.listReconciliationExceptions))
 	mux.HandleFunc("PATCH /reconciliation/exceptions/{id}", a.authed(a.patchReconciliationException))
 	mux.HandleFunc("GET /cash-flow/summary", a.authed(a.clearflowCashSummary))
+	mux.HandleFunc("GET /api/v1/cash-flow/summary", a.authed(a.clearflowCashSummaryV1))
 	mux.HandleFunc("GET /cash-flow/forecast", a.authed(a.clearflowCashForecast))
+	mux.HandleFunc("GET /api/v1/cash-flow/forecast", a.authed(a.clearflowCashForecastV1))
+	mux.HandleFunc("GET /api/v1/cashflow/forecast", a.authed(a.cashflowForecastV1))
+	mux.HandleFunc("GET /api/v1/insights/anomalies", a.authed(a.anomaliesV1))
+	mux.HandleFunc("GET /api/v1/insights/spending", a.authed(a.spendingInsightsV1))
+	mux.HandleFunc("GET /api/v1/recommendations/cash", a.authed(a.cashRecommendationsV1))
+	mux.HandleFunc("GET /api/v1/reconciliation-runs/{runId}/matches", a.authed(a.reconciliationMatchesV1))
+	mux.HandleFunc("GET /api/v1/integrations/stripe/connect-url", a.authed(a.stripeConnectURLV1))
+	mux.HandleFunc("GET /api/v1/integrations/stripe/callback", a.authed(a.stripeCallbackV1))
+	mux.HandleFunc("GET /api/v1/integrations/stripe/status", a.authed(a.stripeStatusV1))
+	mux.HandleFunc("DELETE /api/v1/integrations/stripe", a.authed(a.stripeDisconnectV1))
+	mux.HandleFunc("GET /api/v1/jobs", a.authed(a.listJobsV1))
+	mux.HandleFunc("GET /api/v1/jobs/{jobId}", a.authed(a.getJobV1))
+	mux.HandleFunc("POST /api/v1/jobs/{jobId}/cancel", a.authed(a.cancelJobV1))
+	mux.HandleFunc("POST /api/v1/jobs/{jobId}/retry", a.authed(a.retryJobV1))
+	mux.HandleFunc("GET /api/v1/jobs/dead", a.authed(a.listDeadJobsV1))
+	mux.HandleFunc("GET /api/v1/audit-logs", a.authed(a.listAuditLogsV1))
+	mux.HandleFunc("POST /api/v1/webhooks/plaid", a.webhookRateLimited(a.handlePlaidWebhook))
+	mux.HandleFunc("POST /api/v1/webhooks/processors/{provider}", a.webhookRateLimited(a.handleProcessorWebhook))
+	mux.HandleFunc("GET /api/v1/ops/metrics", a.authed(a.opsMetricsV1))
 	mux.HandleFunc("GET /reports/monthly", a.authed(a.clearflowMonthlyReport))
 	mux.HandleFunc("GET /debug/clearflow", a.authed(a.debugClearflowState))
 	mux.HandleFunc("POST /portfolio/import/holdings-csv", a.authed(a.importHoldingsCSV))
@@ -188,12 +329,42 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /market/quotes", a.authed(a.quotes))
 }
 
+func redisEnabled(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "enabled":
+		return true
+	default:
+		return false
+	}
+}
+
 func (a *app) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "fynora-api"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "clearflow-api"})
+}
+
+func (a *app) ready(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo == nil {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "degraded", "storage": "memory"})
+		return
+	}
+	if err := a.cfRepo.Ping(r.Context()); err != nil {
+		errorJSON(w, r, http.StatusServiceUnavailable, "DATABASE_UNAVAILABLE", "postgres is not reachable")
+		return
+	}
+	if err := a.cfRepo.Readiness(r.Context()); err != nil {
+		errorJSON(w, r, http.StatusServiceUnavailable, "DATABASE_UNAVAILABLE", "critical tables are not ready")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ready", "storage": "postgres"})
 }
 
 func (a *app) register(w http.ResponseWriter, r *http.Request) {
-	var req struct{ Email, Password string }
+	var req struct {
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		Name             string `json:"name"`
+		OrganizationName string `json:"organization_name"`
+	}
 	if !decode(w, r, &req) {
 		return
 	}
@@ -210,9 +381,26 @@ func (a *app) register(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, r, 500, "INTERNAL", "could not hash password")
 		return
 	}
+	if a.cfRepo != nil {
+		orgName := strings.TrimSpace(req.OrganizationName)
+		if orgName == "" {
+			orgName = strings.TrimSpace(req.Name)
+		}
+		u, memberships, err := a.cfRepo.CreateUserWithDefaultOrganization(r.Context(), req.Email, hash, orgName)
+		if err == repository.ErrDuplicateEmail {
+			errorJSON(w, r, 409, "CONFLICT", "email is already registered")
+			return
+		}
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not create user")
+			return
+		}
+		a.issueAuthTokens(w, r, http.StatusCreated, u, memberships)
+		return
+	}
 	a.store.mu.Lock()
-	defer a.store.mu.Unlock()
 	if _, ok := a.store.usersByEmail[strings.ToLower(req.Email)]; ok {
+		a.store.mu.Unlock()
 		errorJSON(w, r, 400, "VALIDATION_ERROR", "email is already registered")
 		return
 	}
@@ -220,13 +408,30 @@ func (a *app) register(w http.ResponseWriter, r *http.Request) {
 	a.store.users[u.ID] = u
 	a.store.usersByEmail[u.Email] = u.ID
 	a.store.profiles[u.ID] = defaultProfile(u.ID)
-	token, _ := auth.SignJWT(a.cfg.JWTSecret, u.ID, u.Email, 24*time.Hour)
-	writeJSON(w, 201, map[string]interface{}{"token": token, "user": u})
+	org := a.ensureOrganizationLocked(u.ID, strings.TrimSpace(req.OrganizationName))
+	a.addOrganizationMemberLocked(org.ID, u.ID, authz.RoleOwner)
+	memberships := a.userMembershipsLocked(u.ID)
+	a.store.mu.Unlock()
+	a.issueAuthTokens(w, r, http.StatusCreated, u, memberships)
 }
 
 func (a *app) login(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Email, Password string }
 	if !decode(w, r, &req) {
+		return
+	}
+	if a.cfRepo != nil {
+		u, err := a.cfRepo.GetUserByEmail(r.Context(), req.Email)
+		if err != nil || !auth.CheckPassword(u.PasswordHash, req.Password) {
+			errorJSON(w, r, 401, "UNAUTHORIZED", "invalid email or password")
+			return
+		}
+		memberships, err := a.cfRepo.ListUserMemberships(r.Context(), u.ID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not load organizations")
+			return
+		}
+		a.issueAuthTokens(w, r, http.StatusOK, u, memberships)
 		return
 	}
 	a.store.mu.RLock()
@@ -237,8 +442,7 @@ func (a *app) login(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, r, 401, "UNAUTHORIZED", "invalid email or password")
 		return
 	}
-	token, _ := auth.SignJWT(a.cfg.JWTSecret, u.ID, u.Email, 24*time.Hour)
-	writeJSON(w, 200, map[string]interface{}{"token": token, "user": u})
+	a.issueAuthTokens(w, r, http.StatusOK, u, a.userMembershipsLocked(u.ID))
 }
 
 func (a *app) demoToken(w http.ResponseWriter, r *http.Request) {
@@ -250,6 +454,20 @@ func (a *app) demoToken(w http.ResponseWriter, r *http.Request) {
 func (a *app) me(w http.ResponseWriter, r *http.Request) {
 	u, _ := a.currentUser(r)
 	writeJSON(w, 200, u)
+}
+
+func (a *app) meV1(w http.ResponseWriter, r *http.Request) {
+	u, ok := a.currentUser(r)
+	if !ok {
+		errorJSON(w, r, 404, "NOT_FOUND", "user not found")
+		return
+	}
+	memberships, err := a.userMemberships(r.Context(), u.ID)
+	if err != nil {
+		errorJSON(w, r, 500, "DATABASE_ERROR", "could not load organizations")
+		return
+	}
+	writeJSON(w, 200, map[string]interface{}{"user": publicUser(u), "organizations": membershipOrganizations(memberships)})
 }
 func (a *app) getProfile(w http.ResponseWriter, r *http.Request) {
 	p := a.profile(userID(r))
@@ -532,6 +750,40 @@ func (a *app) createPlaidLinkToken(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, link)
 }
+
+func (a *app) createPlaidSandboxConnection(w http.ResponseWriter, r *http.Request) {
+	if strings.ToLower(a.cfg.PlaidEnv) != "sandbox" {
+		errorJSON(w, r, 400, "PLAID_ENV_NOT_SANDBOX", "sandbox test connections require PLAID_ENV=sandbox")
+		return
+	}
+	if !a.plaid.Ready() {
+		errorJSON(w, r, 400, "PLAID_NOT_CONFIGURED", "PLAID_CLIENT_ID and PLAID_SECRET must be set in the API environment")
+		return
+	}
+	var req struct {
+		InstitutionID string `json:"institution_id"`
+		Username      string `json:"username"`
+		Password      string `json:"password"`
+	}
+	decodeOptional(r, &req)
+	token, err := a.plaid.CreateSandboxPublicToken(r.Context(), req.InstitutionID, a.cfg.PlaidProducts, req.Username, req.Password)
+	if err != nil {
+		errorJSON(w, r, 502, "PLAID_ERROR", err.Error())
+		return
+	}
+	exchange, err := a.storePlaidConnectionFromPublicToken(r, token.PublicToken)
+	if err != nil {
+		errorJSON(w, r, 502, "PLAID_ERROR", err.Error())
+		return
+	}
+	imported, err := a.syncOnePlaidConnection(r.Context(), exchange)
+	if err != nil {
+		errorJSON(w, r, 502, "PLAID_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, 201, map[string]interface{}{"connection": exchange, "imported_count": imported, "sandbox": true})
+}
+
 func (a *app) exchangePlaidPublicToken(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		PublicToken string `json:"public_token"`
@@ -543,20 +795,26 @@ func (a *app) exchangePlaidPublicToken(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, r, 400, "VALIDATION_ERROR", "public_token is required")
 		return
 	}
-	exchange, err := a.plaid.ExchangePublicToken(r.Context(), req.PublicToken)
+	conn, err := a.storePlaidConnectionFromPublicToken(r, req.PublicToken)
 	if err != nil {
 		errorJSON(w, r, 502, "PLAID_ERROR", err.Error())
 		return
+	}
+	writeJSON(w, 201, map[string]interface{}{"connection": conn})
+}
+
+func (a *app) storePlaidConnectionFromPublicToken(r *http.Request, publicToken string) (models.PlaidConnection, error) {
+	exchange, err := a.plaid.ExchangePublicToken(r.Context(), publicToken)
+	if err != nil {
+		return models.PlaidConnection{}, err
 	}
 	item, err := a.plaid.GetItem(r.Context(), exchange.AccessToken)
 	if err != nil {
-		errorJSON(w, r, 502, "PLAID_ERROR", err.Error())
-		return
+		return models.PlaidConnection{}, err
 	}
 	ciphertext, err := a.encryptToken(exchange.AccessToken)
 	if err != nil {
-		errorJSON(w, r, 500, "INTERNAL", "could not secure Plaid token")
-		return
+		return models.PlaidConnection{}, fmt.Errorf("could not secure Plaid token")
 	}
 	now := time.Now().UTC()
 	name := item.Institution.Name
@@ -564,14 +822,22 @@ func (a *app) exchangePlaidPublicToken(w http.ResponseWriter, r *http.Request) {
 		name = "Plaid institution"
 	}
 	conn := models.PlaidConnection{ID: auth.NewID(), UserID: userID(r), ItemID: exchange.ItemID, InstitutionName: name, AccessTokenCiphertext: ciphertext, Products: splitCSV(a.cfg.PlaidProducts), CreatedAt: now, UpdatedAt: now}
+	if a.cfRepo != nil {
+		orgs := a.userOrganizations(userID(r))
+		if len(orgs) > 0 {
+			if err := a.cfRepo.SavePlaidItem(r.Context(), orgs[0].ID, userID(r), conn.ItemID, conn.AccessTokenCiphertext, item.Item.InstitutionID, conn.InstitutionName, conn.Cursor); err != nil {
+				return models.PlaidConnection{}, fmt.Errorf("could not persist Plaid item")
+			}
+			a.writeAudit(r.Context(), r, orgs[0].ID, userID(r), "plaid.item_connected", "plaid_item", conn.ItemID, "{}")
+		}
+	}
 	a.store.mu.Lock()
 	a.store.plaidConnections[conn.ID] = conn
 	a.store.mu.Unlock()
 	if err := a.persistPlaidConnections(); err != nil {
-		errorJSON(w, r, 500, "INTERNAL", "could not persist Plaid connection")
-		return
+		return models.PlaidConnection{}, fmt.Errorf("could not persist Plaid connection")
 	}
-	writeJSON(w, 201, map[string]interface{}{"connection": conn})
+	return conn, nil
 }
 func (a *app) syncPlaidTransactions(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -759,6 +1025,12 @@ func (a *app) authed(next http.HandlerFunc) http.HandlerFunc {
 }
 func userID(r *http.Request) string { v, _ := r.Context().Value("user_id").(string); return v }
 func (a *app) currentUser(r *http.Request) (models.User, bool) {
+	if a.cfRepo != nil {
+		u, err := a.cfRepo.GetUserByID(r.Context(), userID(r))
+		if err == nil {
+			return u, true
+		}
+	}
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
 	u, ok := a.store.users[userID(r)]
@@ -865,6 +1137,12 @@ func (a *app) syncOnePlaidConnection(ctx context.Context, conn models.PlaidConne
 		conn.LastSyncedAt = conn.UpdatedAt
 		a.store.plaidConnections[conn.ID] = conn
 		a.store.mu.Unlock()
+		if a.cfRepo != nil {
+			orgs := a.userOrganizations(conn.UserID)
+			if len(orgs) > 0 {
+				_ = a.cfRepo.SavePlaidItem(ctx, orgs[0].ID, conn.UserID, conn.ItemID, conn.AccessTokenCiphertext, "", conn.InstitutionName, conn.Cursor)
+			}
+		}
 		cursor = resp.NextCursor
 		if !resp.HasMore {
 			break
@@ -1197,25 +1475,76 @@ func decode(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
 	return true
 }
 func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+	httpapi.WriteJSON(w, status, payload)
 }
 func errorJSON(w http.ResponseWriter, r *http.Request, status int, code, message string) {
-	writeJSON(w, status, map[string]interface{}{"error": map[string]string{"code": code, "message": message, "request_id": r.Header.Get("X-Request-ID")}})
+	httpapi.Error(w, r, status, code, message)
 }
 func (a *app) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID")
+		origin := r.Header.Get("Origin")
+		allowed := a.allowedOrigin(origin)
+		if allowed != "" {
+			w.Header().Set("Access-Control-Allow-Origin", allowed)
+			w.Header().Set("Vary", "Origin")
+		}
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID, Idempotency-Key")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, Idempotency-Replayed")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		if r.Method == "OPTIONS" {
+			if origin != "" && allowed == "" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
 			w.WriteHeader(204)
+			return
+		}
+		if origin != "" && allowed == "" {
+			errorJSON(w, r, http.StatusForbidden, "FORBIDDEN", "origin is not allowed")
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
 }
+
+func (a *app) allowedOrigin(origin string) string {
+	if a.cfg.AppEnv != "production" && (a.cfg.AllowedOrigins == "" || a.cfg.AllowedOrigins == "*") {
+		return "*"
+	}
+	for _, allowed := range strings.Split(a.cfg.AllowedOrigins, ",") {
+		if strings.TrimSpace(allowed) == origin {
+			return origin
+		}
+	}
+	return ""
+}
+
+func (a *app) securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (a *app) bodyLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil {
+			limit := a.cfg.MaxBodyBytes
+			if limit <= 0 {
+				limit = 1 << 20
+			}
+			if strings.Contains(r.URL.Path, "/webhooks/") {
+				limit = 2 << 20
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (a *app) requestLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -1227,7 +1556,15 @@ func (a *app) requestLog(next http.Handler) http.Handler {
 		w.Header().Set("X-Request-ID", requestID)
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
-		a.log.Info("http.request", map[string]interface{}{"request_id": requestID, "method": r.Method, "path": r.URL.Path, "query": r.URL.RawQuery, "status": recorder.status, "bytes": recorder.bytes, "latency_ms": time.Since(start).Milliseconds(), "user_id": userID(r)})
+		latency := time.Since(start).Milliseconds()
+		a.incrementMetric(func(m *opsMetrics) {
+			m.HTTPRequestsTotal++
+			m.HTTPRequestDurationMS += latency
+			if recorder.status >= 400 {
+				m.HTTPErrorsTotal++
+			}
+		})
+		a.log.Info("http.request", map[string]interface{}{"request_id": requestID, "trace_id": observability.TraceID(r.Context()), "span_id": observability.SpanID(r.Context()), "method": r.Method, "path": r.URL.Path, "query": r.URL.RawQuery, "status": recorder.status, "bytes": recorder.bytes, "latency_ms": latency, "user_id": userID(r)})
 	})
 }
 
@@ -1252,7 +1589,7 @@ func (a *app) recover(next http.Handler) http.Handler {
 		defer func() {
 			if err := recover(); err != nil {
 				a.log.Error("panic", map[string]interface{}{"error": fmt.Sprint(err)})
-				errorJSON(w, r, 500, "INTERNAL", "internal server error")
+				errorJSON(w, r, 500, "INTERNAL_ERROR", "internal server error")
 			}
 		}()
 		next.ServeHTTP(w, r)

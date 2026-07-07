@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -10,8 +12,14 @@ import (
 	"time"
 
 	"github.com/StephenShao90/Fynora/services/api/internal/auth"
+	"github.com/StephenShao90/Fynora/services/api/internal/authz"
+	"github.com/StephenShao90/Fynora/services/api/internal/httpapi"
 	"github.com/StephenShao90/Fynora/services/api/internal/models"
+	"github.com/StephenShao90/Fynora/services/api/internal/repository"
+	"github.com/StephenShao90/Fynora/services/api/internal/validation"
 )
+
+type clearflowOrgContextKey struct{}
 
 func (a *app) createOrganization(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
@@ -32,6 +40,17 @@ func (a *app) createOrganization(w http.ResponseWriter, r *http.Request) {
 	if req.Type == "" {
 		req.Type = "student_organization"
 	}
+	if a.cfRepo != nil {
+		org, err := a.cfRepo.CreateOrganization(r.Context(), a.currentClearflowUser(r), models.Organization{Name: req.Name, Type: req.Type, Currency: req.Currency})
+		if err != nil {
+			a.logOperation(r, "organization.create_failed", "", map[string]interface{}{"error": err.Error(), "latency_ms": time.Since(start).Milliseconds()})
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not create organization")
+			return
+		}
+		a.logOperation(r, "organization.created", org.ID, map[string]interface{}{"organization_id": org.ID, "name": org.Name, "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+		writeJSON(w, 201, org)
+		return
+	}
 	now := time.Now().UTC()
 	org := models.Organization{ID: auth.NewID(), UserID: userID(r), Name: req.Name, Type: req.Type, Currency: req.Currency, CreatedAt: now, UpdatedAt: now}
 	a.store.mu.Lock()
@@ -43,10 +62,57 @@ func (a *app) createOrganization(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) listOrganizations(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		orgs, err := a.cfRepo.ListOrganizations(r.Context(), userID(r))
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list organizations")
+			return
+		}
+		writeJSON(w, 200, orgs)
+		return
+	}
 	writeJSON(w, 200, a.userOrganizations(userID(r)))
 }
 
 func (a *app) listPayments(w http.ResponseWriter, r *http.Request) {
+	rows, _, ok := a.paymentsForRequest(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, 200, rows)
+}
+
+func (a *app) listPaymentsV1(w http.ResponseWriter, r *http.Request) {
+	if r, ok := a.withV1Organization(w, r, false, authz.CanRead); ok {
+		a.listPaymentsV1Response(w, r)
+	}
+}
+
+func (a *app) listPaymentsV1Response(w http.ResponseWriter, r *http.Request) {
+	rows, query, ok := a.paymentsForRequest(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, 200, httpapi.Paginated(rows, query))
+}
+
+func (a *app) paymentsForRequest(w http.ResponseWriter, r *http.Request) ([]models.Payment, httpapi.ListQuery, bool) {
+	query, ok := parseClearflowListQuery(w, r)
+	if !ok {
+		return nil, query, false
+	}
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return nil, query, false
+		}
+		rows, err := a.cfRepo.ListPayments(r.Context(), org.ID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list payments")
+			return nil, query, false
+		}
+		return httpapi.Page(filterPaymentsByDate(rows, query), query), query, true
+	}
 	orgID := a.ensureOrganization(userID(r)).ID
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
@@ -57,10 +123,48 @@ func (a *app) listPayments(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].OccurredAt.After(out[j].OccurredAt) })
-	writeJSON(w, 200, out)
+	return httpapi.Page(filterPaymentsByDate(out, query), query), query, true
 }
 
 func (a *app) listPayouts(w http.ResponseWriter, r *http.Request) {
+	rows, _, ok := a.payoutsForRequest(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, 200, rows)
+}
+
+func (a *app) listPayoutsV1(w http.ResponseWriter, r *http.Request) {
+	if r, ok := a.withV1Organization(w, r, false, authz.CanRead); ok {
+		a.listPayoutsV1Response(w, r)
+	}
+}
+
+func (a *app) listPayoutsV1Response(w http.ResponseWriter, r *http.Request) {
+	rows, query, ok := a.payoutsForRequest(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, 200, httpapi.Paginated(rows, query))
+}
+
+func (a *app) payoutsForRequest(w http.ResponseWriter, r *http.Request) ([]models.Payout, httpapi.ListQuery, bool) {
+	query, ok := parseClearflowListQuery(w, r)
+	if !ok {
+		return nil, query, false
+	}
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return nil, query, false
+		}
+		rows, err := a.cfRepo.ListPayouts(r.Context(), org.ID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list payouts")
+			return nil, query, false
+		}
+		return httpapi.Page(filterPayoutsByDate(rows, query), query), query, true
+	}
 	orgID := a.ensureOrganization(userID(r)).ID
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
@@ -71,10 +175,94 @@ func (a *app) listPayouts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ExpectedArrivalAt.After(out[j].ExpectedArrivalAt) })
-	writeJSON(w, 200, out)
+	return httpapi.Page(filterPayoutsByDate(out, query), query), query, true
+}
+
+func (a *app) getPayoutBreakdown(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		payload, err := a.cfRepo.PayoutBreakdown(r.Context(), org.ID, r.PathValue("id"))
+		if err != nil {
+			errorJSON(w, r, 404, "NOT_FOUND", "payout not found")
+			return
+		}
+		writeJSON(w, 200, payload)
+		return
+	}
+	orgID := a.ensureOrganization(userID(r)).ID
+	payoutID := r.PathValue("id")
+	a.store.mu.RLock()
+	payout, ok := a.store.payouts[payoutID]
+	items := []models.PayoutItem{}
+	var gross, fees, refunds float64
+	for _, payment := range a.store.payments {
+		if payment.OrganizationID == orgID {
+			gross += payment.Amount
+			items = append(items, models.PayoutItem{ID: payment.ID, OrganizationID: orgID, PayoutID: payoutID, SourceType: "payment", SourceID: payment.ProcessorPaymentID, Amount: payment.Amount, Currency: payment.Currency, Description: payment.Description, CreatedAt: payment.CreatedAt})
+		}
+	}
+	for _, fee := range a.store.fees {
+		if fee.OrganizationID == orgID {
+			fees += fee.Amount
+			items = append(items, models.PayoutItem{ID: fee.ID, OrganizationID: orgID, PayoutID: payoutID, SourceType: "fee", SourceID: fee.ProcessorFeeID, Amount: -fee.Amount, Currency: fee.Currency, Description: fee.Description, CreatedAt: fee.OccurredAt})
+		}
+	}
+	for _, refund := range a.store.refunds {
+		if refund.OrganizationID == orgID {
+			refunds += refund.Amount
+			items = append(items, models.PayoutItem{ID: refund.ID, OrganizationID: orgID, PayoutID: payoutID, SourceType: "refund", SourceID: refund.ProcessorRefundID, Amount: -refund.Amount, Currency: refund.Currency, Description: "Refund", CreatedAt: refund.OccurredAt})
+		}
+	}
+	a.store.mu.RUnlock()
+	if !ok || payout.OrganizationID != orgID {
+		errorJSON(w, r, 404, "NOT_FOUND", "payout not found")
+		return
+	}
+	writeJSON(w, 200, map[string]interface{}{"payout": payout, "items": items, "gross_payments": round2(gross), "fees": round2(fees), "refunds": round2(refunds), "net_payout": payout.Amount})
 }
 
 func (a *app) listBankTransactions(w http.ResponseWriter, r *http.Request) {
+	rows, _, ok := a.bankTransactionsForRequest(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, 200, rows)
+}
+
+func (a *app) listBankTransactionsV1(w http.ResponseWriter, r *http.Request) {
+	if r, ok := a.withV1Organization(w, r, false, authz.CanRead); ok {
+		a.listBankTransactionsV1Response(w, r)
+	}
+}
+
+func (a *app) listBankTransactionsV1Response(w http.ResponseWriter, r *http.Request) {
+	rows, query, ok := a.bankTransactionsForRequest(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, 200, httpapi.Paginated(rows, query))
+}
+
+func (a *app) bankTransactionsForRequest(w http.ResponseWriter, r *http.Request) ([]models.BankTransaction, httpapi.ListQuery, bool) {
+	query, ok := parseClearflowListQuery(w, r)
+	if !ok {
+		return nil, query, false
+	}
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return nil, query, false
+		}
+		rows, err := a.cfRepo.ListBankTransactions(r.Context(), org.ID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list bank transactions")
+			return nil, query, false
+		}
+		return httpapi.Page(filterBankTransactionsByDate(rows, query), query), query, true
+	}
 	orgID := a.ensureOrganization(userID(r)).ID
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
@@ -85,11 +273,30 @@ func (a *app) listBankTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].PostedAt.After(out[j].PostedAt) })
-	writeJSON(w, 200, out)
+	return httpapi.Page(filterBankTransactionsByDate(out, query), query), query, true
 }
 
 func (a *app) syncStripeMock(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		requestHash := a.idempotencyHash(r, org.ID)
+		if a.replayIdempotentResponse(w, r, org.ID, requestHash) {
+			return
+		}
+		payload, err := a.cfRepo.SyncStripeDemo(r.Context(), org, userID(r))
+		if err != nil {
+			a.logOperation(r, "stripe.sync.failed", org.ID, map[string]interface{}{"error": err.Error(), "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not sync Stripe sample data")
+			return
+		}
+		a.writeIdempotentJSON(w, r, org.ID, requestHash, 200, payload)
+		a.logOperation(r, "stripe.sync.completed", org.ID, map[string]interface{}{"organization_id": org.ID, "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+		return
+	}
 	org := a.ensureOrganization(userID(r))
 	now := time.Now().UTC()
 	payments := []models.Payment{
@@ -133,6 +340,25 @@ func (a *app) syncStripeMock(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) syncBankMock(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		requestHash := a.idempotencyHash(r, org.ID)
+		if a.replayIdempotentResponse(w, r, org.ID, requestHash) {
+			return
+		}
+		payload, err := a.cfRepo.SyncBankDemo(r.Context(), org, userID(r))
+		if err != nil {
+			a.logOperation(r, "bank.sync.failed", org.ID, map[string]interface{}{"error": err.Error(), "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not sync bank sample data")
+			return
+		}
+		a.writeIdempotentJSON(w, r, org.ID, requestHash, 200, payload)
+		a.logOperation(r, "bank.sync.completed", org.ID, map[string]interface{}{"organization_id": org.ID, "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+		return
+	}
 	org := a.ensureOrganization(userID(r))
 	now := time.Now().UTC()
 	payoutAmount := 0.0
@@ -161,15 +387,88 @@ func (a *app) syncBankMock(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]interface{}{"bank_transactions": len(rows)})
 }
 
+func (a *app) syncStripeMockV1(w http.ResponseWriter, r *http.Request) {
+	a.enqueueFinancialJob(w, r, "stripe.sync")
+}
+
+func (a *app) syncBankMockV1(w http.ResponseWriter, r *http.Request) {
+	a.enqueueFinancialJob(w, r, "bank.sync")
+}
+
 func (a *app) createReconciliationRun(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		requestHash := a.idempotencyHash(r, org.ID)
+		if a.replayIdempotentResponse(w, r, org.ID, requestHash) {
+			return
+		}
+		run, err := a.cfRepo.Reconcile(r.Context(), org.ID, userID(r))
+		if err != nil {
+			a.logOperation(r, "reconciliation.run.failed", org.ID, map[string]interface{}{"error": err.Error(), "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not run reconciliation")
+			return
+		}
+		a.writeIdempotentJSON(w, r, org.ID, requestHash, 201, run)
+		a.logOperation(r, "reconciliation.run.created", org.ID, map[string]interface{}{"organization_id": org.ID, "run_id": run.ID, "matched_count": run.MatchedCount, "exception_count": run.ExceptionCount, "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+		return
+	}
 	org := a.ensureOrganization(userID(r))
 	run := a.reconcileOrganization(org.ID, userID(r))
 	a.logOperation(r, "reconciliation.run.created", org.ID, map[string]interface{}{"organization_id": org.ID, "run_id": run.ID, "matched_count": run.MatchedCount, "exception_count": run.ExceptionCount, "latency_ms": time.Since(start).Milliseconds()})
 	writeJSON(w, 201, run)
 }
 
+func (a *app) createReconciliationRunV1(w http.ResponseWriter, r *http.Request) {
+	r, ok := a.withV1Organization(w, r, true, authz.CanRunReconciliation)
+	if !ok {
+		return
+	}
+	a.enqueueFinancialJob(w, r, "reconciliation.run")
+}
+
 func (a *app) listReconciliationRuns(w http.ResponseWriter, r *http.Request) {
+	rows, _, ok := a.reconciliationRunsForRequest(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, 200, rows)
+}
+
+func (a *app) listReconciliationRunsV1(w http.ResponseWriter, r *http.Request) {
+	if r, ok := a.withV1Organization(w, r, false, authz.CanRead); ok {
+		a.listReconciliationRunsV1Response(w, r)
+	}
+}
+
+func (a *app) listReconciliationRunsV1Response(w http.ResponseWriter, r *http.Request) {
+	rows, query, ok := a.reconciliationRunsForRequest(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, 200, httpapi.Paginated(rows, query))
+}
+
+func (a *app) reconciliationRunsForRequest(w http.ResponseWriter, r *http.Request) ([]models.ReconciliationRun, httpapi.ListQuery, bool) {
+	query, ok := parseClearflowListQuery(w, r)
+	if !ok {
+		return nil, query, false
+	}
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return nil, query, false
+		}
+		rows, err := a.cfRepo.ListReconciliationRuns(r.Context(), org.ID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list reconciliation runs")
+			return nil, query, false
+		}
+		return httpapi.Page(filterReconciliationRunsByDate(rows, query), query), query, true
+	}
 	orgID := a.ensureOrganization(userID(r)).ID
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
@@ -180,10 +479,23 @@ func (a *app) listReconciliationRuns(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
-	writeJSON(w, 200, out)
+	return httpapi.Page(filterReconciliationRunsByDate(out, query), query), query, true
 }
 
 func (a *app) getReconciliationRun(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		payload, err := a.cfRepo.GetReconciliationRun(r.Context(), org.ID, r.PathValue("id"))
+		if err != nil {
+			errorJSON(w, r, 404, "NOT_FOUND", "reconciliation run not found")
+			return
+		}
+		writeJSON(w, 200, payload)
+		return
+	}
 	orgID := a.ensureOrganization(userID(r)).ID
 	id := r.PathValue("id")
 	a.store.mu.RLock()
@@ -209,6 +521,19 @@ func (a *app) getReconciliationRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) listReconciliationExceptions(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		rows, err := a.cfRepo.ListExceptions(r.Context(), org.ID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list exceptions")
+			return
+		}
+		writeJSON(w, 200, rows)
+		return
+	}
 	orgID := a.ensureOrganization(userID(r)).ID
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
@@ -230,6 +555,20 @@ func (a *app) patchReconciliationException(w http.ResponseWriter, r *http.Reques
 	if !decode(w, r, &req) {
 		return
 	}
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		row, err := a.cfRepo.UpdateException(r.Context(), org.ID, userID(r), r.PathValue("id"), req.Status)
+		if err != nil {
+			errorJSON(w, r, 404, "NOT_FOUND", "exception not found")
+			return
+		}
+		a.logOperation(r, "reconciliation_exception.updated", org.ID, map[string]interface{}{"organization_id": org.ID, "exception_id": row.ID, "status": row.Status, "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+		writeJSON(w, 200, row)
+		return
+	}
 	orgID := a.ensureOrganization(userID(r)).ID
 	a.store.mu.Lock()
 	defer a.store.mu.Unlock()
@@ -249,6 +588,19 @@ func (a *app) patchReconciliationException(w http.ResponseWriter, r *http.Reques
 }
 
 func (a *app) clearflowCashSummary(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		payload, err := a.cfRepo.CashSummary(r.Context(), org.ID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not build cash summary")
+			return
+		}
+		writeJSON(w, 200, payload)
+		return
+	}
 	orgID := a.ensureOrganization(userID(r)).ID
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
@@ -283,7 +635,26 @@ func (a *app) clearflowCashSummary(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]float64{"cash_balance": round2(cash), "income": round2(income), "expenses": round2(expenses), "pending_payouts": round2(pendingPayouts), "fees": round2(fees), "refunds": round2(refunds), "net_cash_flow": round2(income - expenses)})
 }
 
+func (a *app) clearflowCashSummaryV1(w http.ResponseWriter, r *http.Request) {
+	if r, ok := a.withV1Organization(w, r, false, authz.CanRead); ok {
+		a.clearflowCashSummary(w, r)
+	}
+}
+
 func (a *app) clearflowCashForecast(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		payload, err := a.cfRepo.CashForecast(r.Context(), org.ID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not build cash forecast")
+			return
+		}
+		writeJSON(w, 200, payload)
+		return
+	}
 	orgID := a.ensureOrganization(userID(r)).ID
 	summary := a.cashSnapshot(orgID)
 	points := []map[string]interface{}{}
@@ -298,7 +669,26 @@ func (a *app) clearflowCashForecast(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, points)
 }
 
+func (a *app) clearflowCashForecastV1(w http.ResponseWriter, r *http.Request) {
+	if r, ok := a.withV1Organization(w, r, false, authz.CanRead); ok {
+		a.clearflowCashForecast(w, r)
+	}
+}
+
 func (a *app) clearflowMonthlyReport(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		payload, err := a.cfRepo.MonthlyReport(r.Context(), org.ID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not build monthly report")
+			return
+		}
+		writeJSON(w, 200, payload)
+		return
+	}
 	orgID := a.ensureOrganization(userID(r)).ID
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
@@ -327,6 +717,19 @@ func (a *app) clearflowMonthlyReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) debugClearflowState(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		payload, err := a.cfRepo.DebugState(r.Context(), org)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not build debug state")
+			return
+		}
+		writeJSON(w, 200, payload)
+		return
+	}
 	org := a.ensureOrganization(userID(r))
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
@@ -454,16 +857,26 @@ func (a *app) ensureOrganization(uid string) models.Organization {
 	if len(orgs) > 0 {
 		return orgs[0]
 	}
-	now := time.Now().UTC()
-	org := models.Organization{ID: auth.NewID(), UserID: uid, Name: "Clearflow Demo Organization", Type: "student_organization", Currency: "USD", CreatedAt: now, UpdatedAt: now}
 	a.store.mu.Lock()
-	a.store.organizations[org.ID] = org
-	a.auditLocked(org.ID, uid, "organization.created", "organization", org.ID)
+	org := a.ensureOrganizationLocked(uid, "")
+	a.addOrganizationMemberLocked(org.ID, uid, authz.RoleOwner)
 	a.store.mu.Unlock()
 	return org
 }
 
 func (a *app) seedClearflowDemo(uid string) {
+	if a.cfRepo != nil {
+		u := models.User{ID: uid, Email: uid + "@clearflow.local", CreatedAt: time.Now().UTC()}
+		a.store.mu.RLock()
+		if existing, ok := a.store.users[uid]; ok {
+			u = existing
+		}
+		a.store.mu.RUnlock()
+		if err := a.cfRepo.SeedDemo(context.Background(), u); err != nil {
+			a.log.Error("clearflow.demo_seed_failed", map[string]interface{}{"user_id": uid, "error": err.Error(), "storage": "postgres"})
+		}
+		return
+	}
 	org := a.ensureOrganization(uid)
 	a.store.mu.RLock()
 	hasData := false
@@ -513,11 +926,27 @@ func (a *app) seedClearflowDemo(uid string) {
 }
 
 func (a *app) userOrganizations(uid string) []models.Organization {
+	if a.cfRepo != nil {
+		orgs, err := a.cfRepo.ListOrganizations(context.Background(), uid)
+		if err == nil {
+			return orgs
+		}
+		a.log.Error("clearflow.organizations_list_failed", map[string]interface{}{"user_id": uid, "error": err.Error(), "storage": "postgres"})
+	}
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
 	out := []models.Organization{}
+	seen := map[string]bool{}
+	for _, member := range a.store.organizationMembers {
+		if member.UserID == uid {
+			if org, ok := a.store.organizations[member.OrganizationID]; ok {
+				out = append(out, org)
+				seen[org.ID] = true
+			}
+		}
+	}
 	for _, org := range a.store.organizations {
-		if org.UserID == uid {
+		if org.UserID == uid && !seen[org.ID] {
 			out = append(out, org)
 		}
 	}
@@ -608,6 +1037,214 @@ func (a *app) logOperation(r *http.Request, event, orgID string, fields map[stri
 	fields["user_id"] = userID(r)
 	fields["path"] = r.URL.Path
 	a.log.Info("clearflow.operation", fields)
+}
+
+func parseClearflowListQuery(w http.ResponseWriter, r *http.Request) (httpapi.ListQuery, bool) {
+	query, err := httpapi.ParseListQuery(r)
+	if err != nil {
+		errorJSON(w, r, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return query, false
+	}
+	return query, true
+}
+
+func withinDateWindow(value time.Time, query httpapi.ListQuery) bool {
+	if query.From != nil && value.Before(*query.From) {
+		return false
+	}
+	if query.To != nil && value.After(query.To.Add(24*time.Hour)) {
+		return false
+	}
+	return true
+}
+
+func filterPaymentsByDate(rows []models.Payment, query httpapi.ListQuery) []models.Payment {
+	if query.From == nil && query.To == nil {
+		return rows
+	}
+	out := make([]models.Payment, 0, len(rows))
+	for _, row := range rows {
+		if withinDateWindow(row.OccurredAt, query) {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func filterPayoutsByDate(rows []models.Payout, query httpapi.ListQuery) []models.Payout {
+	if query.From == nil && query.To == nil {
+		return rows
+	}
+	out := make([]models.Payout, 0, len(rows))
+	for _, row := range rows {
+		if withinDateWindow(row.ExpectedArrivalAt, query) {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func filterBankTransactionsByDate(rows []models.BankTransaction, query httpapi.ListQuery) []models.BankTransaction {
+	if query.From == nil && query.To == nil {
+		return rows
+	}
+	out := make([]models.BankTransaction, 0, len(rows))
+	for _, row := range rows {
+		if withinDateWindow(row.PostedAt, query) {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func filterReconciliationRunsByDate(rows []models.ReconciliationRun, query httpapi.ListQuery) []models.ReconciliationRun {
+	if query.From == nil && query.To == nil {
+		return rows
+	}
+	out := make([]models.ReconciliationRun, 0, len(rows))
+	for _, row := range rows {
+		if withinDateWindow(row.StartedAt, query) {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func organizationIDFromRequest(r *http.Request) string {
+	if id := strings.TrimSpace(r.Header.Get("X-Organization-ID")); id != "" {
+		return id
+	}
+	if id := strings.TrimSpace(r.URL.Query().Get("organizationId")); id != "" {
+		return id
+	}
+	return strings.TrimSpace(r.URL.Query().Get("organization_id"))
+}
+
+func (a *app) withV1Organization(w http.ResponseWriter, r *http.Request, requireExplicit bool, allowed func(string) bool) (*http.Request, bool) {
+	orgID := organizationIDFromRequest(r)
+	if orgID == "" && requireExplicit {
+		errorJSON(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "organizationId is required")
+		return r, false
+	}
+	if orgID == "" {
+		orgs := a.userOrganizations(userID(r))
+		if len(orgs) == 0 {
+			errorJSON(w, r, http.StatusNotFound, "NOT_FOUND", "organization not found")
+			return r, false
+		}
+		orgID = orgs[0].ID
+	}
+	if err := validation.UUID(orgID, "organizationId"); err != nil {
+		errorJSON(w, r, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return r, false
+	}
+	member, ok := a.requireOrgRole(w, r, orgID, allowed)
+	if !ok {
+		return r, false
+	}
+	org := models.Organization{ID: member.OrganizationID, UserID: userID(r), Name: member.OrganizationName, Type: member.OrganizationType, Currency: member.Currency}
+	if org.Name == "" {
+		for _, candidate := range a.userOrganizations(userID(r)) {
+			if candidate.ID == orgID {
+				org = candidate
+				break
+			}
+		}
+	}
+	ctx := context.WithValue(r.Context(), clearflowOrgContextKey{}, org)
+	return r.WithContext(ctx), true
+}
+
+func (a *app) requireOrgRole(w http.ResponseWriter, r *http.Request, orgID string, allowed func(string) bool) (models.OrganizationMember, bool) {
+	member, err := a.membership(r.Context(), userID(r), orgID)
+	if err != nil {
+		errorJSON(w, r, http.StatusForbidden, "FORBIDDEN", "you do not have access to this organization")
+		return models.OrganizationMember{}, false
+	}
+	if !allowed(member.Role) {
+		errorJSON(w, r, http.StatusForbidden, "FORBIDDEN", "your role cannot perform this action")
+		return models.OrganizationMember{}, false
+	}
+	return member, true
+}
+
+func (a *app) currentClearflowUser(r *http.Request) models.User {
+	if u, ok := a.currentUser(r); ok {
+		return u
+	}
+	return models.User{ID: userID(r), Email: userID(r) + "@clearflow.local", CreatedAt: time.Now().UTC()}
+}
+
+func (a *app) clearflowOrganizationForRequest(w http.ResponseWriter, r *http.Request) (models.Organization, bool) {
+	if org, ok := r.Context().Value(clearflowOrgContextKey{}).(models.Organization); ok && org.ID != "" {
+		return org, true
+	}
+	u := a.currentClearflowUser(r)
+	if organizationIDFromRequest(r) == "" {
+		org, err := a.cfRepo.EnsureOrganization(r.Context(), u)
+		if err != nil {
+			a.logOperation(r, "organization.ensure_failed", "", map[string]interface{}{"error": err.Error(), "storage": "postgres"})
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not load organization")
+			return models.Organization{}, false
+		}
+		return org, true
+	}
+	orgID := organizationIDFromRequest(r)
+	orgs, err := a.cfRepo.ListOrganizations(r.Context(), u.ID)
+	if err != nil {
+		errorJSON(w, r, 500, "DATABASE_ERROR", "could not load organizations")
+		return models.Organization{}, false
+	}
+	for _, org := range orgs {
+		if org.ID == orgID {
+			return org, true
+		}
+	}
+	errorJSON(w, r, 403, "FORBIDDEN", "user does not have access to this organization")
+	return models.Organization{}, false
+}
+
+func (a *app) idempotencyHash(r *http.Request, orgID string) string {
+	sum := sha256.Sum256([]byte(r.Method + "|" + r.URL.Path + "|" + r.URL.RawQuery + "|" + orgID))
+	return fmt.Sprintf("%x", sum[:])
+}
+
+func (a *app) replayIdempotentResponse(w http.ResponseWriter, r *http.Request, orgID, requestHash string) bool {
+	key := r.Header.Get("Idempotency-Key")
+	if key == "" {
+		return false
+	}
+	status, body, ok, err := a.cfRepo.ReadIdempotency(r.Context(), userID(r), key, requestHash)
+	if err == repository.ErrIdempotencyConflict {
+		errorJSON(w, r, 409, "IDEMPOTENCY_CONFLICT", "idempotency key was already used for a different request")
+		return true
+	}
+	if err != nil {
+		a.logOperation(r, "idempotency.read_failed", orgID, map[string]interface{}{"error": err.Error()})
+		errorJSON(w, r, 500, "DATABASE_ERROR", "could not read idempotency key")
+		return true
+	}
+	if !ok {
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Idempotency-Replayed", "true")
+	w.WriteHeader(status)
+	_, _ = w.Write(body)
+	a.logOperation(r, "idempotency.replayed", orgID, map[string]interface{}{"idempotency_key": key, "status": status})
+	return true
+}
+
+func (a *app) writeIdempotentJSON(w http.ResponseWriter, r *http.Request, orgID, requestHash string, status int, payload interface{}) {
+	body := repository.EncodeBody(payload)
+	if key := r.Header.Get("Idempotency-Key"); key != "" {
+		if err := a.cfRepo.SaveIdempotency(r.Context(), userID(r), orgID, key, requestHash, status, body); err != nil {
+			a.logOperation(r, "idempotency.save_failed", orgID, map[string]interface{}{"error": err.Error(), "idempotency_key": key})
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, _ = w.Write(append(body, '\n'))
 }
 
 func round2(v float64) float64 {

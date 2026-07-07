@@ -1,0 +1,1230 @@
+openapi: 3.1.0
+info:
+  title: Clearflow API
+  version: 1.0.0
+  description: Versioned payment reconciliation and cash-flow intelligence API for small businesses, creators, and student organizations.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    From:
+      name: from
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+      description: Inclusive ISO date or RFC3339 lower bound.
+    To:
+      name: to
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+      description: Inclusive ISO date or RFC3339 upper bound.
+    OrganizationID:
+      name: organizationId
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: Organization scope. Required for protected write routes; read routes may default to the caller's first organization.
+    PathOrganizationID:
+      name: organizationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PathUserID:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Replays the first successful response for matching financial write requests. Reuse with a different body returns CONFLICT.
+  responses:
+    StandardError:
+      description: API error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+  schemas:
+    APIError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+              enum: [VALIDATION_ERROR, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, RATE_LIMITED, INTERNAL_ERROR]
+            message:
+              type: string
+            requestId:
+              type: string
+              example: req_123
+    Pagination:
+      type: object
+      required: [limit, offset]
+      properties:
+        limit:
+          type: integer
+          example: 50
+        offset:
+          type: integer
+          example: 0
+    Role:
+      type: string
+      enum: [owner, admin, analyst, viewer]
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+    Organization:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { type: string }
+        currency: { type: string, example: USD }
+        role:
+          $ref: "#/components/schemas/Role"
+    OrganizationMembership:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role:
+          $ref: "#/components/schemas/Role"
+        created_at: { type: string, format: date-time }
+    CreateOrganizationRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        type: { type: string, example: small_business }
+        currency: { type: string, example: USD }
+    AddMemberRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email: { type: string, format: email }
+        role:
+          $ref: "#/components/schemas/Role"
+    UpdateMemberRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/Role"
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string, description: Backwards-compatible access token alias. }
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        user:
+          $ref: "#/components/schemas/User"
+        organizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Organization"
+    Session:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        expires_at: { type: string, format: date-time }
+        revoked_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: string, format: date-time }
+        user_agent: { type: string }
+        ip_address: { type: string }
+    Job:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        type: { type: string, enum: [stripe.sync, bank.sync, plaid.transactions.sync, reconciliation.run] }
+        status: { type: string, enum: [queued, running, completed, failed, dead, cancelled] }
+        attempts: { type: integer }
+        max_attempts: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    JobQueued:
+      type: object
+      properties:
+        jobId: { type: string, format: uuid }
+        status: { type: string, example: queued }
+    AuditLog:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        action: { type: string }
+        target_type: { type: string }
+        target_id: { type: string }
+        request_id: { type: string }
+        ip_address: { type: string }
+        user_agent: { type: string }
+        metadata_json: { type: string }
+        created_at: { type: string, format: date-time }
+    PlaidWebhookAcceptedResponse:
+      type: object
+      properties:
+        status: { type: string, example: accepted }
+        deduped: { type: boolean }
+    ProcessorWebhookAcceptedResponse:
+      type: object
+      properties:
+        status: { type: string, example: accepted }
+        deduped: { type: boolean }
+    StripeConnectUrlResponse:
+      type: object
+      properties:
+        url: { type: string, format: uri }
+        state: { type: string }
+    StripeIntegrationStatus:
+      type: object
+      properties:
+        connected: { type: boolean }
+        provider: { type: string, example: stripe }
+        accountId: { type: string, example: acct_123 }
+        displayName: { type: string, example: Stripe Test Account }
+        connectedAt: { type: string, format: date-time }
+        lastSyncAt: { type: string, format: date-time }
+        lastError: { type: string }
+    ProviderConnection:
+      type: object
+      description: Provider connection metadata. Raw provider tokens are never returned.
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        provider: { type: string }
+        external_account_id: { type: string }
+        display_name: { type: string }
+        status: { type: string, enum: [connected, disconnected, error] }
+        scopes: { type: string }
+        connected_at: { type: string, format: date-time }
+        disconnected_at: { type: string, format: date-time }
+    WebhookAcceptedResponse:
+      type: object
+      properties:
+        status: { type: string, example: accepted }
+        deduped: { type: boolean }
+    OAuthCallbackError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: UNAUTHORIZED }
+            message: { type: string, example: OAuth state expired }
+    JobOperationResponse:
+      type: object
+      properties:
+        job:
+          $ref: "#/components/schemas/Job"
+        status: { type: string }
+    OutboxEvent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        event_type: { type: string }
+        aggregate_type: { type: string }
+        aggregate_id: { type: string }
+        payload_json: { type: string }
+        status: { type: string, enum: [pending, published, failed, dead] }
+        attempts: { type: integer }
+        created_at: { type: string, format: date-time }
+    OpsMetrics:
+      type: object
+      properties:
+        http_requests_total: { type: integer }
+        http_errors_total: { type: integer }
+        http_request_duration_ms: { type: integer }
+        jobs_queued_total: { type: integer }
+        jobs_completed_total: { type: integer }
+        jobs_failed_total: { type: integer }
+        jobs_dead_total: { type: integer }
+        job_queue_depth: { type: integer }
+        plaid_webhooks_received_total: { type: integer }
+        plaid_sync_failures_total: { type: integer }
+        reconciliation_runs_total: { type: integer }
+        reconciliation_exceptions_total: { type: integer }
+        idempotency_replays_total: { type: integer }
+        rate_limited_requests_total: { type: integer }
+        redis_rate_limit_hits_total: { type: integer }
+        redis_idempotency_locks_total: { type: integer }
+        stripe_webhook_events_total: { type: integer }
+        stripe_webhook_failures_total: { type: integer }
+        stripe_oauth_exchange_failures_total: { type: integer }
+        plaid_webhook_verification_failures_total: { type: integer }
+        otel_traces_started_total: { type: integer }
+        job_retry_total: { type: integer }
+        job_cancel_total: { type: integer }
+        job_dead_total: { type: integer }
+    ReconciliationMatch:
+      type: object
+      properties:
+        id: { type: string }
+        processorPayoutId: { type: string }
+        bankDepositId: { type: string }
+        status:
+          type: string
+          enum: [matched, likely_match, amount_mismatch, date_mismatch, currency_mismatch, missing_payout, unmatched_deposit, duplicate_possible, unresolved]
+        confidenceScore: { type: number }
+        amountDifferenceMinor: { type: integer }
+        currency: { type: string }
+        reasons:
+          type: array
+          items: { type: string }
+        explanation: { type: string }
+    PayoutExplanation:
+      type: object
+      properties:
+        payoutId: { type: string }
+        processor: { type: string }
+        grossAmountMinor: { type: integer }
+        feesMinor: { type: integer }
+        refundsMinor: { type: integer }
+        netAmountMinor: { type: integer }
+        currency: { type: string }
+        summary: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
+    ForecastPoint:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        projectedBalanceMinor: { type: integer }
+        expectedInflowsMinor: { type: integer }
+        expectedOutflowsMinor: { type: integer }
+    CashflowForecast:
+      type: object
+      properties:
+        organizationId: { type: string }
+        horizonDays: { type: integer }
+        startingBalanceMinor: { type: integer }
+        projectedEndingBalanceMinor: { type: integer }
+        currency: { type: string }
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/ForecastPoint"
+        assumptions:
+          type: array
+          items: { type: string }
+        confidence: { type: string, enum: [low, medium, high] }
+    AnomalyInsight:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string }
+        severity: { type: string, enum: [low, medium, high, critical] }
+        title: { type: string }
+        description: { type: string }
+        resourceType: { type: string }
+        resourceId: { type: string }
+        detectedAt: { type: string, format: date-time }
+        recommendedAction: { type: string }
+    SpendingInsight:
+      type: object
+      properties:
+        totalSpendMinor: { type: integer }
+        currency: { type: string }
+        categories:
+          type: array
+          items:
+            type: object
+        topMerchants:
+          type: array
+          items:
+            type: object
+        notes:
+          type: array
+          items: { type: string }
+    CashRecommendation:
+      type: object
+      properties:
+        type: { type: string, enum: [reserve, invest_idle_cash, reduce_fees, follow_up_unmatched_deposit, review_refunds, delay_nonessential_spend] }
+        priority: { type: string }
+        title: { type: string }
+        description: { type: string }
+        amountMinor: { type: integer }
+        currency: { type: string }
+    Payment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        processor: { type: string, example: stripe }
+        processor_payment_id: { type: string }
+        customer_email: { type: string }
+        amount: { type: number, format: double }
+        currency: { type: string, example: USD }
+        status: { type: string }
+        occurred_at: { type: string, format: date-time }
+        description: { type: string }
+        created_at: { type: string, format: date-time }
+    Payout:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        processor: { type: string, example: stripe }
+        processor_payout_id: { type: string }
+        amount: { type: number, format: double }
+        currency: { type: string, example: USD }
+        status: { type: string }
+        expected_arrival_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    BankTransaction:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        source: { type: string }
+        external_id: { type: string }
+        amount: { type: number, format: double }
+        direction: { type: string, enum: [credit, debit] }
+        currency: { type: string, example: USD }
+        description: { type: string }
+        posted_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    ReconciliationRun:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        status: { type: string }
+        matched_count: { type: integer }
+        exception_count: { type: integer }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time }
+    PaymentsPage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Payment" }
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    PayoutsPage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Payout" }
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    BankTransactionsPage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/BankTransaction" }
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    ReconciliationRunsPage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ReconciliationRun" }
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+paths:
+  /api/v1/health:
+    get:
+      security: []
+      summary: Liveness check
+      responses:
+        "200":
+          description: API is alive
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/ready:
+    get:
+      security: []
+      summary: Readiness check
+      responses:
+        "200":
+          description: API dependencies are available or demo fallback is active
+        "503":
+          $ref: "#/components/responses/StandardError"
+  /api/v1/auth/register:
+    post:
+      security: []
+      summary: Register a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        "201":
+          description: Tokens, user, and organizations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/auth/login:
+    post:
+      security: []
+      summary: Authenticate a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Tokens, user, and organizations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/auth/refresh:
+    post:
+      security: []
+      summary: Rotate a refresh token and return a new access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Rotated tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+        "429":
+          $ref: "#/components/responses/StandardError"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/auth/logout:
+    post:
+      security: []
+      summary: Revoke a refresh token/session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "204":
+          description: Session revoked
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/auth/sessions:
+    get:
+      summary: List refresh sessions for the current user
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/auth/sessions/{sessionId}:
+    delete:
+      summary: Revoke a refresh session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Session revoked
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/me:
+    get:
+      summary: Return the authenticated user and organization memberships
+      responses:
+        "200":
+          description: Current user context
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+                  organizations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Organization"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/organizations:
+    get:
+      summary: List organizations the caller belongs to
+      responses:
+        "200":
+          description: Organizations with caller role
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Organization"
+        default:
+          $ref: "#/components/responses/StandardError"
+    post:
+      summary: Create an organization and make the caller owner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationRequest"
+      responses:
+        "201":
+          description: Created organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/organizations/{organizationId}/members:
+    get:
+      summary: List organization members
+      description: Requires owner or admin role.
+      parameters:
+        - $ref: "#/components/parameters/PathOrganizationID"
+      responses:
+        "200":
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganizationMembership"
+        default:
+          $ref: "#/components/responses/StandardError"
+    post:
+      summary: Add an existing user as an organization member
+      description: Requires owner or admin role. Admin cannot grant owner.
+      parameters:
+        - $ref: "#/components/parameters/PathOrganizationID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMemberRequest"
+      responses:
+        "201":
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationMembership"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/organizations/{organizationId}/members/{userId}:
+    patch:
+      summary: Update an organization member role
+      description: Requires owner or admin role. Admin cannot modify owners; owners cannot demote the last owner.
+      parameters:
+        - $ref: "#/components/parameters/PathOrganizationID"
+        - $ref: "#/components/parameters/PathUserID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRoleRequest"
+      responses:
+        "200":
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationMembership"
+        default:
+          $ref: "#/components/responses/StandardError"
+    delete:
+      summary: Remove an organization member
+      description: Requires owner or admin role. The last owner cannot be removed.
+      parameters:
+        - $ref: "#/components/parameters/PathOrganizationID"
+        - $ref: "#/components/parameters/PathUserID"
+      responses:
+        "204":
+          description: Member removed
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/payments:
+    get:
+      summary: List processor payments
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: Payments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentsPage"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/payouts:
+    get:
+      summary: List processor payouts
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: Payouts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayoutsPage"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/payouts/{payoutId}/explanation:
+    get:
+      summary: Explain a payout, fees, refunds, and matching bank deposit
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - name: payoutId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payout explanation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayoutExplanation"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/bank-transactions:
+    get:
+      summary: List bank transactions imported from Plaid, CSV, or demo data
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: Bank transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankTransactionsPage"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/sync/stripe:
+    post:
+      summary: Queue Stripe sample sync
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: Sync job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobQueued"
+        "409":
+          $ref: "#/components/responses/StandardError"
+        "429":
+          $ref: "#/components/responses/StandardError"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/sync/bank:
+    post:
+      summary: Queue bank sample sync
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: Sync job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobQueued"
+        "409":
+          $ref: "#/components/responses/StandardError"
+        "429":
+          $ref: "#/components/responses/StandardError"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/reconciliation-runs:
+    get:
+      summary: List reconciliation runs
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: Reconciliation runs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationRunsPage"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/reconciliation-runs/{runId}/matches:
+    get:
+      summary: Return confidence-scored reconciliation matches
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Scored matches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReconciliationMatch"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/cashflow/forecast:
+    get:
+      summary: Forecast organization cash flow with transparent assumptions
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - name: horizonDays
+          in: query
+          required: false
+          schema: { type: integer, enum: [7, 30, 60, 90] }
+      responses:
+        "200":
+          description: Cashflow forecast
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashflowForecast"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/insights/anomalies:
+    get:
+      summary: Detect payment-ops anomalies
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+      responses:
+        "200":
+          description: Anomalies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AnomalyInsight"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/insights/spending:
+    get:
+      summary: Summarize spending by category and merchant
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: Spending insight
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpendingInsight"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/recommendations/cash:
+    get:
+      summary: Return practical cash-management recommendations
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+      responses:
+        "200":
+          description: Cash recommendations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CashRecommendation"
+        default:
+          $ref: "#/components/responses/StandardError"
+    post:
+      summary: Match payouts to bank deposits and create exceptions
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: Reconciliation job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobQueued"
+        "409":
+          $ref: "#/components/responses/StandardError"
+        "429":
+          $ref: "#/components/responses/StandardError"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/jobs:
+    get:
+      summary: List organization jobs
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/jobs/{jobId}:
+    get:
+      summary: Get an organization job
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/jobs/{jobId}/cancel:
+    post:
+      summary: Cancel a queued/running job
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Job cancel result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobOperationResponse"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/jobs/{jobId}/retry:
+    post:
+      summary: Retry a failed/dead/cancelled job
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Job retry result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobOperationResponse"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/jobs/dead:
+    get:
+      summary: List dead jobs for an organization
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Dead jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/audit-logs:
+    get:
+      summary: List organization audit logs
+      description: Requires owner or admin role.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - name: action
+          in: query
+          required: false
+          schema: { type: string }
+        - name: actorId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditLog"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/integrations/stripe/connect-url:
+    get:
+      summary: Create a Stripe OAuth connect URL
+      description: Requires organization owner/admin access. Persists a hashed, expiring OAuth state.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+      responses:
+        "200":
+          description: Stripe OAuth URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeConnectUrlResponse"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/integrations/stripe/callback:
+    get:
+      summary: Complete Stripe OAuth callback
+      description: Validates state, rejects expired or reused states, protects provider tokens, and persists account metadata.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+        - name: code
+          in: query
+          schema: { type: string }
+        - name: state
+          in: query
+          schema: { type: string }
+        - name: error
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Stripe connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeIntegrationStatus"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/integrations/stripe/status:
+    get:
+      summary: Return Stripe connection status
+      description: Does not return raw provider tokens.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+      responses:
+        "200":
+          description: Stripe status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeIntegrationStatus"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/integrations/stripe:
+    delete:
+      summary: Disconnect Stripe locally
+      description: Marks the local provider connection disconnected. Remote revocation is intentionally deferred.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationID"
+      responses:
+        "200":
+          description: Disconnected status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeIntegrationStatus"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/webhooks/plaid:
+    post:
+      security: []
+      summary: Accept and persist a Plaid webhook
+      description: Plaid webhook verification is required when PLAID_WEBHOOK_VERIFICATION is enabled. Development mock bypass is allowed only outside production.
+      responses:
+        "202":
+          description: Webhook accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaidWebhookAcceptedResponse"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/webhooks/processors/{provider}:
+    post:
+      security: []
+      summary: Accept and persist a processor webhook
+      description: Stripe-Signature is verified for Stripe when STRIPE_WEBHOOK_SECRET is configured. Supported sync-queue events include payout.created, payout.paid, payout.failed, charge.succeeded, charge.refunded, and balance.available.
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "202":
+          description: Webhook accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessorWebhookAcceptedResponse"
+        default:
+          $ref: "#/components/responses/StandardError"
+  /api/v1/ops/metrics:
+    get:
+      summary: Return JSON operational metrics
+      responses:
+        "200":
+          description: Operational metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpsMetrics"
+        default:
+          $ref: "#/components/responses/StandardError"

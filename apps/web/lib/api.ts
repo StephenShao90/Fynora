@@ -1,7 +1,13 @@
 "use client";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+const CONFIGURED_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+const API_BASE = CONFIGURED_API_BASE || "http://localhost:8080";
+const DEMO_FALLBACK_ENABLED = !CONFIGURED_API_BASE;
 const DEMO_TOKEN = "clearflow-demo-token";
+
+export function isDemoFallbackMode() {
+  return DEMO_FALLBACK_ENABLED;
+}
 
 export function token() {
   if (typeof window === "undefined") return "";
@@ -29,7 +35,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   } catch (err) {
-    const fallback = demoResponse<T>(path, init);
+    const fallback = DEMO_FALLBACK_ENABLED ? demoResponse<T>(path, init) : undefined;
     if (fallback !== undefined) {
       console.info("[clearflow-api:demo-fallback]", { path, method: init.method || "GET", requestId, reason: (err as Error).message });
       return fallback;
@@ -40,6 +46,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const responseRequestId = res.headers.get("X-Request-ID") || requestId;
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    const fallback = DEMO_FALLBACK_ENABLED ? demoResponse<T>(path, init) : undefined;
+    if (fallback !== undefined && [404, 501, 503].includes(res.status)) {
+      console.info("[clearflow-api:demo-fallback]", { path, method: init.method || "GET", requestId: responseRequestId, status: res.status, reason: body?.error?.message || "endpoint unavailable" });
+      return fallback;
+    }
     console.error("[clearflow-api:error]", { path, status: res.status, durationMs, requestId: responseRequestId, message: body?.error?.message });
     throw new Error(body?.error?.message || `Request failed: ${res.status}`);
   }
@@ -68,6 +79,153 @@ export async function upload<T>(path: string, file: File): Promise<T> {
   return res.json();
 }
 
+export type ForecastPoint = {
+  date: string;
+  projectedBalanceMinor: number;
+  expectedInflowsMinor: number;
+  expectedOutflowsMinor: number;
+};
+
+export type CashflowForecast = {
+  organizationId: string;
+  horizonDays: number;
+  startingBalanceMinor: number;
+  projectedEndingBalanceMinor: number;
+  currency: string;
+  series: ForecastPoint[];
+  assumptions: string[];
+  confidence: "low" | "medium" | "high" | string;
+};
+
+export type AnomalyInsight = {
+  id: string;
+  type: string;
+  severity: "critical" | "high" | "medium" | "low" | string;
+  title: string;
+  description: string;
+  resourceType: string;
+  resourceId?: string;
+  detectedAt: string;
+  recommendedAction: string;
+};
+
+export type CashRecommendation = {
+  type: string;
+  priority: "critical" | "high" | "medium" | "low" | string;
+  title: string;
+  description: string;
+  amountMinor?: number;
+  currency: string;
+};
+
+export type SpendingCategory = {
+  category: string;
+  amountMinor: number;
+  percentage: number;
+  changeVsPreviousPeriod: number;
+};
+
+export type MerchantSpend = {
+  merchant: string;
+  amountMinor: number;
+};
+
+export type SpendingInsights = {
+  totalSpendMinor: number;
+  currency: string;
+  categories: SpendingCategory[];
+  topMerchants: MerchantSpend[];
+  notes: string[];
+};
+
+export type PayoutExplanation = {
+  payoutId: string;
+  processor: string;
+  grossAmountMinor: number;
+  feesMinor: number;
+  refundsMinor: number;
+  netAmountMinor: number;
+  currency: string;
+  bankDeposit?: {
+    id: string;
+    amountMinor: number;
+    postedAt: string;
+  };
+  summary: string;
+  lineItems: unknown[];
+  warnings: string[];
+};
+
+export type ReconciliationMatch = {
+  id: string;
+  processorPayoutId?: string;
+  bankDepositId?: string;
+  status: string;
+  confidenceScore: number;
+  amountDifferenceMinor: number;
+  currency: string;
+  reasons: string[];
+  explanation: string;
+};
+
+export type StripeConnectUrlResponse = {
+  url: string;
+  state: string;
+};
+
+export type StripeIntegrationStatus = {
+  connected: boolean;
+  provider: "stripe" | string;
+  accountId?: string;
+  displayName?: string;
+  connectedAt?: string;
+  lastSyncAt?: string;
+  lastError?: string;
+};
+
+export function getPayoutExplanation(payoutId: string) {
+  return api<PayoutExplanation>(`/api/v1/payouts/${payoutId}/explanation`);
+}
+
+export function getCashflowForecast(horizonDays = 30) {
+  return api<CashflowForecast>(`/api/v1/cashflow/forecast?horizonDays=${horizonDays}`);
+}
+
+export async function getAnomalies() {
+  const response = await api<{ data: AnomalyInsight[] }>("/api/v1/insights/anomalies");
+  return response.data;
+}
+
+export function getSpendingInsights(from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const suffix = params.toString() ? `?${params}` : "";
+  return api<SpendingInsights>(`/api/v1/insights/spending${suffix}`);
+}
+
+export async function getCashRecommendations() {
+  const response = await api<{ data: CashRecommendation[] }>("/api/v1/recommendations/cash");
+  return response.data;
+}
+
+export async function getReconciliationMatches(runId: string) {
+  const response = await api<{ data: ReconciliationMatch[] }>(`/api/v1/reconciliation-runs/${runId}/matches`);
+  return response.data;
+}
+
+export function getStripeConnectUrl() {
+  return api<StripeConnectUrlResponse>("/api/v1/integrations/stripe/connect-url");
+}
+
+export function getStripeStatus() {
+  return api<StripeIntegrationStatus>("/api/v1/integrations/stripe/status");
+}
+
+export function disconnectStripe() {
+  return api<StripeIntegrationStatus>("/api/v1/integrations/stripe", { method: "DELETE" });
+}
+
 function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   const method = init.method || "GET";
   if (path === "/auth/demo-token") return { token: DEMO_TOKEN, user: { id: "demo-user", email: "demo@clearflow.local" } } as T;
@@ -84,7 +242,23 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.startsWith("/reconciliation/exceptions") && method === "PATCH") return { ...demoExceptions[0], status: "resolved" } as T;
   if (path.startsWith("/sync/stripe")) return { payments: 5, refunds: 1, fees: 5, payout: demoPayouts[0] } as T;
   if (path.startsWith("/sync/bank")) return { bank_transactions: 3 } as T;
-  if (path.startsWith("/connections")) return [] as T;
+  if (path.startsWith("/api/v1/payouts/") && (path.includes("/explanation") || path.includes("/breakdown"))) return demoPayoutExplanation as T;
+  if (path.startsWith("/api/v1/cashflow/forecast")) return demoIntelligenceForecast as T;
+  if (path.startsWith("/api/v1/insights/anomalies")) return { data: demoAnomalies } as T;
+  if (path.startsWith("/api/v1/insights/spending")) return demoSpendingInsights as T;
+  if (path.startsWith("/api/v1/recommendations/cash")) return { data: demoCashRecommendations } as T;
+  if (path.startsWith("/api/v1/reconciliation-runs/") && path.includes("/matches")) return { data: demoReconciliationMatches } as T;
+  if (path.startsWith("/api/v1/integrations/stripe/connect-url")) return { url: "https://connect.stripe.com/oauth/authorize?response_type=code&client_id=ca_mock_clearflow&state=demo-state", state: "demo-state" } as T;
+  if (path.startsWith("/api/v1/integrations/stripe/status")) return demoStripeStatus as T;
+  if (path.startsWith("/api/v1/integrations/stripe") && method === "DELETE") return { connected: false, provider: "stripe" } as T;
+  if (path.startsWith("/api/v1/jobs/dead")) return { data: [], pagination: demoPagination } as T;
+  if (path.startsWith("/api/v1/jobs")) return { data: demoJobs, pagination: demoPagination } as T;
+  if (path.startsWith("/api/v1/audit-logs")) return { data: demoAuditLogs, pagination: demoPagination } as T;
+  if (path.startsWith("/api/v1/ops/metrics")) return demoMetrics as T;
+  if (path.startsWith("/connections/plaid/link-token")) return { link_token: "", demo_unavailable: true } as T;
+  if (path.startsWith("/connections/plaid/sandbox-connect")) return { demo_unavailable: true, message: "Start the local API with Plaid Sandbox credentials to create a test connection." } as T;
+  if (path.startsWith("/connections/plaid/sync-transactions")) return { imported_count: 0, connection_count: 0 } as T;
+  if (path.startsWith("/connections")) return demoPlaidConnections as T;
   if (path.startsWith("/transactions")) return [] as T;
   if (path.startsWith("/insights")) return [] as T;
   return undefined;
@@ -99,13 +273,15 @@ const demoPayments = [
 
 const demoPayouts = [
   { id: "po-1", processor_payout_id: "po_demo_001", amount: 1665.72, status: "paid", expected_arrival_at: "2026-07-04T12:00:00Z" },
-  { id: "po-2", processor_payout_id: "po_demo_002", amount: 1301.55, status: "paid", expected_arrival_at: "2026-07-05T12:00:00Z" }
+  { id: "po-2", processor_payout_id: "po_demo_002", amount: 1301.55, status: "paid", expected_arrival_at: "2026-07-05T12:00:00Z" },
+  { id: "po-3", processor_payout_id: "po_demo_003", amount: 720, status: "paid", expected_arrival_at: "2026-07-06T12:00:00Z" }
 ];
 
 const demoBankTransactions = [
   { id: "bank-1", external_id: "bank_stripe_001", amount: 1665.72, direction: "credit", description: "STRIPE PAYOUT", posted_at: "2026-07-04T12:00:00Z" },
-  { id: "bank-2", external_id: "bank_unknown_001", amount: 212.45, direction: "credit", description: "Unknown deposit", posted_at: "2026-07-05T12:00:00Z" },
-  { id: "bank-3", external_id: "bank_venue_001", amount: 300, direction: "debit", description: "Venue deposit", posted_at: "2026-07-05T12:00:00Z" }
+  { id: "bank-2", external_id: "bank_stripe_002", amount: 1290.55, direction: "credit", description: "STRIPE PAYOUT POSSIBLE", posted_at: "2026-07-05T12:00:00Z" },
+  { id: "bank-3", external_id: "bank_unknown_001", amount: 212.45, direction: "credit", description: "Unknown deposit", posted_at: "2026-07-05T14:15:00Z" },
+  { id: "bank-4", external_id: "bank_venue_001", amount: 300, direction: "debit", description: "Venue deposit", posted_at: "2026-07-05T18:00:00Z" }
 ];
 
 const demoRuns = [
@@ -114,5 +290,191 @@ const demoRuns = [
 ];
 
 const demoExceptions = [
-  { id: "ex-1", severity: "medium", title: "Unmatched bank deposit", explanation: "Bank deposit Unknown deposit for $212.45 is not tied to a known payout.", status: "open", created_at: "2026-07-05T03:07:04Z" }
+  { id: "ex-1", severity: "medium", title: "Likely payout amount mismatch", explanation: "Stripe payout po_demo_002 is close to a bank deposit but differs by $11.00.", status: "open", created_at: "2026-07-05T03:07:04Z" },
+  { id: "ex-2", severity: "high", title: "Missing payout deposit", explanation: "Stripe payout po_demo_003 was expected on Jul 6 and has no matching bank deposit.", status: "open", created_at: "2026-07-06T15:30:00Z" },
+  { id: "ex-3", severity: "medium", title: "Unmatched bank deposit", explanation: "Bank deposit Unknown deposit for $212.45 is not tied to a known payout.", status: "open", created_at: "2026-07-06T15:32:00Z" }
 ];
+
+const demoIntelligenceForecast: CashflowForecast = {
+  organizationId: "demo-org",
+  horizonDays: 30,
+  startingBalanceMinor: 296727,
+  projectedEndingBalanceMinor: 241727,
+  currency: "USD",
+  confidence: "medium",
+  assumptions: [
+    "Used recent bank credits and debits as the operating baseline.",
+    "Included pending processor payouts when expected arrival dates were present.",
+    "Excluded unresolved unmatched deposits from special treatment."
+  ],
+  series: Array.from({ length: 30 }, (_, index) => {
+    const day = index + 1;
+    const date = new Date(Date.UTC(2026, 6, 7 + day));
+    const inflow = day === 7 ? 130155 : day === 21 ? 52000 : 0;
+    const outflow = day % 10 === 0 ? 30000 : 8500;
+    return {
+      date: date.toISOString().slice(0, 10),
+      projectedBalanceMinor: 296727 + (day === 7 ? 130155 : 0) + (day > 21 ? 52000 : 0) - day * 8500 - (day >= 10 ? 30000 : 0),
+      expectedInflowsMinor: inflow,
+      expectedOutflowsMinor: outflow
+    };
+  })
+};
+
+const demoAnomalies: AnomalyInsight[] = [
+  {
+    id: "missing_payout:po-demo-3",
+    type: "missing_payout",
+    severity: "high",
+    title: "Expected payout has not reached the bank",
+    description: "Stripe payout po_demo_003 was expected yesterday and has no matching bank deposit.",
+    resourceType: "processor_payout",
+    resourceId: "po-demo-3",
+    detectedAt: "2026-07-06T15:30:00Z",
+    recommendedAction: "Check the processor payout status and confirm bank settlement timing."
+  },
+  {
+    id: "unmatched_deposit:bank-2",
+    type: "unmatched_deposit",
+    severity: "medium",
+    title: "Unmatched bank deposit",
+    description: "A $212.45 bank credit is not tied to a known processor payout.",
+    resourceType: "bank_transaction",
+    resourceId: "bank-2",
+    detectedAt: "2026-07-06T15:32:00Z",
+    recommendedAction: "Review bank memo details and annotate the deposit source."
+  },
+  {
+    id: "high_processor_fee",
+    type: "high_processor_fee",
+    severity: "medium",
+    title: "Processor fees look high",
+    description: "Fees are running above 5% of payout volume for the current sample period.",
+    resourceType: "fees",
+    detectedAt: "2026-07-06T15:35:00Z",
+    recommendedAction: "Compare card mix, pricing tier, and refund-related fee leakage."
+  }
+];
+
+const demoSpendingInsights: SpendingInsights = {
+  totalSpendMinor: 51245,
+  currency: "USD",
+  categories: [
+    { category: "facilities", amountMinor: 30000, percentage: 58.5, changeVsPreviousPeriod: 12.4 },
+    { category: "software", amountMinor: 12900, percentage: 25.2, changeVsPreviousPeriod: -4.1 },
+    { category: "food", amountMinor: 8345, percentage: 16.3, changeVsPreviousPeriod: 3.7 }
+  ],
+  topMerchants: [
+    { merchant: "Venue deposit", amountMinor: 30000 },
+    { merchant: "Design software", amountMinor: 12900 },
+    { merchant: "Event food vendor", amountMinor: 8345 }
+  ],
+  notes: ["Facilities is the largest spending category in this period.", "Software spend is trending lower than the previous period."]
+};
+
+const demoCashRecommendations: CashRecommendation[] = [
+  { type: "reserve", priority: "high", title: "Keep at least 30 days of operating cash", description: "Maintain a reserve before approving new event spend.", amountMinor: 51245, currency: "USD" },
+  { type: "follow_up_missing_payout", priority: "high", title: "Follow up on missing payouts", description: "Confirm payout status before relying on expected processor cash.", currency: "USD" },
+  { type: "reduce_fees", priority: "medium", title: "Review processor fees", description: "Fees are elevated relative to payout volume. Check payment method mix and pricing tier.", currency: "USD" }
+];
+
+const demoPayoutExplanation: PayoutExplanation = {
+  payoutId: "po-1",
+  processor: "stripe",
+  grossAmountMinor: 209872,
+  feesMinor: 25812,
+  refundsMinor: 17500,
+  netAmountMinor: 166572,
+  currency: "USD",
+  bankDeposit: { id: "bank-1", amountMinor: 166572, postedAt: "2026-07-04T12:00:00Z" },
+  summary: "This payout represents $2,098.72 in gross payments minus $258.12 in fees and $175.00 in refunds, resulting in a $1,665.72 bank deposit.",
+  lineItems: [],
+  warnings: ["processor fees are elevated for the current sample period"]
+};
+
+const demoReconciliationMatches: ReconciliationMatch[] = [
+  {
+    id: "po-1:bank-1",
+    processorPayoutId: "po-1",
+    bankDepositId: "bank-1",
+    status: "matched",
+    confidenceScore: 0.98,
+    amountDifferenceMinor: 0,
+    currency: "USD",
+    reasons: ["same_currency", "exact_amount", "date_within_window", "payout_reference_match"],
+    explanation: "This deposit matches the processor payout because the amount, currency, and deposit timing align."
+  },
+  {
+    id: "po-2:bank-2",
+    processorPayoutId: "po-2",
+    bankDepositId: "bank-2",
+    status: "likely_match",
+    confidenceScore: 0.72,
+    amountDifferenceMinor: 1100,
+    currency: "USD",
+    reasons: ["same_currency", "date_within_window", "amount_off_by_fee"],
+    explanation: "This bank deposit is likely tied to the payout, but the $11.00 amount gap needs operator review."
+  },
+  {
+    id: "missing:po-3",
+    processorPayoutId: "po-3",
+    status: "missing_payout",
+    confidenceScore: 0,
+    amountDifferenceMinor: 72000,
+    currency: "USD",
+    reasons: ["expected_arrival_passed", "no_bank_deposit"],
+    explanation: "This processor payout was expected but has no matching bank deposit."
+  },
+  {
+    id: "unmatched:bank-3",
+    bankDepositId: "bank-3",
+    status: "unmatched_deposit",
+    confidenceScore: 0,
+    amountDifferenceMinor: 21245,
+    currency: "USD",
+    reasons: ["unmatched_deposit"],
+    explanation: "This bank deposit is not tied to a known processor payout."
+  }
+];
+
+const demoStripeStatus: StripeIntegrationStatus = {
+  connected: true,
+  provider: "stripe",
+  accountId: "acct_demo_123",
+  displayName: "Stripe Test Account",
+  connectedAt: "2026-07-06T18:00:00Z",
+  lastSyncAt: "2026-07-06T20:20:00Z"
+};
+
+const demoPlaidConnections = [
+  { id: "plaid-demo-1", institution_name: "Plaid Sandbox Bank", products: ["transactions"], last_synced_at: "2026-07-06T20:58:26Z" }
+];
+
+const demoPagination = { limit: 25, offset: 0, count: 3 };
+
+const demoJobs = [
+  { id: "job-recon-001", organization_id: "demo-org", type: "reconciliation.run", status: "completed", attempts: 1, max_attempts: 3, created_at: "2026-07-06T20:22:00Z", updated_at: "2026-07-06T20:22:04Z" },
+  { id: "job-stripe-001", organization_id: "demo-org", type: "stripe.sync", status: "completed", attempts: 1, max_attempts: 3, created_at: "2026-07-06T20:20:00Z", updated_at: "2026-07-06T20:20:02Z" },
+  { id: "job-bank-001", organization_id: "demo-org", type: "bank.sync", status: "completed", attempts: 1, max_attempts: 3, created_at: "2026-07-06T20:21:00Z", updated_at: "2026-07-06T20:21:02Z" }
+];
+
+const demoAuditLogs = [
+  { id: "audit-1", action: "reconciliation.run_completed", target_type: "reconciliation_run", target_id: "run-001", created_at: "2026-07-06T20:22:04Z" },
+  { id: "audit-2", action: "stripe.mock_synced", target_type: "payout", target_id: "po-1", created_at: "2026-07-06T20:20:02Z" },
+  { id: "audit-3", action: "bank.mock_synced", target_type: "bank_transaction", target_id: "bank-1", created_at: "2026-07-06T20:21:02Z" }
+];
+
+const demoMetrics = {
+  http_requests_total: 184,
+  http_errors_total: 2,
+  jobs_queued_total: 3,
+  jobs_completed_total: 3,
+  jobs_failed_total: 0,
+  job_queue_depth: 0,
+  plaid_webhooks_received_total: 1,
+  stripe_webhook_events_total: 1,
+  idempotency_replays_total: 2,
+  redis_rate_limit_hits_total: 0,
+  redis_idempotency_locks_total: 2,
+  otel_traces_started_total: 18
+};

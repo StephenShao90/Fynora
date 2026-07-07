@@ -29,6 +29,11 @@ type ExchangeResponse struct {
 	RequestID   string `json:"request_id"`
 }
 
+type SandboxPublicTokenResponse struct {
+	PublicToken string `json:"public_token"`
+	RequestID   string `json:"request_id"`
+}
+
 type Institution struct {
 	Name string `json:"name"`
 }
@@ -98,6 +103,38 @@ func (c Client) ExchangePublicToken(ctx context.Context, publicToken string) (*E
 	payload := map[string]interface{}{"public_token": publicToken}
 	var out ExchangeResponse
 	if err := c.post(ctx, "/item/public_token/exchange", payload, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c Client) CreateSandboxPublicToken(ctx context.Context, institutionID, productsCSV, username, password string) (*SandboxPublicTokenResponse, error) {
+	if strings.ToLower(c.Env) != "sandbox" {
+		return nil, fmt.Errorf("sandbox public token creation is only available when PLAID_ENV=sandbox")
+	}
+	if institutionID == "" {
+		institutionID = "ins_109508"
+	}
+	if username == "" {
+		username = "user_transactions_dynamic"
+	}
+	if password == "" {
+		password = "pass_good"
+	}
+	products := splitCSV(productsCSV)
+	if len(products) == 0 {
+		products = []string{"transactions"}
+	}
+	payload := map[string]interface{}{
+		"institution_id":   institutionID,
+		"initial_products": products,
+		"options": map[string]string{
+			"override_username": username,
+			"override_password": password,
+		},
+	}
+	var out SandboxPublicTokenResponse
+	if err := c.post(ctx, "/sandbox/public_token/create", payload, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

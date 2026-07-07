@@ -1,50 +1,85 @@
 # Clearflow
 
-Clearflow is a payment reconciliation and cash-flow intelligence platform for small organizations: student clubs, creators, campus businesses, nonprofits, local event teams, tutors, and small service businesses.
+Clearflow is a payment reconciliation and cash-flow intelligence API for small businesses, creators, student organizations, nonprofits, and event teams.
 
-It connects payment processor data, bank deposits, and optional CSV/manual imports, then answers the operational questions that small teams usually handle in spreadsheets:
+It connects payment processor activity, bank deposits, and manual or CSV imports so operators can answer questions they usually handle in spreadsheets:
 
-- Which bank deposit came from which Stripe payout?
-- Which charges, refunds, and fees are inside that payout?
-- Which deposits are unmatched?
-- Which payments failed or need follow-up?
+- Which bank deposit maps to which Stripe payout?
+- Which payments, fees, and refunds make up a payout?
+- Which deposits or payouts are unmatched?
 - How much cash is available now?
 - What will cash look like over the next 7, 30, or 60 days?
 
-Clearflow does not move money, execute trades, store bank credentials, or scrape banks. It uses secure providers such as Plaid for bank connectivity and is designed to integrate with processors such as Stripe.
+Clearflow does not move money, store bank credentials, or scrape banks. Bank connectivity is delegated to providers such as Plaid; processor connectivity is designed around APIs and webhooks such as Stripe.
 
-## Why It Is More Than CRUD
+## Why This Is A Backend Portfolio Project
 
-Clearflow includes processor sync, bank transaction ingestion, payout/deposit matching, exception generation, cash-flow forecasting, audit logs, idempotent-style upserts, Plaid Link integration, and a dashboard built around finance operations workflows. The core value is a reconciliation engine, not a table editor.
+Clearflow is not a CRUD demo. The backend includes JWT auth, organization membership, Postgres-backed financial records, integer minor-unit money storage, idempotent ingestion, payout breakdowns, reconciliation matching, exception workflows, cash-flow reporting, audit logs, structured JSON logging, OpenAPI docs, Docker Compose, and a background worker pattern.
+
+That makes it useful both as a product foundation and as a backend systems project for fintech-style roles.
+
+## Why This Project Is Backend-Heavy
+
+The product is intentionally built around backend/platform concerns that show up in fintech roles:
+
+- Go API with explicit HTTP handlers and production-style middleware
+- PostgreSQL persistence for users, organizations, financial records, jobs, idempotency keys, webhooks, audit logs, and provider connections
+- JWT access tokens plus refresh-token sessions
+- Organization RBAC for owner/admin/viewer workflows
+- Idempotency keys and request-body hashing for financial writes
+- Async jobs and a separate worker process for sync and reconciliation work
+- Plaid/Stripe integration architecture without storing bank credentials
+- Webhook verification, persistence, deduplication, and job queueing
+- Audit logs, operational metrics, and OpenTelemetry-ready tracing
+- Redis-ready rate limiting and in-flight idempotency locks
+- Reconciliation scoring, payout explanations, anomaly detection, and cash-flow forecasting
+- Frontend intelligence dashboard that exercises the backend instead of acting as a static mock
+
+Resume bullet:
+
+Built a production-style fintech operations platform in Go, PostgreSQL, Next.js, and TypeScript with organization RBAC, idempotent financial writes, async reconciliation jobs, Plaid/Stripe integration architecture, webhook processing, audit logs, metrics, OpenTelemetry-ready tracing, and financial intelligence APIs for payout explanation, anomaly detection, and cash-flow forecasting.
 
 ## Architecture
 
 ```text
-Small organization
-  |
-  v
-Next.js Operations Dashboard
+Next.js operations dashboard
   |
   v
 Go API
-  |------ PostgreSQL schema
-  |------ Plaid bank connection
-  |------ Stripe-style payment/payout sync
-  |------ Reconciliation Engine
-  |------ Exception Tracking
-  |------ Cash-Flow Forecasting
-  |------ Audit Logs
+  |-- JWT auth
+  |-- organization membership and RBAC-ready roles
+  |-- idempotent processor/bank ingestion
+  |-- reconciliation engine
+  |-- cash-flow/reporting endpoints
+  |
+  v
+PostgreSQL
+  |-- organizations, memberships
+  |-- payments, refunds, fees, payouts, payout_items
+  |-- bank_transactions
+  |-- reconciliation_runs, matches, exceptions
+  |-- idempotency_keys, audit_logs, sync_jobs, webhook_events
 ```
+
+The API keeps an in-memory fallback so the app can still be demoed if Postgres is unavailable, but the intended runtime path is PostgreSQL.
 
 ## Tech Stack
 
-- Frontend: Next.js App Router, TypeScript, React, Tailwind CSS, Recharts
-- Backend: Go, JWT auth, bcrypt password hashing, structured JSON logging
-- Data: PostgreSQL migrations plus local demo store for frictionless evaluation
-- Integrations: Plaid Link for secure bank connectivity; Stripe-style mock sync ready to replace with real Stripe APIs/webhooks
-- DevOps: Docker Compose, Makefile, GitHub Actions CI
+- Backend: Go, `net/http`, JWT, bcrypt, pgx, structured JSON logs
+- Database: PostgreSQL 16 with SQL migrations
+- Frontend: Next.js App Router, TypeScript, Tailwind CSS
+- Integrations: Plaid Link scaffold, Stripe-style ingestion architecture
+- DevOps: Docker Compose, Makefile, GitHub Actions CI, OpenAPI
 
 ## Local Setup
+
+Install Go first if `go` is missing:
+
+```bash
+brew install go
+```
+
+Then run:
 
 ```bash
 cp .env.example .env
@@ -52,56 +87,121 @@ make install
 make docker-up
 make migrate
 make api
+```
+
+The Docker Postgres container is exposed on host port `5433` to avoid colliding with a local Postgres install. If you already have a `.env`, make sure `DATABASE_URL=postgres://postgres:postgres@localhost:5433/fynora?sslmode=disable`.
+
+In another terminal:
+
+```bash
 make web
 ```
 
-Open `http://localhost:3000` and click **Try Demo**. The demo flow seeds a user, organization, Stripe-style payments, fees, refund, payout, bank deposits, and a reconciliation run.
+Open `http://localhost:3000` and click **Try Demo**. The demo seeds a user, organization, Stripe-style payments, fees, refund, payout, bank transactions, payout item breakdown, and reconciliation run.
 
-## Plaid Bank Data
+## Useful API Flow
 
-Add your Plaid keys to `.env`:
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/auth/demo-token | jq -r .token)
+
+curl -s http://localhost:8080/debug/clearflow \
+  -H "Authorization: Bearer $TOKEN" | jq
+
+curl -s -X POST http://localhost:8080/sync/stripe \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: stripe-demo-1" | jq
+
+curl -s -X POST http://localhost:8080/sync/bank \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: bank-demo-1" | jq
+
+curl -s -X POST http://localhost:8080/reconciliation/runs \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: recon-demo-1" | jq
+```
+
+API contract: [`docs/openapi.yaml`](docs/openapi.yaml)
+
+## Demo Flow
+
+1. Start Postgres, migrations, API, and web with `make docker-up`, `make migrate`, `make api`, and `make web`.
+2. Open `http://localhost:3000`, click **Try Demo**, and land on the operations dashboard.
+3. Open **Reconciliation** and run the processor sync, bank sync, and reconciliation workflow.
+4. Review the match rate, exception queue, and payout ledger.
+5. Click **View explanation** on a payout to show gross payments, fees, refunds, net deposit, matching bank deposit, warnings, and the plain-English explanation.
+6. Open **Cash Flow** to show the financial intelligence dashboard.
+7. Change the forecast horizon between 7, 30, 60, and 90 days and explain the confidence and assumptions.
+8. Review active anomalies, cash recommendations, spending insights, and recent reconciliation match confidence.
+9. Open **Ops** to show async jobs, audit logs, metrics, idempotency, Redis readiness, and tracing readiness.
+10. Open **Integrations** to show Stripe/Plaid connection state and provider security notes.
+
+Interview-ready backend summary:
+
+Built a production-style fintech API with JWT auth, refresh-token sessions, organization RBAC, Postgres-backed financial data, idempotent write routes, async sync/reconciliation jobs, Plaid persistence, webhook handling, audit logs, metrics, and financial intelligence endpoints for reconciliation scoring, payout explanations, anomaly detection, cash recommendations, spending insights, and cash-flow forecasting.
+
+## Core Endpoints
+
+- Auth: `POST /auth/register`, `POST /auth/login`, `POST /auth/demo-token`, `GET /me`
+- Organizations: `POST /organizations`, `GET /organizations`
+- Operations data: `GET /payments`, `GET /payouts`, `GET /payouts/{id}/breakdown`, `GET /bank-transactions`
+- Ingestion: `POST /sync/stripe`, `POST /sync/bank`
+- Reconciliation: `POST /reconciliation/runs`, `GET /reconciliation/runs`, `GET /reconciliation/runs/{id}`, `GET /reconciliation/exceptions`, `PATCH /reconciliation/exceptions/{id}`
+- Cash flow: `GET /cash-flow/summary`, `GET /cash-flow/forecast`, `GET /api/v1/cashflow/forecast`, `GET /reports/monthly`
+- Intelligence: `GET /api/v1/payouts/{id}/explanation`, `GET /api/v1/insights/anomalies`, `GET /api/v1/insights/spending`, `GET /api/v1/recommendations/cash`, `GET /api/v1/reconciliation-runs/{id}/matches`
+- Plaid scaffold: `POST /connections/plaid/link-token`, `POST /connections/plaid/exchange-public-token`, `POST /connections/plaid/sync-transactions`
+- Debugging: `GET /health`, `GET /ready`, `GET /debug/clearflow`
+
+## Plaid
+
+Add Plaid keys to `.env`:
 
 ```bash
 PLAID_CLIENT_ID=...
 PLAID_SECRET=...
-PLAID_ENV=production
+PLAID_ENV=sandbox
 PLAID_PRODUCTS=transactions
 PLAID_COUNTRY_CODES=US,CA
+PLAID_WEBHOOK_VERIFICATION=false
+STRIPE_CLIENT_ID=...
+STRIPE_SECRET_KEY=...
+STRIPE_WEBHOOK_SECRET=...
+STRIPE_REDIRECT_URL=http://localhost:8080/api/v1/integrations/stripe/callback
+PROVIDER_TOKEN_ENCRYPTION_KEY=...
+REDIS_ENABLED=false
+REDIS_URL=redis://localhost:6379/0
+REDIS_TLS=false
+OTEL_ENABLED=false
+OTEL_SERVICE_NAME=clearflow-api
+OTEL_EXPORTER_OTLP_ENDPOINT=
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+OTEL_EXPORTER_OTLP_HEADERS=
+OTEL_SAMPLE_RATIO=1.0
+OTEL_ENVIRONMENT=development
 ```
 
-Run `make api` from the repo root so the Makefile exports `.env`. In the app, go to **Imports** and click **Connect bank with Plaid**. Plaid handles bank authentication; Clearflow receives a temporary public token, exchanges it server-side, encrypts the Plaid access token using `JWT_SECRET`, and stores it under `data/plaid-connections.json`.
+Plaid handles bank authentication. Clearflow exchanges the public token server-side, protects provider tokens with the configured token protector, and never returns raw Plaid or Stripe tokens from status endpoints.
 
-Do not commit `.env` or the `data/` directory.
+## Stripe and Webhook Hardening
 
-## API Highlights
+Phase 7 adds an OAuth-ready Stripe integration shape:
 
-- Auth: `POST /auth/register`, `POST /auth/login`, `POST /auth/demo-token`, `GET /me`
-- Organizations: `POST /organizations`, `GET /organizations`
-- Processor/bank sync: `POST /sync/stripe`, `POST /sync/bank`
-- Reconciliation: `POST /reconciliation/runs`, `GET /reconciliation/runs`, `GET /reconciliation/runs/{id}`, `GET /reconciliation/exceptions`, `PATCH /reconciliation/exceptions/{id}`
-- Cash flow: `GET /cash-flow/summary`, `GET /cash-flow/forecast`, `GET /reports/monthly`
-- Operations data: `GET /payments`, `GET /payouts`, `GET /bank-transactions`
-- Plaid: `POST /connections/plaid/link-token`, `POST /connections/plaid/exchange-public-token`, `POST /connections/plaid/sync-transactions`, `GET /connections`
+- `GET /api/v1/integrations/stripe/connect-url` creates an expiring OAuth state and Stripe Connect URL.
+- `GET /api/v1/integrations/stripe/callback` validates state, protects provider tokens, stores account metadata, audits the connection, and emits an outbox event.
+- `GET /api/v1/integrations/stripe/status` returns safe connection metadata only.
+- `DELETE /api/v1/integrations/stripe` marks the local connection disconnected and emits an outbox event.
+- `POST /api/v1/webhooks/processors/stripe` verifies `Stripe-Signature` when `STRIPE_WEBHOOK_SECRET` is configured, persists and dedupes events, and queues relevant sync jobs.
 
-## Demo Workflow
+Provider tokens are protected with `PROVIDER_TOKEN_ENCRYPTION_KEY`. Production mode fails fast if token encryption is missing. Plaid webhook verification can be required with `PLAID_WEBHOOK_VERIFICATION=true`; development mock bypass is only allowed outside production.
 
-1. Click **Try Demo**.
-2. Open **Reconciliation**.
-3. Review the seeded payout/deposit match and unmatched deposit exception.
-4. Click **Sync Stripe sample**, **Sync bank sample**, and **Run reconciliation** to generate another run.
-5. Open **Dashboard** to see cash balance, fees/refunds, exceptions, payout chart, and cash forecast.
+## Production Reliability
 
-## Product Direction
+Phase 8 adds optional Redis-backed rate limiting and in-flight idempotency locks. Redis is disabled by default for local development. Set `REDIS_ENABLED=true` and `REDIS_URL=...` to use Redis counters/locks; production fails fast if Redis is enabled but unavailable.
 
-The next production step is replacing `POST /sync/stripe` mock data with real Stripe OAuth/API sync and webhook ingestion:
+OpenTelemetry tracing can be enabled with `OTEL_ENABLED=true`. The API and worker support OTLP export over `grpc` or `http/protobuf`, optional OTLP headers, and configurable sampling through `OTEL_SAMPLE_RATIO`. Request logs and worker job logs include `trace_id` and `span_id`; trace context is propagated through HTTP, webhooks, queued jobs, and financial intelligence operations. Local development does not require a collector, while production fails fast if tracing is enabled without a valid endpoint.
 
-- `payment_intent.succeeded`
-- `charge.refunded`
-- `payout.paid`
-- `payout.failed`
-- `balance.available`
+Production architecture summary:
 
-The second production step is replacing the local memory store with PostgreSQL repositories for all Clearflow resources.
+Fynora/Clearflow is a production-style fintech operations platform built with Go, PostgreSQL, JWT/session auth, organization RBAC, idempotent financial writes, async job workers, provider webhook ingestion, Plaid/Stripe integration hardening, audit logs, metrics, OpenTelemetry tracing, Redis-backed rate limiting, and financial intelligence APIs for reconciliation scoring, payout explanations, anomalies, forecasts, and cash recommendations.
 
 ## Testing
 
@@ -109,16 +209,19 @@ The second production step is replacing the local memory store with PostgreSQL r
 make fmt
 make test
 make build
+cd apps/web && npm run test
 ```
 
-## Debugging
+## Deployment
 
-Backend and frontend logs include request IDs and operation metadata. See `docs/debugging.md` for what to copy back when manually testing issues.
+Clearflow supports three deployment modes:
 
-## Deployment Notes
+- **Mode A: Vercel demo mode.** Deploy `apps/web` to Vercel without backend secrets. If `NEXT_PUBLIC_API_BASE_URL` is not configured, the frontend uses intentional sample financial data and shows a demo-mode indicator.
+- **Mode B: Full local stack.** Run frontend, Go API, worker, Postgres, and Redis locally with `make docker-up`, `make migrate`, `make api`, `make worker`, and `make web`.
+- **Mode C: Real production architecture later.** Keep the frontend on Vercel, deploy the Go API and worker to Render, Railway, Fly.io, AWS App Runner, ECS, or a similar backend host, and point Vercel `NEXT_PUBLIC_API_BASE_URL` at that API.
 
-The frontend can deploy to Vercel with `NEXT_PUBLIC_API_BASE_URL` pointing at the API. The Go API can run on AWS ECS/App Runner or Lambda. PostgreSQL maps naturally to RDS. Plaid secrets and future Stripe secrets should live in a managed secret store, not in the repo.
+Do not move the Go API or worker into Next.js API routes just to fit Vercel. The backend is intentionally a separate service.
 
 ## Resume Summary
 
-Built a Go-based payment reconciliation platform that ingests Stripe-style payouts and bank transactions, matches deposits to payments/refunds/fees, flags reconciliation exceptions, forecasts cash flow, and exposes a production-style API with auth, audit logs, Docker, CI, and a polished Next.js dashboard.
+Built Clearflow, a Go and PostgreSQL payment reconciliation API that ingests processor payouts and bank transactions, stores money in integer minor units, enforces organization-scoped access, makes sync operations idempotent, matches payouts to deposits, creates reconciliation exceptions, exposes payout breakdown and cash-flow reporting endpoints, and ships with OpenAPI, Docker, worker, CI, structured logs, and a Next.js operations dashboard.

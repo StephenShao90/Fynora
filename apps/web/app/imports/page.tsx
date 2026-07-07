@@ -1,6 +1,5 @@
 "use client";
 
-import Script from "next/script";
 import { useEffect, useState } from "react";
 import { Card, Shell } from "@/components/Shell";
 import { Header } from "@/components/Common";
@@ -24,6 +23,13 @@ type PlaidConnection = {
   created_at: string;
 };
 
+type PlaidLinkTokenResponse = {
+  link_token?: string;
+  token?: string;
+  expiration?: string;
+  demo_unavailable?: boolean;
+};
+
 declare global {
   interface Window {
     Plaid?: {
@@ -39,11 +45,18 @@ declare global {
 export default function Imports() {
   const [result, setResult] = useState("");
   const [connections, setConnections] = useState<PlaidConnection[]>([]);
-  const [plaidReady, setPlaidReady] = useState(false);
+  const [plaidStatus, setPlaidStatus] = useState<"loading" | "ready" | "error">("loading");
   const [busy, setBusy] = useState("");
 
   useEffect(() => {
     refreshConnections();
+    loadPlaidScript()
+      .then(() => setPlaidStatus("ready"))
+      .catch((err) => {
+        console.error("[plaid-link:load-error]", err);
+        setPlaidStatus("error");
+        setResult("Plaid Link could not load. Check your browser content blocker/network, then refresh this page.");
+      });
   }, []);
 
   async function send(path: string, file?: File) {
@@ -61,15 +74,27 @@ export default function Imports() {
   }
 
   async function connectPlaid() {
-    if (!window.Plaid || !plaidReady) {
-      setResult("Plaid Link is still loading. Try again in a moment.");
+    if (plaidStatus === "loading") {
+      setResult("Plaid Link is loading. Try again in a moment.");
+      return;
+    }
+    if (plaidStatus === "error" || !window.Plaid) {
+      setResult("Plaid Link did not load. Refresh the page or disable browser content blockers for cdn.plaid.com.");
       return;
     }
     setBusy("Creating secure Plaid link...");
     try {
-      const link = await api<{ link_token: string }>("/connections/plaid/link-token", { method: "POST", body: "{}" });
+      const link = await api<PlaidLinkTokenResponse>("/connections/plaid/link-token", { method: "POST", body: "{}" });
+      const linkToken = link.link_token || link.token || "";
+      if (!linkToken) {
+        setBusy("");
+        setResult(link.demo_unavailable
+          ? "Plaid Link requires the local API to be running with Plaid credentials. Start `make api`, then refresh this page."
+          : "Plaid did not return a link token. Check the API logs for /connections/plaid/link-token.");
+        return;
+      }
       const handler = window.Plaid.create({
-        token: link.link_token,
+        token: linkToken,
         onSuccess: async (publicToken) => {
           setBusy("Exchanging token and syncing transactions...");
           const exchange = await api("/connections/plaid/exchange-public-token", {
@@ -87,6 +112,7 @@ export default function Imports() {
         }
       });
       handler.open();
+      setBusy("");
     } catch (err) {
       setBusy("");
       setResult((err as Error).message);
@@ -106,9 +132,28 @@ export default function Imports() {
     }
   }
 
+  async function createSandboxConnection() {
+    setBusy("Creating Plaid Sandbox test connection...");
+    try {
+      const sandbox = await api("/connections/plaid/sandbox-connect", {
+        method: "POST",
+        body: JSON.stringify({
+          institution_id: "ins_109508",
+          username: "user_transactions_dynamic",
+          password: "pass_good"
+        })
+      });
+      setResult(JSON.stringify(sandbox, null, 2));
+      await refreshConnections();
+    } catch (err) {
+      setResult((err as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
     <Shell>
-      <Script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js" onLoad={() => setPlaidReady(true)} />
       <Header title="Data connections" subtitle="Connect bank data through Plaid, then supplement with processor or bank CSV exports while Stripe sync is in mock mode." />
       <div className="mb-5 grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
         <Card title="Bank connection">
@@ -116,13 +161,26 @@ export default function Imports() {
             Plaid handles bank login and MFA. Clearflow receives authorized transaction data and stores Plaid tokens on the backend only.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button onClick={connectPlaid} className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white">
+            <button
+              onClick={connectPlaid}
+              disabled={plaidStatus === "loading"}
+              className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-ink/40"
+            >
               Connect bank with Plaid
             </button>
             <button onClick={syncPlaid} className="rounded-md border border-ink/15 px-4 py-2 text-sm font-semibold text-ink">
               Sync connected banks
             </button>
+            <button onClick={createSandboxConnection} className="rounded-md border border-moss/30 bg-mint/70 px-4 py-2 text-sm font-semibold text-moss">
+              Create sandbox test connection
+            </button>
           </div>
+          <p className={`mt-3 text-sm ${plaidStatus === "ready" ? "text-moss" : plaidStatus === "error" ? "text-coral" : "text-ink/50"}`}>
+            Plaid Link: {plaidStatus === "ready" ? "ready" : plaidStatus === "error" ? "failed to load" : "loading"}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-ink/50">
+            For manual Sandbox Link testing, use username <span className="font-mono">user_good</span> and password <span className="font-mono">pass_good</span>. The sandbox button skips the bank login screen and creates a test connection directly.
+          </p>
           {busy ? <p className="mt-3 text-sm text-moss">{busy}</p> : null}
         </Card>
         <Card title="Connection status">
@@ -153,4 +211,42 @@ export default function Imports() {
       {result ? <pre className="mt-5 overflow-auto rounded-lg bg-ink p-4 text-xs text-white">{result}</pre> : null}
     </Shell>
   );
+}
+
+function loadPlaidScript() {
+  return new Promise<void>((resolve, reject) => {
+    if (typeof window === "undefined") return resolve();
+    if (window.Plaid) return resolve();
+
+    const existing = document.querySelector<HTMLScriptElement>('script[src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"]');
+    const script = existing || document.createElement("script");
+    let timeout: number;
+
+    const complete = () => {
+      window.clearTimeout(timeout);
+      if (window.Plaid) resolve();
+      else reject(new Error("Plaid script loaded but window.Plaid was not initialized"));
+    };
+
+    const fail = () => {
+      window.clearTimeout(timeout);
+      reject(new Error("Plaid script failed to load"));
+    };
+
+    script.addEventListener("load", complete, { once: true });
+    script.addEventListener("error", fail, { once: true });
+
+    if (!existing) {
+      script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+      script.async = true;
+      document.head.appendChild(script);
+    }
+
+    timeout = window.setTimeout(() => {
+      if (window.Plaid) resolve();
+      else reject(new Error("Timed out waiting for Plaid Link"));
+    }, 8000);
+
+    if (window.Plaid) complete();
+  });
 }

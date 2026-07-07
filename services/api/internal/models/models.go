@@ -141,6 +141,18 @@ type Organization struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type OrganizationMember struct {
+	ID               string    `json:"id"`
+	OrganizationID   string    `json:"organization_id"`
+	UserID           string    `json:"user_id"`
+	Role             string    `json:"role"`
+	CreatedAt        time.Time `json:"created_at"`
+	Email            string    `json:"email,omitempty"`
+	OrganizationName string    `json:"organization_name,omitempty"`
+	OrganizationType string    `json:"organization_type,omitempty"`
+	Currency         string    `json:"currency,omitempty"`
+}
+
 type Customer struct {
 	ID             string    `json:"id"`
 	OrganizationID string    `json:"organization_id"`
@@ -208,6 +220,18 @@ type Payout struct {
 	CreatedAt         time.Time `json:"created_at"`
 }
 
+type PayoutItem struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	PayoutID       string    `json:"payout_id"`
+	SourceType     string    `json:"source_type"`
+	SourceID       string    `json:"source_id"`
+	Amount         float64   `json:"amount"`
+	Currency       string    `json:"currency"`
+	Description    string    `json:"description"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 type BankTransaction struct {
 	ID             string    `json:"id"`
 	OrganizationID string    `json:"organization_id"`
@@ -263,5 +287,112 @@ type AuditLog struct {
 	Action         string    `json:"action"`
 	TargetType     string    `json:"target_type"`
 	TargetID       string    `json:"target_id"`
+	RequestID      string    `json:"request_id,omitempty"`
+	IPAddress      string    `json:"ip_address,omitempty"`
+	UserAgent      string    `json:"user_agent,omitempty"`
+	Metadata       string    `json:"metadata_json,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type IdempotencyRecord struct {
+	Key            string    `json:"key"`
+	UserID         string    `json:"user_id"`
+	OrganizationID string    `json:"organization_id"`
+	RequestHash    string    `json:"request_hash"`
+	StatusCode     int       `json:"status_code"`
+	ResponseBody   string    `json:"response_body"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type RefreshSession struct {
+	ID            string     `json:"id"`
+	UserID        string     `json:"user_id"`
+	ExpiresAt     time.Time  `json:"expires_at"`
+	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
+	RotatedFromID string     `json:"rotated_from_id,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	LastUsedAt    *time.Time `json:"last_used_at,omitempty"`
+	UserAgent     string     `json:"user_agent,omitempty"`
+	IPAddress     string     `json:"ip_address,omitempty"`
+	TokenHash     string     `json:"-"`
+}
+
+type Job struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	UserID         string    `json:"user_id"`
+	Type           string    `json:"type"`
+	Status         string    `json:"status"`
+	PayloadJSON    string    `json:"payload_json,omitempty"`
+	Attempts       int       `json:"attempts"`
+	MaxAttempts    int       `json:"max_attempts"`
+	RunAfter       time.Time `json:"run_after"`
+	LockedAt       time.Time `json:"locked_at,omitempty"`
+	LockedBy       string    `json:"locked_by,omitempty"`
+	StartedAt      time.Time `json:"started_at,omitempty"`
+	CompletedAt    time.Time `json:"completed_at,omitempty"`
+	FailedAt       time.Time `json:"failed_at,omitempty"`
+	Error          string    `json:"error,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type OutboxEvent struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id,omitempty"`
+	EventType      string    `json:"event_type"`
+	AggregateType  string    `json:"aggregate_type,omitempty"`
+	AggregateID    string    `json:"aggregate_id,omitempty"`
+	PayloadJSON    string    `json:"payload_json"`
+	Status         string    `json:"status"`
+	Attempts       int       `json:"attempts"`
+	MaxAttempts    int       `json:"max_attempts"`
+	AvailableAt    time.Time `json:"available_at"`
+	PublishedAt    time.Time `json:"published_at,omitempty"`
+	Error          string    `json:"error,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type WebhookEvent struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id,omitempty"`
+	Type           string    `json:"type"`
+	Code           string    `json:"code"`
+	ItemID         string    `json:"item_id,omitempty"`
+	Provider       string    `json:"provider,omitempty"`
+	DedupeKey      string    `json:"dedupe_key"`
+	Status         string    `json:"status"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type ProviderConnection struct {
+	ID                     string    `json:"id"`
+	OrganizationID         string    `json:"organization_id"`
+	Provider               string    `json:"provider"`
+	ExternalAccountID      string    `json:"external_account_id"`
+	DisplayName            string    `json:"display_name"`
+	Status                 string    `json:"status"`
+	AccessTokenCiphertext  string    `json:"-"`
+	RefreshTokenCiphertext string    `json:"-"`
+	Scopes                 string    `json:"scopes,omitempty"`
+	ConnectedByUserID      string    `json:"connected_by_user_id,omitempty"`
+	ConnectedAt            time.Time `json:"connected_at,omitempty"`
+	DisconnectedAt         time.Time `json:"disconnected_at,omitempty"`
+	LastSyncAt             time.Time `json:"last_sync_at,omitempty"`
+	LastError              string    `json:"last_error,omitempty"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
+}
+
+type OAuthState struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	UserID         string    `json:"user_id"`
+	Provider       string    `json:"provider"`
+	StateHash      string    `json:"-"`
+	RedirectURI    string    `json:"redirect_uri"`
+	ExpiresAt      time.Time `json:"expires_at"`
+	UsedAt         time.Time `json:"used_at,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 }

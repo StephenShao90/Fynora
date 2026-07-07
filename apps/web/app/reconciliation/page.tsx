@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, Shell, money } from "@/components/Shell";
 import { Header, Empty } from "@/components/Common";
-import { api } from "@/lib/api";
+import { PayoutExplanationPanel } from "@/components/payouts/PayoutExplanationPanel";
+import { ReconciliationMatches } from "@/components/reconciliation/ReconciliationMatches";
+import { api, getPayoutExplanation, getReconciliationMatches, type PayoutExplanation, type ReconciliationMatch } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 
 type Run = { id: string; status: string; matched_count: number; exception_count: number; started_at: string };
@@ -15,6 +17,9 @@ type Activity = { id: string; label: string; detail: string; status: "ok" | "err
 export default function ReconciliationPage() {
   const [activity, setActivity] = useState<Activity[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
+  const [selectedPayoutId, setSelectedPayoutId] = useState("");
+  const [explanation, setExplanation] = useState<{ data?: PayoutExplanation; loading: boolean; error: string }>({ loading: false, error: "" });
+  const [matches, setMatches] = useState<{ data: ReconciliationMatch[]; loading: boolean; error: string }>({ data: [], loading: false, error: "" });
   const runs = useApi<Run[]>(`/reconciliation/runs?reload=${reloadKey}`, []);
   const exceptions = useApi<Exception[]>(`/reconciliation/exceptions?reload=${reloadKey}`, []);
   const payments = useApi<Payment[]>(`/payments?reload=${reloadKey}`, []);
@@ -24,6 +29,30 @@ export default function ReconciliationPage() {
   const openExceptions = useMemo(() => exceptions.data.filter((item) => item.status === "open"), [exceptions.data]);
   const latestRun = runs.data[0];
   const matchRate = latestRun ? Math.round((latestRun.matched_count / Math.max(1, latestRun.matched_count + latestRun.exception_count)) * 100) : 0;
+
+  useEffect(() => {
+    if (!selectedPayoutId && payouts.data[0]?.id) setSelectedPayoutId(payouts.data[0].id);
+  }, [payouts.data, selectedPayoutId]);
+
+  useEffect(() => {
+    if (!selectedPayoutId) return;
+    let cancelled = false;
+    setExplanation({ loading: true, error: "" });
+    getPayoutExplanation(selectedPayoutId)
+      .then((data) => !cancelled && setExplanation({ data, loading: false, error: "" }))
+      .catch((err) => !cancelled && setExplanation({ loading: false, error: (err as Error).message }));
+    return () => { cancelled = true; };
+  }, [selectedPayoutId, reloadKey]);
+
+  useEffect(() => {
+    const runId = latestRun?.id || "latest";
+    let cancelled = false;
+    setMatches((current) => ({ ...current, loading: true, error: "" }));
+    getReconciliationMatches(runId)
+      .then((data) => !cancelled && setMatches({ data, loading: false, error: "" }))
+      .catch((err) => !cancelled && setMatches({ data: [], loading: false, error: (err as Error).message }));
+    return () => { cancelled = true; };
+  }, [latestRun?.id, reloadKey]);
 
   async function action(label: string, path: string) {
     const id = crypto.randomUUID();
@@ -121,12 +150,17 @@ export default function ReconciliationPage() {
           {payouts.data.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink/45"><tr><th className="py-2 pr-4">Payout</th><th className="pr-4">Arrival</th><th className="pr-4">Status</th><th className="text-right">Net</th></tr></thead>
-                <tbody>{payouts.data.slice(0, 8).map((payout) => <tr key={payout.id} className="border-b border-ink/10 last:border-0"><td className="py-3 pr-4 font-mono text-xs">{payout.processor_payout_id}</td><td className="pr-4">{formatDate(payout.expected_arrival_at)}</td><td className="pr-4"><StatusChip label={payout.status} tone="good" /></td><td className="text-right font-medium">{money(payout.amount)}</td></tr>)}</tbody>
+                <thead className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink/45"><tr><th className="py-2 pr-4">Payout</th><th className="pr-4">Arrival</th><th className="pr-4">Status</th><th className="pr-4 text-right">Net</th><th className="text-right">Explain</th></tr></thead>
+                <tbody>{payouts.data.slice(0, 8).map((payout) => <tr key={payout.id} className="border-b border-ink/10 last:border-0"><td className="py-3 pr-4 font-mono text-xs">{payout.processor_payout_id}</td><td className="pr-4">{formatDate(payout.expected_arrival_at)}</td><td className="pr-4"><StatusChip label={payout.status} tone="good" /></td><td className="pr-4 text-right font-medium">{money(payout.amount)}</td><td className="text-right"><button onClick={() => setSelectedPayoutId(payout.id)} className={`rounded-md border px-2.5 py-1.5 text-xs font-medium ${selectedPayoutId === payout.id ? "border-moss bg-mint text-moss" : "border-ink/15 hover:bg-ink/[0.03]"}`}>View explanation</button></td></tr>)}</tbody>
               </table>
             </div>
           ) : <Empty text="No payouts yet." />}
         </Card>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
+        <PayoutExplanationPanel explanation={explanation.data} loading={explanation.loading} error={explanation.error} />
+        <ReconciliationMatches matches={matches.data} loading={matches.loading} error={matches.error} />
       </div>
 
       <div className="mt-4">

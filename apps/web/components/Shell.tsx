@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { logout } from "@/lib/api";
+import { isDemoFallbackMode, logout } from "@/lib/api";
 
 const nav = [
   ["/dashboard", "Dashboard"],
   ["/reconciliation", "Reconciliation"],
   ["/imports", "Imports"],
+  ["/integrations", "Integrations"],
+  ["/ops", "Ops"],
   ["/transactions", "Transactions"],
   ["/insights", "Cash Flow"],
   ["/settings", "Settings"]
@@ -23,6 +25,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="mt-6 rounded-md border border-ink/10 bg-white p-3">
           <p className="text-xs uppercase tracking-wide text-ink/40">Workspace</p>
           <p className="mt-1 truncate text-sm font-medium text-ink">Demo Organization</p>
+          {isDemoFallbackMode() ? <p className="mt-2 inline-flex rounded bg-gold/25 px-2 py-1 text-xs font-medium text-ink/70">Demo mode · sample data</p> : null}
         </div>
         <nav className="mt-6 grid gap-1">
           {nav.map(([href, label]) => (
