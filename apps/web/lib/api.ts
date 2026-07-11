@@ -51,7 +51,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       console.info("[clearflow-api:demo-fallback]", { path, method: init.method || "GET", requestId: responseRequestId, status: res.status, reason: body?.error?.message || "endpoint unavailable" });
       return fallback;
     }
-    console.error("[clearflow-api:error]", { path, status: res.status, durationMs, requestId: responseRequestId, message: body?.error?.message });
+    console.warn("[clearflow-api:error]", { path, status: res.status, durationMs, requestId: responseRequestId, message: body?.error?.message });
     throw new Error(body?.error?.message || `Request failed: ${res.status}`);
   }
   console.info("[clearflow-api]", { path, method: init.method || "GET", status: res.status, durationMs, requestId: responseRequestId });
@@ -72,7 +72,7 @@ export async function upload<T>(path: string, file: File): Promise<T> {
   const durationMs = Math.round(performance.now() - started);
   const responseRequestId = res.headers.get("X-Request-ID") || requestId;
   if (!res.ok) {
-    console.error("[clearflow-api:error]", { path, status: res.status, durationMs, requestId: responseRequestId });
+    console.warn("[clearflow-api:error]", { path, status: res.status, durationMs, requestId: responseRequestId });
     throw new Error("Upload failed");
   }
   console.info("[clearflow-api]", { path, method: "POST", status: res.status, durationMs, requestId: responseRequestId });
