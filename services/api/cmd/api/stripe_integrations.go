@@ -39,13 +39,7 @@ func (a *app) stripeConnectURLV1(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) stripeCallbackV1(w http.ResponseWriter, r *http.Request) {
-	r, ok := a.withV1Organization(w, r, false, authz.CanManageMembers)
-	if !ok {
-		return
-	}
-	org := r.Context().Value(clearflowOrgContextKey{}).(models.Organization)
 	if providerErr := r.URL.Query().Get("error"); providerErr != "" {
-		a.writeAudit(r.Context(), r, org.ID, userID(r), "stripe.connect_failed", "provider_connection", "stripe", `{"error":"provider_error"}`)
 		errorJSON(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Stripe OAuth returned an error")
 		return
 	}
@@ -56,11 +50,11 @@ func (a *app) stripeCallbackV1(w http.ResponseWriter, r *http.Request) {
 	}
 	oauthState, err := a.consumeOAuthState(r.Context(), "stripe", hashOAuthState(state))
 	if err != nil {
-		a.writeAudit(r.Context(), r, org.ID, userID(r), "stripe.connect_failed", "provider_connection", "stripe", `{"error":"invalid_state"}`)
 		errorJSON(w, r, http.StatusUnauthorized, "UNAUTHORIZED", err.Error())
 		return
 	}
-	if oauthState.OrganizationID != org.ID || oauthState.UserID != userID(r) {
+	if queryOrgID := r.URL.Query().Get("organizationId"); queryOrgID != "" && queryOrgID != oauthState.OrganizationID {
+		a.writeAudit(r.Context(), r, oauthState.OrganizationID, oauthState.UserID, "stripe.connect_failed", "provider_connection", "stripe", `{"error":"organization_mismatch"}`)
 		errorJSON(w, r, http.StatusForbidden, "FORBIDDEN", "OAuth state does not match this organization")
 		return
 	}
@@ -68,7 +62,7 @@ func (a *app) stripeCallbackV1(w http.ResponseWriter, r *http.Request) {
 	account, err := client.ExchangeCode(r.Context(), code)
 	if err != nil {
 		a.incrementMetric(func(m *opsMetrics) { m.StripeOAuthExchangeFailuresTotal++ })
-		a.writeAudit(r.Context(), r, org.ID, userID(r), "stripe.connect_failed", "provider_connection", "stripe", `{"error":"exchange_failed"}`)
+		a.writeAudit(r.Context(), r, oauthState.OrganizationID, oauthState.UserID, "stripe.connect_failed", "provider_connection", "stripe", `{"error":"exchange_failed"}`)
 		errorJSON(w, r, http.StatusBadGateway, "INTERNAL_ERROR", "could not exchange Stripe authorization code")
 		return
 	}
@@ -87,13 +81,13 @@ func (a *app) stripeCallbackV1(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "could not protect provider token")
 		return
 	}
-	conn := models.ProviderConnection{ID: auth.NewID(), OrganizationID: org.ID, Provider: "stripe", ExternalAccountID: account.AccountID, DisplayName: account.DisplayName, Status: "connected", AccessTokenCiphertext: accessCipher, RefreshTokenCiphertext: refreshCipher, Scopes: account.Scope, ConnectedByUserID: userID(r), ConnectedAt: time.Now().UTC()}
+	conn := models.ProviderConnection{ID: auth.NewID(), OrganizationID: oauthState.OrganizationID, Provider: "stripe", ExternalAccountID: account.AccountID, DisplayName: account.DisplayName, Status: "connected", AccessTokenCiphertext: accessCipher, RefreshTokenCiphertext: refreshCipher, Scopes: account.Scope, ConnectedByUserID: oauthState.UserID, ConnectedAt: time.Now().UTC()}
 	if err := a.upsertProviderConnection(r.Context(), conn); err != nil {
 		errorJSON(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "could not persist Stripe connection")
 		return
 	}
-	a.writeAudit(r.Context(), r, org.ID, userID(r), "stripe.connected", "provider_connection", conn.ExternalAccountID, "{}")
-	a.emitOutbox(r.Context(), org.ID, "stripe.account_connected", "provider_connection", conn.ExternalAccountID, "{}")
+	a.writeAudit(r.Context(), r, oauthState.OrganizationID, oauthState.UserID, "stripe.connected", "provider_connection", conn.ExternalAccountID, "{}")
+	a.emitOutbox(r.Context(), oauthState.OrganizationID, "stripe.account_connected", "provider_connection", conn.ExternalAccountID, "{}")
 	writeJSON(w, http.StatusOK, stripeStatusResponse(conn))
 }
 

@@ -31,7 +31,7 @@ func TestAPIV1StripeOAuthConnectCallbackStatusAndDisconnect(t *testing.T) {
 		t.Fatalf("unexpected connect payload: %#v", connectPayload)
 	}
 
-	callback := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?organizationId="+orgID+"&code=ac_test_123&state="+connectPayload.State, owner.Token, "req_stripe_callback", nil)
+	callback := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?code=ac_test_123&state="+connectPayload.State, "", "req_stripe_callback", nil)
 	if callback.Code != http.StatusOK {
 		t.Fatalf("expected callback 200, got %d: %s", callback.Code, callback.Body.String())
 	}
@@ -49,7 +49,7 @@ func TestAPIV1StripeOAuthConnectCallbackStatusAndDisconnect(t *testing.T) {
 		t.Fatal("status response exposed provider token")
 	}
 
-	reuse := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?organizationId="+orgID+"&code=ac_test_456&state="+connectPayload.State, owner.Token, "req_stripe_callback_reuse", nil)
+	reuse := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?code=ac_test_456&state="+connectPayload.State, "", "req_stripe_callback_reuse", nil)
 	if reuse.Code != http.StatusUnauthorized {
 		t.Fatalf("expected reused state 401, got %d: %s", reuse.Code, reuse.Body.String())
 	}
@@ -73,9 +73,23 @@ func TestAPIV1StripeOAuthExpiredStateRejected(t *testing.T) {
 	if err := a.saveOAuthState(nil, oauthStateForTest(orgID, owner.User.ID, state, time.Now().UTC().Add(-time.Minute))); err != nil {
 		t.Fatal(err)
 	}
-	rec := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?organizationId="+orgID+"&code=ac_test&state="+state, owner.Token, "req_stripe_expired", nil)
+	rec := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?code=ac_test&state="+state, "", "req_stripe_expired", nil)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected expired state 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAPIV1StripeOAuthCallbackRejectsOrganizationMismatch(t *testing.T) {
+	a := newAPITestApp(t)
+	owner := registerAPITestUser(t, a, "stripe-mismatch@example.com")
+	orgID := owner.Organizations[0].ID
+	state := "mismatch_state"
+	if err := a.saveOAuthState(nil, oauthStateForTest(orgID, owner.User.ID, state, time.Now().UTC().Add(time.Minute))); err != nil {
+		t.Fatal(err)
+	}
+	rec := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?organizationId=00000000-0000-0000-0000-000000000000&code=ac_test&state="+state, "", "req_stripe_mismatch", nil)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected mismatched organization 403, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

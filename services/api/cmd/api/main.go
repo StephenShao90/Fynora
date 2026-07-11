@@ -297,7 +297,7 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/recommendations/cash", a.authed(a.cashRecommendationsV1))
 	mux.HandleFunc("GET /api/v1/reconciliation-runs/{runId}/matches", a.authed(a.reconciliationMatchesV1))
 	mux.HandleFunc("GET /api/v1/integrations/stripe/connect-url", a.authed(a.stripeConnectURLV1))
-	mux.HandleFunc("GET /api/v1/integrations/stripe/callback", a.authed(a.stripeCallbackV1))
+	mux.HandleFunc("GET /api/v1/integrations/stripe/callback", a.stripeCallbackV1)
 	mux.HandleFunc("GET /api/v1/integrations/stripe/status", a.authed(a.stripeStatusV1))
 	mux.HandleFunc("DELETE /api/v1/integrations/stripe", a.authed(a.stripeDisconnectV1))
 	mux.HandleFunc("GET /api/v1/jobs", a.authed(a.listJobsV1))
