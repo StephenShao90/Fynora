@@ -42,6 +42,18 @@ type RawImport struct {
 	CreatedAt        time.Time `json:"created_at"`
 }
 
+type ImportError struct {
+	ID        string    `json:"id"`
+	ImportID  string    `json:"import_id"`
+	UserID    string    `json:"user_id"`
+	RowNumber int       `json:"row_number"`
+	Field     string    `json:"field"`
+	Code      string    `json:"code"`
+	Message   string    `json:"message"`
+	RawRow    []string  `json:"raw_row"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type Transaction struct {
 	ID                 string                 `json:"id"`
 	UserID             string                 `json:"user_id"`

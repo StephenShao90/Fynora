@@ -62,6 +62,7 @@ type memoryStore struct {
 	usersByEmail             map[string]string
 	profiles                 map[string]models.AdvisorProfile
 	imports                  map[string]models.RawImport
+	importErrors             map[string]models.ImportError
 	transactions             map[string]models.Transaction
 	accounts                 map[string]models.BrokerageAccount
 	holdings                 map[string]models.Holding
@@ -100,6 +101,7 @@ func newStore() *memoryStore {
 		usersByEmail:             map[string]string{},
 		profiles:                 map[string]models.AdvisorProfile{},
 		imports:                  map[string]models.RawImport{},
+		importErrors:             map[string]models.ImportError{},
 		transactions:             map[string]models.Transaction{},
 		accounts:                 map[string]models.BrokerageAccount{},
 		holdings:                 map[string]models.Holding{},
@@ -260,6 +262,7 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /connections/plaid/sandbox-connect", a.authed(a.heavyRateLimited(a.createPlaidSandboxConnection)))
 	mux.HandleFunc("POST /connections/plaid/exchange-public-token", a.authed(a.heavyRateLimited(a.exchangePlaidPublicToken)))
 	mux.HandleFunc("POST /connections/plaid/sync-transactions", a.authed(a.heavyRateLimited(a.syncPlaidTransactions)))
+	mux.HandleFunc("POST /connections/plaid/sync-investments", a.authed(a.heavyRateLimited(a.syncPlaidInvestments)))
 	mux.HandleFunc("POST /organizations", a.authed(a.createOrganization))
 	mux.HandleFunc("GET /organizations", a.authed(a.listOrganizations))
 	mux.HandleFunc("POST /api/v1/organizations", a.authed(a.createOrganizationV1))
@@ -316,6 +319,7 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /portfolio/import/holdings-csv", a.authed(a.importHoldingsCSV))
 	mux.HandleFunc("POST /portfolio/import/transactions-csv", a.authed(a.importPortfolioTransactionsCSV))
 	mux.HandleFunc("GET /portfolio/imports", a.authed(a.listPortfolioImports))
+	mux.HandleFunc("GET /portfolio/imports/{id}/errors", a.authed(a.listPortfolioImportErrors))
 	mux.HandleFunc("POST /portfolio/holdings", a.authed(a.createHolding))
 	mux.HandleFunc("GET /portfolio/holdings", a.authed(a.listHoldings))
 	mux.HandleFunc("GET /portfolio/holdings/{id}", a.authed(a.getHolding))
@@ -934,6 +938,46 @@ func (a *app) syncPlaidTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]interface{}{"imported_count": imported, "connection_count": len(connections)})
 }
+
+func (a *app) syncPlaidInvestments(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	accountID, ok := a.defaultPortfolioAccountID(w, r)
+	if !ok {
+		return
+	}
+	holdings, parseErrors := parseHoldingsCSV(userID(r), demoPlaidInvestmentHoldingsCSV(), accountID)
+	txs, txErrors := parsePortfolioTransactionsCSV(userID(r), demoPlaidInvestmentTransactionsCSV(), accountID)
+	parseErrors = append(parseErrors, txErrors...)
+	imp := models.RawImport{ID: auth.NewID(), UserID: userID(r), ImportType: "holdings", OriginalFilename: "plaid_investments_mock", RawStorageKey: "plaid/investments/mock", RowCount: len(holdings) + len(txs) + len(parseErrors), ImportedCount: len(holdings) + len(txs), FailedCount: len(parseErrors), CreatedAt: time.Now().UTC()}
+	if a.cfRepo != nil {
+		saved, err := a.cfRepo.SavePortfolioImport(r.Context(), imp, holdings, txs, parseErrors)
+		if err != nil {
+			a.logOperation(r, "plaid.investments_sync_failed", "", map[string]interface{}{"error": err.Error(), "latency_ms": time.Since(start).Milliseconds()})
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not save Plaid investments sync")
+			return
+		}
+		a.logOperation(r, "plaid.investments_synced", "", map[string]interface{}{"mode": "mock", "holdings": len(holdings), "transactions": len(txs), "errors": len(parseErrors), "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+		writeJSON(w, 200, map[string]interface{}{"mode": "mock", "import": saved, "holdings": holdings, "portfolio_transactions": txs, "errors": parseErrors})
+		return
+	}
+	a.store.mu.Lock()
+	a.store.imports[imp.ID] = imp
+	for i := range parseErrors {
+		parseErrors[i].ImportID = imp.ID
+		a.store.importErrors[parseErrors[i].ID] = parseErrors[i]
+	}
+	for _, h := range holdings {
+		a.store.holdings[h.ID] = h
+	}
+	for _, tx := range txs {
+		tx.ImportID = imp.ID
+		a.store.portfolioTransactions[tx.ID] = tx
+	}
+	a.store.mu.Unlock()
+	a.logOperation(r, "plaid.investments_synced", "", map[string]interface{}{"mode": "mock", "holdings": len(holdings), "transactions": len(txs), "errors": len(parseErrors), "latency_ms": time.Since(start).Milliseconds()})
+	writeJSON(w, 200, map[string]interface{}{"mode": "mock", "import": imp, "holdings": holdings, "portfolio_transactions": txs, "errors": parseErrors})
+}
+
 func (a *app) importHoldingsCSV(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	file, header, ok := upload(w, r, "file")
@@ -948,27 +992,31 @@ func (a *app) importHoldingsCSV(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, failed := parseHoldingsCSV(userID(r), string(raw), accountID)
-	imp := models.RawImport{ID: auth.NewID(), UserID: userID(r), ImportType: "holdings", OriginalFilename: header.Filename, RawStorageKey: key, RowCount: len(rows) + failed, ImportedCount: len(rows), FailedCount: failed, CreatedAt: time.Now().UTC()}
+	rows, importErrors := parseHoldingsCSV(userID(r), string(raw), accountID)
+	imp := models.RawImport{ID: auth.NewID(), UserID: userID(r), ImportType: "holdings", OriginalFilename: header.Filename, RawStorageKey: key, RowCount: len(rows) + len(importErrors), ImportedCount: len(rows), FailedCount: len(importErrors), CreatedAt: time.Now().UTC()}
 	if a.cfRepo != nil {
-		saved, err := a.cfRepo.SavePortfolioImport(r.Context(), imp, rows, nil)
+		saved, err := a.cfRepo.SavePortfolioImport(r.Context(), imp, rows, nil, importErrors)
 		if err != nil {
 			a.logOperation(r, "portfolio.holdings_import_failed", "", map[string]interface{}{"filename": header.Filename, "error": err.Error(), "latency_ms": time.Since(start).Milliseconds()})
 			errorJSON(w, r, 500, "DATABASE_ERROR", "could not save holdings import")
 			return
 		}
 		a.logOperation(r, "portfolio.holdings_imported", "", map[string]interface{}{"filename": header.Filename, "rows": saved.RowCount, "imported": saved.ImportedCount, "failed": saved.FailedCount, "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
-		writeJSON(w, 201, map[string]interface{}{"import": saved, "holdings": rows})
+		writeJSON(w, 201, map[string]interface{}{"import": saved, "holdings": rows, "errors": importErrors})
 		return
 	}
 	a.store.mu.Lock()
 	a.store.imports[imp.ID] = imp
+	for i := range importErrors {
+		importErrors[i].ImportID = imp.ID
+		a.store.importErrors[importErrors[i].ID] = importErrors[i]
+	}
 	for _, h := range rows {
 		a.store.holdings[h.ID] = h
 	}
 	a.store.mu.Unlock()
 	a.logOperation(r, "portfolio.holdings_imported", "", map[string]interface{}{"filename": header.Filename, "rows": imp.RowCount, "imported": imp.ImportedCount, "failed": imp.FailedCount, "latency_ms": time.Since(start).Milliseconds()})
-	writeJSON(w, 201, map[string]interface{}{"import": imp, "holdings": rows})
+	writeJSON(w, 201, map[string]interface{}{"import": imp, "holdings": rows, "errors": importErrors})
 }
 func (a *app) importPortfolioTransactionsCSV(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
@@ -984,28 +1032,32 @@ func (a *app) importPortfolioTransactionsCSV(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	rows, failed := parsePortfolioTransactionsCSV(userID(r), string(raw), accountID)
-	imp := models.RawImport{ID: auth.NewID(), UserID: userID(r), ImportType: "portfolio_transactions", OriginalFilename: header.Filename, RawStorageKey: key, RowCount: len(rows) + failed, ImportedCount: len(rows), FailedCount: failed, CreatedAt: time.Now().UTC()}
+	rows, importErrors := parsePortfolioTransactionsCSV(userID(r), string(raw), accountID)
+	imp := models.RawImport{ID: auth.NewID(), UserID: userID(r), ImportType: "portfolio_transactions", OriginalFilename: header.Filename, RawStorageKey: key, RowCount: len(rows) + len(importErrors), ImportedCount: len(rows), FailedCount: len(importErrors), CreatedAt: time.Now().UTC()}
 	if a.cfRepo != nil {
-		saved, err := a.cfRepo.SavePortfolioImport(r.Context(), imp, nil, rows)
+		saved, err := a.cfRepo.SavePortfolioImport(r.Context(), imp, nil, rows, importErrors)
 		if err != nil {
 			a.logOperation(r, "portfolio.transactions_import_failed", "", map[string]interface{}{"filename": header.Filename, "error": err.Error(), "latency_ms": time.Since(start).Milliseconds()})
 			errorJSON(w, r, 500, "DATABASE_ERROR", "could not save portfolio transaction import")
 			return
 		}
 		a.logOperation(r, "portfolio.transactions_imported", "", map[string]interface{}{"filename": header.Filename, "rows": saved.RowCount, "imported": saved.ImportedCount, "failed": saved.FailedCount, "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
-		writeJSON(w, 201, map[string]interface{}{"import": saved, "portfolio_transactions": rows})
+		writeJSON(w, 201, map[string]interface{}{"import": saved, "portfolio_transactions": rows, "errors": importErrors})
 		return
 	}
 	a.store.mu.Lock()
 	a.store.imports[imp.ID] = imp
+	for i := range importErrors {
+		importErrors[i].ImportID = imp.ID
+		a.store.importErrors[importErrors[i].ID] = importErrors[i]
+	}
 	for _, row := range rows {
 		row.ImportID = imp.ID
 		a.store.portfolioTransactions[row.ID] = row
 	}
 	a.store.mu.Unlock()
 	a.logOperation(r, "portfolio.transactions_imported", "", map[string]interface{}{"filename": header.Filename, "rows": imp.RowCount, "imported": imp.ImportedCount, "failed": imp.FailedCount, "latency_ms": time.Since(start).Milliseconds()})
-	writeJSON(w, 201, map[string]interface{}{"import": imp, "portfolio_transactions": rows})
+	writeJSON(w, 201, map[string]interface{}{"import": imp, "portfolio_transactions": rows, "errors": importErrors})
 }
 func (a *app) createHolding(w http.ResponseWriter, r *http.Request) {
 	var h models.Holding
@@ -1168,6 +1220,29 @@ func (a *app) listPortfolioImports(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	writeJSON(w, 200, out)
 }
+func (a *app) listPortfolioImportErrors(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	importID := r.PathValue("id")
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListImportErrors(r.Context(), uid, importID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list import errors")
+			return
+		}
+		writeJSON(w, 200, rows)
+		return
+	}
+	out := []models.ImportError{}
+	a.store.mu.RLock()
+	for _, row := range a.store.importErrors {
+		if row.UserID == uid && row.ImportID == importID {
+			out = append(out, row)
+		}
+	}
+	a.store.mu.RUnlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].RowNumber < out[j].RowNumber })
+	writeJSON(w, 200, out)
+}
 func (a *app) portfolioSummary(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, a.summary(userID(r)))
 }
@@ -1176,7 +1251,8 @@ func (a *app) portfolioAllocation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, portfolio.BuildAllocation(a.holdings(uid), a.accounts(uid)))
 }
 func (a *app) portfolioPerformance(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]interface{}{"summary": a.summary(userID(r)), "cash_flows": a.portfolioTxs(userID(r)), "method": "simple unrealized return plus transaction cash-flow history"})
+	uid := userID(r)
+	writeJSON(w, 200, map[string]interface{}{"summary": a.summary(uid), "performance": portfolio.BuildPerformance(a.holdings(uid), a.portfolioTxs(uid), a.accounts(uid)), "cash_flows": a.portfolioTxs(uid), "method": "cash-flow adjusted estimate using imported holdings and portfolio transactions"})
 }
 func (a *app) portfolioRisk(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, portfolio.ConcentrationRisk(a.holdings(userID(r)), a.profile(userID(r))))
@@ -1572,18 +1648,19 @@ func parseTransactionsCSV(uid, raw string) ([]models.Transaction, int) {
 	}
 	return out, failed
 }
-func parseHoldingsCSV(uid, raw, accountID string) ([]models.Holding, int) {
+func parseHoldingsCSV(uid, raw, accountID string) ([]models.Holding, []models.ImportError) {
 	records, err := csv.NewReader(strings.NewReader(raw)).ReadAll()
 	if err != nil || len(records) < 2 {
-		return nil, 1
+		return nil, []models.ImportError{newImportError(uid, "", 1, "", "invalid_csv", "CSV is empty or could not be parsed", nil)}
 	}
 	idx := headerIndex(records[0])
 	var out []models.Holding
-	failed := 0
-	for _, row := range records[1:] {
+	var importErrors []models.ImportError
+	for rowIndex, row := range records[1:] {
+		rowNumber := rowIndex + 2
 		qty, err := parseFloatRequired(cellAny(row, idx, "quantity", "qty", "shares", "units"))
 		if err != nil {
-			failed++
+			importErrors = append(importErrors, newImportError(uid, "", rowNumber, "quantity", "invalid_quantity", "quantity/shares is required and must be numeric", row))
 			continue
 		}
 		avg := parseFloat(firstNonEmpty(cellAny(row, idx, "average_cost", "avg_cost", "cost_basis_per_share", "average_price"), perShareCost(cellAny(row, idx, "cost_basis", "book_cost", "total_cost"), qty)))
@@ -1591,7 +1668,7 @@ func parseHoldingsCSV(uid, raw, accountID string) ([]models.Holding, int) {
 		price := parseFloat(firstNonEmpty(cellAny(row, idx, "market_price", "last_price", "price", "current_price"), perShareCost(cellAny(row, idx, "market_value", "value", "current_value"), qty)))
 		symbol := strings.ToUpper(cellAny(row, idx, "symbol", "ticker", "security_symbol"))
 		if symbol == "" {
-			failed++
+			importErrors = append(importErrors, newImportError(uid, "", rowNumber, "symbol", "missing_symbol", "symbol/ticker is required", row))
 			continue
 		}
 		h := models.Holding{ID: auth.NewID(), UserID: uid, BrokerageAccountID: accountID, Symbol: symbol, SecurityName: fallback(cellAny(row, idx, "name", "security_name", "description", "security"), symbol), SecurityType: normalizeSecurityType(cellAny(row, idx, "security_type", "type", "asset_class")), Quantity: qty, AverageCost: avg, Currency: fallback(cellAny(row, idx, "currency", "ccy"), "USD"), MarketValue: mv, LastPrice: price, PriceAsOf: time.Now().UTC(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
@@ -1603,32 +1680,36 @@ func parseHoldingsCSV(uid, raw, accountID string) ([]models.Holding, int) {
 		}
 		out = append(out, h)
 	}
-	return out, failed
+	return out, importErrors
 }
-func parsePortfolioTransactionsCSV(uid, raw, accountID string) ([]models.PortfolioTransaction, int) {
+func parsePortfolioTransactionsCSV(uid, raw, accountID string) ([]models.PortfolioTransaction, []models.ImportError) {
 	records, err := csv.NewReader(strings.NewReader(raw)).ReadAll()
 	if err != nil || len(records) < 2 {
-		return nil, 1
+		return nil, []models.ImportError{newImportError(uid, "", 1, "", "invalid_csv", "CSV is empty or could not be parsed", nil)}
 	}
 	idx := headerIndex(records[0])
 	var out []models.PortfolioTransaction
-	failed := 0
-	for _, row := range records[1:] {
+	var importErrors []models.ImportError
+	for rowIndex, row := range records[1:] {
+		rowNumber := rowIndex + 2
 		date, err := parseDate(cellAny(row, idx, "date", "trade_date", "transaction_date", "settlement_date", "occurred_at"))
 		if err != nil {
-			failed++
+			importErrors = append(importErrors, newImportError(uid, "", rowNumber, "date", "invalid_date", "date/trade_date is required and must be a supported date format", row))
 			continue
 		}
 		txType := normalizePortfolioTransactionType(firstNonEmpty(cellAny(row, idx, "action", "transaction_type", "type", "activity"), cellAny(row, idx, "description")))
 		if txType == "" {
-			failed++
+			importErrors = append(importErrors, newImportError(uid, "", rowNumber, "transaction_type", "invalid_transaction_type", "action/activity/transaction_type is required", row))
 			continue
 		}
 		amount := parseFloat(cellAny(row, idx, "amount", "net_amount", "total", "value"))
 		fees := parseFloat(cellAny(row, idx, "fees", "fee", "commission"))
 		out = append(out, models.PortfolioTransaction{ID: auth.NewID(), UserID: uid, BrokerageAccountID: accountID, Symbol: strings.ToUpper(cellAny(row, idx, "symbol", "ticker", "security_symbol")), TransactionType: txType, Quantity: parseFloat(cellAny(row, idx, "quantity", "qty", "shares", "units")), Price: parseFloat(cellAny(row, idx, "price", "trade_price", "unit_price")), Amount: amount, Fees: fees, Currency: fallback(cellAny(row, idx, "currency", "ccy"), "USD"), OccurredAt: date, Description: firstNonEmpty(cellAny(row, idx, "description", "memo", "details"), txType), CreatedAt: time.Now().UTC()})
 	}
-	return out, failed
+	return out, importErrors
+}
+func newImportError(uid, importID string, rowNumber int, field, code, message string, rawRow []string) models.ImportError {
+	return models.ImportError{ID: auth.NewID(), ImportID: importID, UserID: uid, RowNumber: rowNumber, Field: field, Code: code, Message: message, RawRow: rawRow, CreatedAt: time.Now().UTC()}
 }
 func normalizeTransaction(t *models.Transaction) {
 	if t.Currency == "" {
@@ -2010,4 +2091,12 @@ func demoPortfolioTransactionsCSV() string {
 		return string(b)
 	}
 	return "date,account,symbol,action,quantity,price,amount,fees,currency,description\n2026-04-10,Demo TFSA,VFV.TO,buy,10,140,1400,0,CAD,Initial buy\n"
+}
+
+func demoPlaidInvestmentHoldingsCSV() string {
+	return "ticker,security,asset_class,shares,cost_basis,current_price,current_value,ccy\nVOO,Vanguard S&P 500 ETF,ETF,12,4680,510,6120,USD\nBND,Vanguard Total Bond Market ETF,ETF,20,1440,73,1460,USD\nCASH,Cash,Money Market,850,850,1,850,USD\n"
+}
+
+func demoPlaidInvestmentTransactionsCSV() string {
+	return "trade_date,activity,ticker,shares,trade_price,net_amount,commission,ccy,details\n2026-06-03,Contribution,CASH,0,0,1500,0,USD,Plaid investment cash contribution\n2026-06-04,Buy,VOO,2,500,1000,0,USD,Plaid investment buy\n2026-06-20,Dividend,VOO,0,0,18.42,0,USD,Plaid dividend\n"
 }

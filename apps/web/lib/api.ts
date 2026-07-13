@@ -234,6 +234,8 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   const method = init.method || "GET";
   if (path === "/auth/demo-token") return { token: DEMO_TOKEN, user: { id: "demo-user", email: "demo@clearflow.local" } } as T;
   if (path === "/me") return { id: "demo-user", email: "demo@clearflow.local" } as T;
+  if (path.startsWith("/api/v1/auth/sessions") && method === "GET") return [{ id: "session-demo-1", created_at: "2026-07-06T18:00:00Z", expires_at: "2026-07-07T18:00:00Z", user_agent: "Demo browser" }] as T;
+  if (path.startsWith("/api/v1/auth/sessions") && method === "DELETE") return undefined as T;
   if (path === "/organizations") return [{ id: "demo-org", name: "Northside Student Association", type: "student_organization", currency: "USD" }] as T;
   if (path.startsWith("/cash-flow/summary")) return { cash_balance: 2967.27, income: 3179.72, expenses: 512.45, pending_payouts: 0, fees: 258.12, refunds: 175, net_cash_flow: 2667.27 } as T;
   if (path.startsWith("/cash-flow/forecast")) return [{ days: 7, projected_cash: 2967.27, expected_payouts: 0, expected_expenses: 0 }, { days: 30, projected_cash: 2517.27, expected_payouts: 0, expected_expenses: 450 }, { days: 60, projected_cash: 2517.27, expected_payouts: 0, expected_expenses: 450 }] as T;
@@ -263,12 +265,14 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.startsWith("/portfolio/summary")) return demoPortfolioSummary as T;
   if (path.startsWith("/portfolio/allocation")) return demoPortfolioAllocation as T;
   if (path.startsWith("/portfolio/holdings")) return demoPortfolioHoldings as T;
+  if (path.includes("/portfolio/imports/") && path.includes("/errors")) return [] as T;
   if (path.startsWith("/portfolio/transactions")) return demoPortfolioTransactions as T;
   if (path.startsWith("/portfolio/imports")) return demoPortfolioImports as T;
   if (path.startsWith("/portfolio/risk")) return demoPortfolioRisk as T;
   if (path.startsWith("/connections/plaid/link-token")) return { link_token: "", demo_unavailable: true } as T;
   if (path.startsWith("/connections/plaid/sandbox-connect")) return { demo_unavailable: true, message: "Start the local API with Plaid Sandbox credentials to create a test connection." } as T;
   if (path.startsWith("/connections/plaid/sync-transactions")) return { imported_count: 0, connection_count: 0 } as T;
+  if (path.startsWith("/connections/plaid/sync-investments")) return { mode: "mock", import: demoPortfolioImports[0], holdings: demoPortfolioHoldings, portfolio_transactions: demoPortfolioTransactions, errors: [] } as T;
   if (path.startsWith("/connections")) return demoPlaidConnections as T;
   if (path.startsWith("/transactions")) return [] as T;
   if (path.startsWith("/insights")) return [] as T;

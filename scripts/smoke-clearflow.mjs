@@ -219,6 +219,15 @@ await step("portfolio CSV imports persist", async () => {
   });
 });
 
+await step("plaid investments sync populates portfolio ledger", async () => {
+  const result = await call("plaid-investments-sync", "POST", "/connections/plaid/sync-investments", { body: {} });
+  if (result.body.mode !== "mock") throw new Error("expected mock Plaid Investments sync mode");
+  if ((result.body.holdings || []).length < 3) throw new Error("Plaid Investments sync did not return holdings");
+  if ((result.body.portfolio_transactions || []).length < 3) throw new Error("Plaid Investments sync did not return transactions");
+  const summary = await call("portfolio-summary-after-plaid", "GET", "/portfolio/summary");
+  if (!summary.body.total_market_value || summary.body.total_market_value <= 0) throw new Error("portfolio summary missing after Plaid Investments sync");
+});
+
 await step("jobs list loads", async () => {
   const result = await call("jobs", "GET", `/api/v1/jobs?organizationId=${encodeURIComponent(orgId)}`);
   if (!Array.isArray(result.body.data)) throw new Error("jobs response missing data array");
@@ -299,6 +308,7 @@ log("LOOK_FOR_IN_API_TERMINAL", {
   requestIdsPrefix: `smoke-${RUN_ID}-`,
   expectedPaths: ["/auth/demo-token", "/sync/stripe", "/sync/bank", "/reconciliation/runs", "/api/v1/ops/metrics"]
 	  .concat(["/portfolio/import/holdings-csv", "/portfolio/import/transactions-csv", "/portfolio/summary"])
+	  .concat(["/connections/plaid/sync-investments"])
 });
 log("LOOK_FOR_IN_WORKER_TERMINAL", {
  messages: ["worker.started", "worker.job.started", "worker.job.completed"],

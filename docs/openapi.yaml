@@ -1228,3 +1228,95 @@ paths:
                 $ref: "#/components/schemas/OpsMetrics"
         default:
           $ref: "#/components/responses/StandardError"
+  /portfolio/import/holdings-csv:
+    post:
+      summary: Import a brokerage holdings CSV
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Holdings import result with row-level errors
+        default:
+          $ref: "#/components/responses/StandardError"
+  /portfolio/import/transactions-csv:
+    post:
+      summary: Import a portfolio activity CSV
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Portfolio transaction import result with row-level errors
+        default:
+          $ref: "#/components/responses/StandardError"
+  /portfolio/imports:
+    get:
+      summary: List portfolio imports
+      responses:
+        "200":
+          description: Portfolio imports
+        default:
+          $ref: "#/components/responses/StandardError"
+  /portfolio/imports/{id}/errors:
+    get:
+      summary: List row-level errors for a portfolio import
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Import errors
+        default:
+          $ref: "#/components/responses/StandardError"
+  /portfolio/holdings:
+    get:
+      summary: List portfolio holdings
+      responses:
+        "200":
+          description: Holdings
+        default:
+          $ref: "#/components/responses/StandardError"
+  /portfolio/transactions:
+    get:
+      summary: List portfolio transactions
+      responses:
+        "200":
+          description: Portfolio transactions
+        default:
+          $ref: "#/components/responses/StandardError"
+  /portfolio/performance:
+    get:
+      summary: Return contribution-adjusted portfolio performance analytics
+      responses:
+        "200":
+          description: Portfolio performance
+        default:
+          $ref: "#/components/responses/StandardError"
+  /connections/plaid/sync-investments:
+    post:
+      summary: Sync Plaid Investments-shaped portfolio data
+      description: Current implementation imports deterministic Plaid-shaped sample holdings and activity into the persistent portfolio ledger; replace the provider internals with Plaid Investments endpoints for live brokerage sync.
+      responses:
+        "200":
+          description: Investment sync result
+        default:
+          $ref: "#/components/responses/StandardError"

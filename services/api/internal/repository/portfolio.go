@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/StephenShao90/Fynora/services/api/internal/auth"
@@ -85,7 +86,7 @@ func (r *ClearflowRepository) DeleteBrokerageAccount(ctx context.Context, userID
 	return err
 }
 
-func (r *ClearflowRepository) SavePortfolioImport(ctx context.Context, imp models.RawImport, holdings []models.Holding, txs []models.PortfolioTransaction) (models.RawImport, error) {
+func (r *ClearflowRepository) SavePortfolioImport(ctx context.Context, imp models.RawImport, holdings []models.Holding, txs []models.PortfolioTransaction, importErrors []models.ImportError) (models.RawImport, error) {
 	now := time.Now().UTC()
 	imp.ID = fallback(imp.ID, auth.NewID())
 	imp.CreatedAt = zeroTime(imp.CreatedAt, now)
@@ -99,6 +100,19 @@ func (r *ClearflowRepository) SavePortfolioImport(ctx context.Context, imp model
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, imp.ID, imp.UserID, imp.ImportType, imp.OriginalFilename, imp.RawStorageKey, imp.RowCount, imp.ImportedCount, imp.FailedCount, imp.CreatedAt); err != nil {
 		return models.RawImport{}, err
+	}
+	for _, importError := range importErrors {
+		if importError.ID == "" {
+			importError.ID = auth.NewID()
+		}
+		importError.ImportID = imp.ID
+		rawRow, _ := json.Marshal(importError.RawRow)
+		if _, err := dbtx.ExecContext(ctx, `
+			INSERT INTO import_errors (id, import_id, user_id, row_number, field, code, message, raw_row, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+		`, importError.ID, importError.ImportID, importError.UserID, importError.RowNumber, importError.Field, importError.Code, importError.Message, string(rawRow), zeroTime(importError.CreatedAt, now)); err != nil {
+			return models.RawImport{}, err
+		}
 	}
 	for _, h := range holdings {
 		if h.ID == "" {
@@ -141,6 +155,30 @@ func (r *ClearflowRepository) SavePortfolioImport(ctx context.Context, imp model
 		return models.RawImport{}, err
 	}
 	return imp, nil
+}
+
+func (r *ClearflowRepository) ListImportErrors(ctx context.Context, userID, importID string) ([]models.ImportError, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id::text, import_id::text, user_id::text, row_number, COALESCE(field, ''), code, message, raw_row::text, created_at
+		FROM import_errors
+		WHERE user_id = $1 AND import_id = $2
+		ORDER BY row_number, created_at
+	`, userID, importID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.ImportError{}
+	for rows.Next() {
+		var importError models.ImportError
+		var rawRow string
+		if err := rows.Scan(&importError.ID, &importError.ImportID, &importError.UserID, &importError.RowNumber, &importError.Field, &importError.Code, &importError.Message, &rawRow, &importError.CreatedAt); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(rawRow), &importError.RawRow)
+		out = append(out, importError)
+	}
+	return out, rows.Err()
 }
 
 func (r *ClearflowRepository) CreateHolding(ctx context.Context, h models.Holding) (models.Holding, error) {

@@ -45,6 +45,15 @@ STRIPE_WEBHOOK_SECRET=...
 STRIPE_REDIRECT_URL=https://api.example.com/api/v1/integrations/stripe/callback
 ```
 
+Required release checklist:
+
+- Run `make verify`.
+- Run `make migrate` against the target database, including migration `005_phase8_production_readiness.sql`.
+- Run `API_BASE=https://your-api.example.com node scripts/smoke-clearflow.mjs`.
+- Confirm `/ready` returns `{"status":"ready","storage":"postgres"}`.
+- Confirm `POST /portfolio/import/holdings-csv` and `POST /portfolio/import/transactions-csv` persist after an API restart.
+- Confirm webhook secrets and provider token encryption are configured before using Stripe/Plaid in production mode.
+
 Optional production env:
 
 ```bash

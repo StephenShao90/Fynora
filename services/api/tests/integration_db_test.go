@@ -50,7 +50,7 @@ func TestDBIntegrationPortfolioPersistenceSkipsWithoutExplicitDB(t *testing.T) {
 	}
 	imp := models.RawImport{ID: auth.NewID(), UserID: user.ID, ImportType: "holdings", OriginalFilename: "integration_holdings.csv", RowCount: 1, ImportedCount: 1, CreatedAt: time.Now().UTC()}
 	holding := models.Holding{ID: auth.NewID(), UserID: user.ID, BrokerageAccountID: accountID, Symbol: "AAPL", SecurityName: "Apple Inc.", SecurityType: "stock", Quantity: 2, AverageCost: 100, Currency: "USD", MarketValue: 420, LastPrice: 210, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
-	if _, err := repo.SavePortfolioImport(ctx, imp, []models.Holding{holding}, nil); err != nil {
+	if _, err := repo.SavePortfolioImport(ctx, imp, []models.Holding{holding}, nil, nil); err != nil {
 		t.Fatalf("save import: %v", err)
 	}
 	holdings, err := repo.ListHoldings(ctx, user.ID)

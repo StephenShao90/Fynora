@@ -73,6 +73,7 @@ The smoke runner prints one line per feature:
 [SMOKE] PASS anomalies load
 [SMOKE] PASS cash recommendations load
 [SMOKE] PASS reconciliation match scoring loads
+[SMOKE] PASS portfolio CSV imports persist
 [SMOKE] PASS jobs list loads
 [SMOKE] PASS async worker jobs complete
 [SMOKE] PASS audit logs load

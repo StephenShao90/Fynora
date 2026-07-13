@@ -7,8 +7,8 @@ import { Card, Metric, Shell, money } from "@/components/Shell";
 import { Empty, Header } from "@/components/Common";
 import { useToast } from "@/components/ToastProvider";
 import { useApi } from "@/hooks/useApi";
-import { upload } from "@/lib/api";
-import type { Holding, NamedAmount, PortfolioImport, PortfolioTransaction, RiskFinding, Summary } from "@/types";
+import { api, upload } from "@/lib/api";
+import type { Holding, ImportError, NamedAmount, PortfolioImport, PortfolioTransaction, RiskFinding, Summary } from "@/types";
 
 const palette = ["#315846", "#f07b63", "#d6a53a", "#5a8bb0", "#17231d", "#8aa398"];
 
@@ -23,6 +23,8 @@ export default function PortfolioPage() {
   const risk = useApi<RiskFinding[]>(`/portfolio/risk${refresh}`, []);
   const transactions = useApi<PortfolioTransaction[]>(`/portfolio/transactions${refresh}`, []);
   const imports = useApi<PortfolioImport[]>(`/portfolio/imports${refresh}`, []);
+  const latestFailedImport = imports.data.find((item) => item.failed_count > 0);
+  const importErrors = useApi<ImportError[]>(latestFailedImport ? `/portfolio/imports/${latestFailedImport.id}/errors${refresh}` : `/portfolio/imports/00000000-0000-0000-0000-000000000000/errors${refresh}`, []);
 
   const costBasis = summary.data.total_cost_basis || 0;
   const gainPct = costBasis ? `${summary.data.unrealized_gain_loss_pct.toFixed(1)}%` : "0.0%";
@@ -40,6 +42,17 @@ export default function PortfolioPage() {
       pushToast({ tone: "success", title: "Portfolio CSV imported", detail: `${file.name}${typeof imported === "number" ? ` · ${imported} rows` : ""}` });
     } catch (err) {
       pushToast({ tone: "error", title: "Portfolio import failed", detail: (err as Error).message });
+    }
+  }
+
+  async function syncPlaidInvestments() {
+    try {
+      const payload = await api<Record<string, unknown>>("/connections/plaid/sync-investments", { method: "POST", body: "{}" });
+      setResult(JSON.stringify(payload, null, 2));
+      setRefreshKey((key) => key + 1);
+      pushToast({ tone: "success", title: "Plaid Investments synced", detail: "Mock investment holdings and activity were imported into the portfolio ledger." });
+    } catch (err) {
+      pushToast({ tone: "error", title: "Plaid Investments sync failed", detail: (err as Error).message });
     }
   }
 
@@ -75,6 +88,9 @@ export default function PortfolioPage() {
           <div className="mt-4 rounded-md border border-ink/10 bg-mint/50 p-3 text-sm leading-6 text-ink/65">
             CSV import is the MVP-safe path. Plaid Investments or another brokerage aggregator can be added behind the same holdings and transaction tables later, without changing the portfolio analytics UI.
           </div>
+          <button onClick={syncPlaidInvestments} className="mt-4 rounded-md border border-moss/30 bg-mint/70 px-4 py-2 text-sm font-semibold text-moss">
+            Sync Plaid Investments sample
+          </button>
         </Card>
 
         <Card title="Recent portfolio imports">
@@ -96,6 +112,18 @@ export default function PortfolioPage() {
           ) : (
             <Empty text="No portfolio imports yet. Upload a holdings snapshot to populate this view." />
           )}
+          {latestFailedImport && importErrors.data.length ? (
+            <div className="mt-4 rounded-md border border-coral/25 bg-coral/10 p-3">
+              <p className="text-sm font-semibold text-coral">Latest import errors</p>
+              <div className="mt-2 grid gap-2">
+                {importErrors.data.slice(0, 4).map((error) => (
+                  <p key={error.id} className="text-xs text-ink/70">
+                    Row {error.row_number} · {error.code}: {error.message}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </Card>
       </div>
 

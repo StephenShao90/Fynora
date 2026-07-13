@@ -76,6 +76,20 @@ type RiskFinding struct {
 	Explanation string `json:"explanation"`
 }
 
+type Performance struct {
+	TotalMarketValue            float64 `json:"total_market_value"`
+	TotalCostBasis              float64 `json:"total_cost_basis"`
+	UnrealizedGainLoss          float64 `json:"unrealized_gain_loss"`
+	Deposits                    float64 `json:"deposits"`
+	Withdrawals                 float64 `json:"withdrawals"`
+	Dividends                   float64 `json:"dividends"`
+	Fees                        float64 `json:"fees"`
+	NetContributions            float64 `json:"net_contributions"`
+	InvestmentReturnEstimate    float64 `json:"investment_return_estimate"`
+	InvestmentReturnEstimatePct float64 `json:"investment_return_estimate_pct"`
+	RealizedGainLossEstimate    float64 `json:"realized_gain_loss_estimate"`
+}
+
 func PriceHoldings(ctx context.Context, provider marketdata.Provider, holdings []models.Holding) []models.Holding {
 	symbols := make([]string, 0, len(holdings))
 	for _, h := range holdings {
@@ -151,6 +165,40 @@ func BuildAllocation(holdings []models.Holding, accounts []models.BrokerageAccou
 		ByCurrency:     allocationBy(holdings, func(h models.Holding) string { return h.Currency }, total),
 		BySymbol:       allocationBy(holdings, func(h models.Holding) string { return h.Symbol }, total),
 	}
+}
+
+func BuildPerformance(holdings []models.Holding, transactions []models.PortfolioTransaction, accounts []models.BrokerageAccount) Performance {
+	summary := BuildSummary(holdings, accounts)
+	perf := Performance{
+		TotalMarketValue:   summary.TotalMarketValue,
+		TotalCostBasis:     summary.TotalCostBasis,
+		UnrealizedGainLoss: summary.UnrealizedGainLoss,
+	}
+	for _, tx := range transactions {
+		amount := math.Abs(tx.Amount)
+		switch strings.ToLower(tx.TransactionType) {
+		case "deposit", "transfer":
+			if tx.Amount >= 0 {
+				perf.Deposits += amount
+			}
+		case "withdrawal":
+			perf.Withdrawals += amount
+		case "dividend":
+			perf.Dividends += amount
+		case "fee":
+			perf.Fees += amount
+		case "sell":
+			if tx.Price > 0 && tx.Quantity > 0 {
+				perf.RealizedGainLossEstimate += tx.Amount - tx.Fees
+			}
+		}
+	}
+	perf.NetContributions = perf.Deposits - perf.Withdrawals
+	perf.InvestmentReturnEstimate = perf.TotalMarketValue - perf.NetContributions
+	if perf.NetContributions > 0 {
+		perf.InvestmentReturnEstimatePct = math.Round(perf.InvestmentReturnEstimate/perf.NetContributions*1000) / 10
+	}
+	return perf
 }
 
 func ConcentrationRisk(holdings []models.Holding, profile models.AdvisorProfile) []RiskFinding {

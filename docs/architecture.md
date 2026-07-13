@@ -12,6 +12,7 @@ Next.js Dashboard
 Go API
   |-> Auth and organizations
   |-> Plaid bank connection
+  |-> Plaid Investments-shaped portfolio sync
   |-> Stripe-style processor sync
   |-> Payment, refund, fee, payout models
   |-> Bank transaction models
@@ -75,6 +76,7 @@ The Phase 5 and Phase 6 intelligence layer turns stored financial records into o
 ## Integration Boundaries
 
 - Plaid owns bank authentication and returns transaction data to Clearflow.
+- Portfolio ingestion uses a normalized ledger for CSV imports and Plaid Investments-shaped sync results. The current investment sync endpoint imports deterministic mock data into the same durable tables; the boundary is ready for real Plaid Investments holdings and investment transactions.
 - Stripe-style processor ingestion currently uses deterministic sample data, but the database includes `processor_accounts` and `webhook_events` for real API/webhook ingestion.
 - Clearflow stores reconciliation state, exceptions, audit logs, payout breakdowns, and reporting aggregates.
 

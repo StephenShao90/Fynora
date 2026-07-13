@@ -61,6 +61,25 @@ See `docs/openapi.yaml`.
 - `POST /connections/plaid/link-token`
 - `POST /connections/plaid/exchange-public-token`
 - `POST /connections/plaid/sync-transactions`
+- `POST /connections/plaid/sync-investments`
+
+`POST /connections/plaid/sync-investments` currently imports a Plaid-shaped mock investments payload into the same persistent portfolio ledger used by CSV imports. It is intentionally shaped so the implementation can be replaced with Plaid Investments holdings and investment transaction endpoints without changing the portfolio analytics layer.
+
+## Portfolio
+
+- `POST /portfolio/import/holdings-csv`
+- `POST /portfolio/import/transactions-csv`
+- `GET /portfolio/imports`
+- `GET /portfolio/imports/{id}/errors`
+- `POST /portfolio/holdings`
+- `GET /portfolio/holdings`
+- `GET /portfolio/transactions`
+- `GET /portfolio/summary`
+- `GET /portfolio/allocation`
+- `GET /portfolio/performance`
+- `GET /portfolio/risk`
+
+Portfolio CSV imports return row-level `errors` with row number, field, code, message, and raw row data. When Postgres is configured, accounts, imports, holdings, portfolio transactions, and import errors persist across API restarts.
 
 ## Integrations
 
