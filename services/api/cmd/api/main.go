@@ -450,6 +450,29 @@ func (a *app) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) demoToken(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		u, err := a.cfRepo.GetUserByEmail(r.Context(), "demo@clearflow.dev")
+		if err != nil {
+			hash, hashErr := auth.HashPassword("demo-password")
+			if hashErr != nil {
+				errorJSON(w, r, 500, "INTERNAL", "could not prepare demo user")
+				return
+			}
+			var memberships []models.OrganizationMember
+			u, memberships, err = a.cfRepo.CreateUserWithDefaultOrganization(r.Context(), "demo@clearflow.dev", hash, "Clearflow Demo Organization")
+			if err != nil {
+				errorJSON(w, r, 500, "DATABASE_ERROR", "could not create demo user")
+				return
+			}
+			token, _ := auth.SignJWT(a.cfg.JWTSecret, u.ID, u.Email, 24*time.Hour)
+			writeJSON(w, 200, map[string]interface{}{"token": token, "user": u, "organizations": membershipOrganizations(memberships)})
+			return
+		}
+		memberships, _ := a.cfRepo.ListUserMemberships(r.Context(), u.ID)
+		token, _ := auth.SignJWT(a.cfg.JWTSecret, u.ID, u.Email, 24*time.Hour)
+		writeJSON(w, 200, map[string]interface{}{"token": token, "user": u, "organizations": membershipOrganizations(memberships)})
+		return
+	}
 	u := a.seedDemo()
 	token, _ := auth.SignJWT(a.cfg.JWTSecret, u.ID, u.Email, 24*time.Hour)
 	writeJSON(w, 200, map[string]interface{}{"token": token, "user": u})
@@ -689,15 +712,46 @@ func (a *app) createAccount(w http.ResponseWriter, r *http.Request) {
 	if acct.ConnectionStatus == "" {
 		acct.ConnectionStatus = "manual"
 	}
+	if a.cfRepo != nil {
+		if err := a.cfRepo.EnsureUser(r.Context(), a.currentClearflowUser(r)); err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not prepare portfolio user")
+			return
+		}
+		created, err := a.cfRepo.CreateBrokerageAccount(r.Context(), acct)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not create brokerage account")
+			return
+		}
+		writeJSON(w, 201, created)
+		return
+	}
 	a.store.mu.Lock()
 	a.store.accounts[acct.ID] = acct
 	a.store.mu.Unlock()
 	writeJSON(w, 201, acct)
 }
 func (a *app) listAccounts(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListBrokerageAccounts(r.Context(), userID(r))
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list brokerage accounts")
+			return
+		}
+		writeJSON(w, 200, rows)
+		return
+	}
 	writeJSON(w, 200, a.accounts(userID(r)))
 }
 func (a *app) getAccount(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		acct, err := a.cfRepo.GetBrokerageAccount(r.Context(), userID(r), r.PathValue("id"))
+		if err != nil {
+			errorJSON(w, r, 404, "NOT_FOUND", "account not found")
+			return
+		}
+		writeJSON(w, 200, acct)
+		return
+	}
 	a.store.mu.RLock()
 	acct, ok := a.store.accounts[r.PathValue("id")]
 	a.store.mu.RUnlock()
@@ -708,6 +762,14 @@ func (a *app) getAccount(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, acct)
 }
 func (a *app) deleteAccount(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		if err := a.cfRepo.DeleteBrokerageAccount(r.Context(), userID(r), r.PathValue("id")); err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not delete brokerage account")
+			return
+		}
+		w.WriteHeader(204)
+		return
+	}
 	a.store.mu.Lock()
 	delete(a.store.accounts, r.PathValue("id"))
 	a.store.mu.Unlock()
@@ -882,8 +944,23 @@ func (a *app) importHoldingsCSV(w http.ResponseWriter, r *http.Request) {
 	raw, _ := io.ReadAll(file)
 	key := "holdings/" + auth.NewID() + "-" + cleanName(header.Filename)
 	_ = a.raw.Put(r.Context(), key, raw)
-	rows, failed := parseHoldingsCSV(userID(r), string(raw), a.ensureDefaultAccount(userID(r)))
+	accountID, ok := a.defaultPortfolioAccountID(w, r)
+	if !ok {
+		return
+	}
+	rows, failed := parseHoldingsCSV(userID(r), string(raw), accountID)
 	imp := models.RawImport{ID: auth.NewID(), UserID: userID(r), ImportType: "holdings", OriginalFilename: header.Filename, RawStorageKey: key, RowCount: len(rows) + failed, ImportedCount: len(rows), FailedCount: failed, CreatedAt: time.Now().UTC()}
+	if a.cfRepo != nil {
+		saved, err := a.cfRepo.SavePortfolioImport(r.Context(), imp, rows, nil)
+		if err != nil {
+			a.logOperation(r, "portfolio.holdings_import_failed", "", map[string]interface{}{"filename": header.Filename, "error": err.Error(), "latency_ms": time.Since(start).Milliseconds()})
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not save holdings import")
+			return
+		}
+		a.logOperation(r, "portfolio.holdings_imported", "", map[string]interface{}{"filename": header.Filename, "rows": saved.RowCount, "imported": saved.ImportedCount, "failed": saved.FailedCount, "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+		writeJSON(w, 201, map[string]interface{}{"import": saved, "holdings": rows})
+		return
+	}
 	a.store.mu.Lock()
 	a.store.imports[imp.ID] = imp
 	for _, h := range rows {
@@ -903,8 +980,23 @@ func (a *app) importPortfolioTransactionsCSV(w http.ResponseWriter, r *http.Requ
 	raw, _ := io.ReadAll(file)
 	key := "portfolio-transactions/" + auth.NewID() + "-" + cleanName(header.Filename)
 	_ = a.raw.Put(r.Context(), key, raw)
-	rows, failed := parsePortfolioTransactionsCSV(userID(r), string(raw), a.ensureDefaultAccount(userID(r)))
+	accountID, ok := a.defaultPortfolioAccountID(w, r)
+	if !ok {
+		return
+	}
+	rows, failed := parsePortfolioTransactionsCSV(userID(r), string(raw), accountID)
 	imp := models.RawImport{ID: auth.NewID(), UserID: userID(r), ImportType: "portfolio_transactions", OriginalFilename: header.Filename, RawStorageKey: key, RowCount: len(rows) + failed, ImportedCount: len(rows), FailedCount: failed, CreatedAt: time.Now().UTC()}
+	if a.cfRepo != nil {
+		saved, err := a.cfRepo.SavePortfolioImport(r.Context(), imp, nil, rows)
+		if err != nil {
+			a.logOperation(r, "portfolio.transactions_import_failed", "", map[string]interface{}{"filename": header.Filename, "error": err.Error(), "latency_ms": time.Since(start).Milliseconds()})
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not save portfolio transaction import")
+			return
+		}
+		a.logOperation(r, "portfolio.transactions_imported", "", map[string]interface{}{"filename": header.Filename, "rows": saved.RowCount, "imported": saved.ImportedCount, "failed": saved.FailedCount, "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
+		writeJSON(w, 201, map[string]interface{}{"import": saved, "portfolio_transactions": rows})
+		return
+	}
 	a.store.mu.Lock()
 	a.store.imports[imp.ID] = imp
 	for _, row := range rows {
@@ -925,18 +1017,49 @@ func (a *app) createHolding(w http.ResponseWriter, r *http.Request) {
 	h.CreatedAt = time.Now().UTC()
 	h.UpdatedAt = h.CreatedAt
 	if h.BrokerageAccountID == "" {
-		h.BrokerageAccountID = a.ensureDefaultAccount(userID(r))
+		accountID, ok := a.defaultPortfolioAccountID(w, r)
+		if !ok {
+			return
+		}
+		h.BrokerageAccountID = accountID
 	}
 	h = portfolio.PriceHoldings(r.Context(), a.market, []models.Holding{h})[0]
+	if a.cfRepo != nil {
+		created, err := a.cfRepo.CreateHolding(r.Context(), h)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not create holding")
+			return
+		}
+		writeJSON(w, 201, created)
+		return
+	}
 	a.store.mu.Lock()
 	a.store.holdings[h.ID] = h
 	a.store.mu.Unlock()
 	writeJSON(w, 201, h)
 }
 func (a *app) listHoldings(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListHoldings(r.Context(), userID(r))
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list holdings")
+			return
+		}
+		writeJSON(w, 200, portfolio.PriceHoldings(r.Context(), a.market, rows))
+		return
+	}
 	writeJSON(w, 200, portfolio.PriceHoldings(r.Context(), a.market, a.holdings(userID(r))))
 }
 func (a *app) getHolding(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		h, err := a.cfRepo.GetHolding(r.Context(), userID(r), r.PathValue("id"))
+		if err != nil {
+			errorJSON(w, r, 404, "NOT_FOUND", "holding not found")
+			return
+		}
+		writeJSON(w, 200, h)
+		return
+	}
 	a.store.mu.RLock()
 	h, ok := a.store.holdings[r.PathValue("id")]
 	a.store.mu.RUnlock()
@@ -949,6 +1072,29 @@ func (a *app) getHolding(w http.ResponseWriter, r *http.Request) {
 func (a *app) patchHolding(w http.ResponseWriter, r *http.Request) {
 	var patch models.Holding
 	if !decode(w, r, &patch) {
+		return
+	}
+	if a.cfRepo != nil {
+		h, err := a.cfRepo.GetHolding(r.Context(), userID(r), r.PathValue("id"))
+		if err != nil {
+			errorJSON(w, r, 404, "NOT_FOUND", "holding not found")
+			return
+		}
+		if patch.Quantity != 0 {
+			h.Quantity = patch.Quantity
+		}
+		if patch.AverageCost != 0 {
+			h.AverageCost = patch.AverageCost
+		}
+		if patch.MarketValue != 0 {
+			h.MarketValue = patch.MarketValue
+		}
+		updated, err := a.cfRepo.UpdateHolding(r.Context(), h)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not update holding")
+			return
+		}
+		writeJSON(w, 200, updated)
 		return
 	}
 	a.store.mu.Lock()
@@ -973,18 +1119,44 @@ func (a *app) patchHolding(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, h)
 }
 func (a *app) deleteHolding(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		if err := a.cfRepo.DeleteHolding(r.Context(), userID(r), r.PathValue("id")); err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not delete holding")
+			return
+		}
+		w.WriteHeader(204)
+		return
+	}
 	a.store.mu.Lock()
 	delete(a.store.holdings, r.PathValue("id"))
 	a.store.mu.Unlock()
 	w.WriteHeader(204)
 }
 func (a *app) listPortfolioTransactions(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListPortfolioTransactions(r.Context(), userID(r))
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list portfolio transactions")
+			return
+		}
+		writeJSON(w, 200, rows)
+		return
+	}
 	rows := a.portfolioTxs(userID(r))
 	sort.Slice(rows, func(i, j int) bool { return rows[i].OccurredAt.After(rows[j].OccurredAt) })
 	writeJSON(w, 200, rows)
 }
 func (a *app) listPortfolioImports(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r)
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListPortfolioImports(r.Context(), uid)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list portfolio imports")
+			return
+		}
+		writeJSON(w, 200, rows)
+		return
+	}
 	out := []models.RawImport{}
 	a.store.mu.RLock()
 	for _, imp := range a.store.imports {
@@ -1063,6 +1235,22 @@ func (a *app) currentUser(r *http.Request) (models.User, bool) {
 	return u, ok
 }
 
+func (a *app) defaultPortfolioAccountID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if a.cfRepo != nil {
+		if err := a.cfRepo.EnsureUser(r.Context(), a.currentClearflowUser(r)); err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not prepare portfolio user")
+			return "", false
+		}
+		accountID, err := a.cfRepo.EnsureDefaultBrokerageAccount(r.Context(), userID(r))
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not prepare brokerage account")
+			return "", false
+		}
+		return accountID, true
+	}
+	return a.ensureDefaultAccount(userID(r)), true
+}
+
 func (a *app) transactions(uid string) []models.Transaction {
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
@@ -1075,6 +1263,13 @@ func (a *app) transactions(uid string) []models.Transaction {
 	return out
 }
 func (a *app) holdings(uid string) []models.Holding {
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListHoldings(context.Background(), uid)
+		if err == nil {
+			return portfolio.PriceHoldings(context.Background(), a.market, rows)
+		}
+		a.log.Error("portfolio.holdings_load_failed", map[string]interface{}{"error": err.Error(), "user_id": uid})
+	}
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
 	out := []models.Holding{}
@@ -1086,6 +1281,13 @@ func (a *app) holdings(uid string) []models.Holding {
 	return portfolio.PriceHoldings(context.Background(), a.market, out)
 }
 func (a *app) accounts(uid string) []models.BrokerageAccount {
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListBrokerageAccounts(context.Background(), uid)
+		if err == nil {
+			return rows
+		}
+		a.log.Error("portfolio.accounts_load_failed", map[string]interface{}{"error": err.Error(), "user_id": uid})
+	}
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
 	out := []models.BrokerageAccount{}
@@ -1097,6 +1299,13 @@ func (a *app) accounts(uid string) []models.BrokerageAccount {
 	return out
 }
 func (a *app) portfolioTxs(uid string) []models.PortfolioTransaction {
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListPortfolioTransactions(context.Background(), uid)
+		if err == nil {
+			return rows
+		}
+		a.log.Error("portfolio.transactions_load_failed", map[string]interface{}{"error": err.Error(), "user_id": uid})
+	}
 	a.store.mu.RLock()
 	defer a.store.mu.RUnlock()
 	out := []models.PortfolioTransaction{}

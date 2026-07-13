@@ -1,6 +1,6 @@
 # Portfolio Ingestion
 
-Clearflow supports manual holdings and CSV import first. This keeps the product safe for a portfolio demo because users never enter brokerage passwords and the app never scrapes Wealthsimple or any brokerage.
+Clearflow supports manual holdings and CSV import first. This keeps the product safe for a portfolio demo because users never enter brokerage passwords and the app never scrapes Wealthsimple or any brokerage. When Postgres is configured, portfolio accounts, imports, holdings, and portfolio transactions persist in the database and survive API restarts.
 
 Supported holdings columns include `account`, `account_type`, `symbol`, `ticker`, `name`, `security`, `security_type`, `asset_class`, `quantity`, `shares`, `average_cost`, `cost_basis`, `market_price`, `current_price`, `market_value`, `current_value`, and `currency`.
 
@@ -18,5 +18,13 @@ Portfolio review endpoints:
 - `GET /portfolio/risk`
 
 The web Portfolio page now supports direct holdings and activity uploads, shows recent import row counts, and refreshes holdings, activity, allocation, and risk after each import.
+
+Operational logs to check during manual testing:
+
+- `portfolio.holdings_imported`
+- `portfolio.transactions_imported`
+- `GET /portfolio/holdings` returning `200`
+- `GET /portfolio/transactions` returning `200`
+- `GET /portfolio/imports` returning `200`
 
 Future live integrations should use official APIs or approved aggregators such as Plaid Investments, SnapTrade, or Flinks. The backend includes a `BrokerageConnector` interface with manual, CSV, mock Plaid, and mock Wealthsimple CSV connectors.
