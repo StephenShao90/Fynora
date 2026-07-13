@@ -1,6 +1,6 @@
 # Advisor Logic
 
-Fynora advisor responses are educational and rule-based by default. The engine uses transaction history, category summaries, subscriptions, anomalies, emergency fund status, portfolio summary, allocation, and concentration risk.
+Clearflow advisor responses are educational and rule-based by default. The engine uses transaction history, category summaries, subscriptions, anomalies, emergency fund status, portfolio summary, allocation, and concentration risk.
 
 The advisor avoids stock-picking and direct buy/sell recommendations. It focuses on emergency funds, high-interest debt, diversified long-term investing concepts, contribution planning, account priority, and portfolio concentration awareness.
 

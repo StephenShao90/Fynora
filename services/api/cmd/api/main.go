@@ -203,7 +203,7 @@ func main() {
 	handler := a.recover(a.requestLog(a.tracer.Middleware(a.securityHeaders(a.bodyLimit(a.withCORS(mux))), func() {
 		a.incrementMetric(func(m *opsMetrics) { m.OTELTracesStartedTotal++ })
 	})))
-	log.Printf("Fynora API listening on :%s", cfg.Port)
+	log.Printf("Clearflow API listening on :%s", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, handler); err != nil {
 		log.Fatal(err)
 	}
@@ -1616,13 +1616,13 @@ func (a *app) ensureDefaultAccount(uid string) string {
 
 func (a *app) seedDemo() models.User {
 	a.store.mu.Lock()
-	if id, ok := a.store.usersByEmail["demo@fynora.dev"]; ok {
+	if id, ok := a.store.usersByEmail["demo@clearflow.dev"]; ok {
 		u := a.store.users[id]
 		a.store.mu.Unlock()
 		return u
 	}
 	hash, _ := auth.HashPassword("demo-password")
-	u := models.User{ID: auth.NewID(), Email: "demo@fynora.dev", PasswordHash: hash, CreatedAt: time.Now().UTC()}
+	u := models.User{ID: auth.NewID(), Email: "demo@clearflow.dev", PasswordHash: hash, CreatedAt: time.Now().UTC()}
 	a.store.users[u.ID] = u
 	a.store.usersByEmail[u.Email] = u.ID
 	a.store.profiles[u.ID] = defaultProfile(u.ID)

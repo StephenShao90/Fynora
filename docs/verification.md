@@ -17,7 +17,7 @@ Expected API logs:
 
 ```text
 database.connected
-Fynora API listening on :8080
+Clearflow API listening on :8080
 http.request
 ```
 
@@ -138,24 +138,22 @@ Frontend browser console logs:
 
 ## 5. Unit And Build Tests
 
-Backend:
+Full local quality gate:
 
 ```bash
-cd services/api
-gofmt -w .
-go test ./...
-go vet ./...
+make verify
 ```
 
-Frontend:
+Backend-only fallback:
 
 ```bash
-cd apps/web
-npm run lint
-npm run typecheck
-npm run build
-npm run test
-npm audit --audit-level=high
+make verify-backend
+```
+
+Frontend-only fallback:
+
+```bash
+make verify-frontend
 ```
 
 Known audit note: full `npm audit` can still report a moderate Next/PostCSS advisory. High-severity audit should pass.

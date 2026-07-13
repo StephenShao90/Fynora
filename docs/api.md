@@ -77,4 +77,4 @@ Stripe webhooks verify `Stripe-Signature` when `STRIPE_WEBHOOK_SECRET` is config
 
 ## Legacy Personal-Finance Endpoints
 
-The codebase still includes Fynora-era personal-finance endpoints for transaction analysis, advisor projections, and portfolio analytics. These remain useful reference modules but are secondary to the Clearflow product direction.
+The codebase still includes legacy personal-finance endpoints for transaction analysis, advisor projections, and portfolio analytics. These remain useful reference modules but are secondary to the Clearflow product direction.

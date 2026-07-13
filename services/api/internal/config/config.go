@@ -47,7 +47,7 @@ type Config struct {
 func Load() Config {
 	return Config{
 		Port:                       env("PORT", "8080"),
-		DatabaseURL:                env("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/fynora?sslmode=disable"),
+		DatabaseURL:                env("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/clearflow?sslmode=disable"),
 		JWTSecret:                  env("JWT_SECRET", "dev-secret"),
 		StorageDriver:              env("STORAGE_DRIVER", "local"),
 		LocalStorageDir:            env("LOCAL_STORAGE_DIR", "./data/raw-events"),

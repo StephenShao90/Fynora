@@ -5,7 +5,7 @@ include .env
 export
 endif
 
-.PHONY: install docker-up docker-down migrate seed api worker web local-env smoke test lint fmt build
+.PHONY: install docker-up docker-down ensure-db migrate seed api worker web local-env smoke test lint fmt build verify verify-backend verify-frontend verify-scripts compose-check vuln
 
 install:
 	cd apps/web && npm install
@@ -17,11 +17,14 @@ docker-up:
 docker-down:
 	docker compose down
 
-migrate:
-	docker compose exec -T postgres psql -U postgres -d fynora < services/api/migrations/001_init.sql
-	docker compose exec -T postgres psql -U postgres -d fynora < services/api/migrations/002_phase3_reliability.sql
-	docker compose exec -T postgres psql -U postgres -d fynora < services/api/migrations/003_phase4_operability.sql
-	docker compose exec -T postgres psql -U postgres -d fynora < services/api/migrations/004_phase7_integrations.sql
+ensure-db:
+	@docker compose exec -T postgres psql -U postgres -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'clearflow'" | grep -q 1 || docker compose exec -T postgres createdb -U postgres clearflow
+
+migrate: ensure-db
+	docker compose exec -T postgres psql -U postgres -d clearflow < services/api/migrations/001_init.sql
+	docker compose exec -T postgres psql -U postgres -d clearflow < services/api/migrations/002_phase3_reliability.sql
+	docker compose exec -T postgres psql -U postgres -d clearflow < services/api/migrations/003_phase4_operability.sql
+	docker compose exec -T postgres psql -U postgres -d clearflow < services/api/migrations/004_phase7_integrations.sql
 
 seed:
 	@echo "Demo data is seeded automatically by POST /auth/demo-token."
@@ -52,6 +55,32 @@ fmt:
 	cd services/api && gofmt -w .
 
 build:
-	cd services/api && go build ./cmd/api
-	cd services/api && go build ./cmd/worker
+	cd services/api && go build -o /tmp/clearflow-api ./cmd/api
+	cd services/api && go build -o /tmp/clearflow-worker ./cmd/worker
 	cd apps/web && npm run build
+
+verify: verify-backend verify-frontend verify-scripts compose-check
+
+verify-backend:
+	cd services/api && gofmt -w .
+	cd services/api && go test ./...
+	cd services/api && go vet ./...
+	cd services/api && go build -o /tmp/clearflow-api ./cmd/api
+	cd services/api && go build -o /tmp/clearflow-worker ./cmd/worker
+
+verify-frontend:
+	cd apps/web && npm run lint
+	cd apps/web && npm run typecheck
+	cd apps/web && npm run build
+	cd apps/web && npm run test
+	cd apps/web && npm audit --audit-level=high
+
+verify-scripts:
+	node --check scripts/smoke-clearflow.mjs
+	node --check scripts/use-local-env.mjs
+
+compose-check:
+	docker compose config >/dev/null
+
+vuln:
+	cd services/api && go run golang.org/x/vuln/cmd/govulncheck@latest ./...

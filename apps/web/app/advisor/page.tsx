@@ -26,7 +26,7 @@ export default function Advisor() {
     <Shell>
       <Header title="Advisor" subtitle="Rule-based guidance grounded in computed cash-flow and portfolio data." />
       <div className="grid gap-5 xl:grid-cols-2">
-        <Card title="Monthly allocation"><pre className="text-sm">{JSON.stringify(plan.data.recommended_allocation || {}, null, 2)}</pre><p className="mt-3 text-sm text-ink/55">Educational estimate only. Fynora does not provide individualized securities advice.</p></Card>
+        <Card title="Monthly allocation"><pre className="text-sm">{JSON.stringify(plan.data.recommended_allocation || {}, null, 2)}</pre><p className="mt-3 text-sm text-ink/55">Educational estimate only. Clearflow does not provide individualized securities advice.</p></Card>
         <Card title="Emergency fund"><p className="text-3xl font-semibold">{money(plan.data.emergency_fund?.gap)}</p><p className="mt-2 text-sm text-ink/60">{plan.data.emergency_fund?.explanation}</p></Card>
         <Card title="Investment projection">
           <form onSubmit={project} className="grid gap-3 sm:grid-cols-4"><input name="monthly" defaultValue="300" className="rounded-md border px-3 py-2" /><input name="initial" defaultValue="1000" className="rounded-md border px-3 py-2" /><input name="years" defaultValue="30" className="rounded-md border px-3 py-2" /><select name="risk" className="rounded-md border px-3 py-2"><option>moderate</option><option>conservative</option><option>aggressive</option></select><button className="rounded-md bg-ink px-4 py-2 text-white sm:col-span-4">Simulate</button></form>

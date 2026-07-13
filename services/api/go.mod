@@ -2,6 +2,8 @@ module github.com/StephenShao90/Fynora/services/api
 
 go 1.25.0
 
+toolchain go1.26.5
+
 require (
 	github.com/jackc/pgx/v5 v5.9.2
 	go.opentelemetry.io/otel v1.43.0

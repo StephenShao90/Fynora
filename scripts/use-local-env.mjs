@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 const envPath = ".env";
 const defaults = {
   PORT: "8080",
-  DATABASE_URL: "postgres://postgres:postgres@localhost:5433/fynora?sslmode=disable",
+  DATABASE_URL: "postgres://postgres:postgres@localhost:5433/clearflow?sslmode=disable",
   REDIS_ENABLED: "true",
   REDIS_URL: "redis://localhost:6379/0",
   REDIS_TLS: "false",

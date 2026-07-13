@@ -8,7 +8,7 @@ import (
 )
 
 func TestJWTSignVerify(t *testing.T) {
-	token, err := auth.SignJWT("secret", "u1", "demo@fynora.dev", time.Hour)
+	token, err := auth.SignJWT("secret", "u1", "demo@clearflow.dev", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}

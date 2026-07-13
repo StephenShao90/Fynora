@@ -86,7 +86,7 @@ func (c Client) Ready() bool {
 
 func (c Client) CreateLinkToken(ctx context.Context, userID, productsCSV, countriesCSV string) (*LinkTokenResponse, error) {
 	payload := map[string]interface{}{
-		"client_name":   "Fynora",
+		"client_name":   "Clearflow",
 		"user":          map[string]string{"client_user_id": userID},
 		"products":      splitCSV(productsCSV),
 		"country_codes": splitCSV(countriesCSV),

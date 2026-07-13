@@ -4,6 +4,8 @@ const CONFIGURED_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 const API_BASE = CONFIGURED_API_BASE || "http://localhost:8080";
 const DEMO_FALLBACK_ENABLED = !CONFIGURED_API_BASE;
 const DEMO_TOKEN = "clearflow-demo-token";
+const TOKEN_KEY = "clearflow_token";
+const LEGACY_TOKEN_KEY = "fynora_token";
 
 export function isDemoFallbackMode() {
   return DEMO_FALLBACK_ENABLED;
@@ -11,15 +13,17 @@ export function isDemoFallbackMode() {
 
 export function token() {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem("fynora_token") || "";
+  return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY) || "";
 }
 
 export function setToken(value: string) {
-  localStorage.setItem("fynora_token", value);
+  localStorage.setItem(TOKEN_KEY, value);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
 }
 
 export function logout() {
-  localStorage.removeItem("fynora_token");
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
   window.location.href = "/";
 }
 

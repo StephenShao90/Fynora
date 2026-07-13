@@ -9,3 +9,4 @@ data
 *.log
 services/api/fynora-api
 services/api/api
+services/api/worker

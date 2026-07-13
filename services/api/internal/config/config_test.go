@@ -8,7 +8,7 @@ import (
 func productionConfig() Config {
 	return Config{
 		AppEnv:                     "production",
-		DatabaseURL:                "postgres://postgres:postgres@localhost:5432/fynora?sslmode=disable",
+		DatabaseURL:                "postgres://postgres:postgres@localhost:5432/clearflow?sslmode=disable",
 		JWTSecret:                  "production-secret-with-enough-length",
 		AllowedOrigins:             "https://app.example.com",
 		ProviderTokenEncryptionKey: "0123456789abcdef0123456789abcdef",

@@ -89,7 +89,7 @@ make migrate
 make api
 ```
 
-The Docker Postgres container is exposed on host port `5433` to avoid colliding with a local Postgres install. If you already have a `.env`, make sure `DATABASE_URL=postgres://postgres:postgres@localhost:5433/fynora?sslmode=disable`.
+The Docker Postgres container is exposed on host port `5433` to avoid colliding with a local Postgres install. If you already have a `.env`, make sure `DATABASE_URL=postgres://postgres:postgres@localhost:5433/clearflow?sslmode=disable`.
 
 In another terminal:
 
@@ -201,16 +201,23 @@ OpenTelemetry tracing can be enabled with `OTEL_ENABLED=true`. The API and worke
 
 Production architecture summary:
 
-Fynora/Clearflow is a production-style fintech operations platform built with Go, PostgreSQL, JWT/session auth, organization RBAC, idempotent financial writes, async job workers, provider webhook ingestion, Plaid/Stripe integration hardening, audit logs, metrics, OpenTelemetry tracing, Redis-backed rate limiting, and financial intelligence APIs for reconciliation scoring, payout explanations, anomalies, forecasts, and cash recommendations.
+Clearflow is a production-style fintech operations platform built with Go, PostgreSQL, JWT/session auth, organization RBAC, idempotent financial writes, async job workers, provider webhook ingestion, Plaid/Stripe integration hardening, audit logs, metrics, OpenTelemetry tracing, Redis-backed rate limiting, and financial intelligence APIs for reconciliation scoring, payout explanations, anomalies, forecasts, and cash recommendations.
 
 ## Testing
 
 ```bash
-make fmt
-make test
-make build
-cd apps/web && npm run test
+make verify
 ```
+
+`make verify` runs backend formatting, unit tests, vetting, API/worker builds, frontend linting, typechecking, production build, Vitest, high-severity npm audit, Node script syntax checks, and Docker Compose config validation.
+
+For live end-to-end verification with the API, worker, Postgres, and Redis running:
+
+```bash
+make smoke
+```
+
+Detailed verification notes live in [`docs/verification.md`](docs/verification.md).
 
 ## Deployment
 
