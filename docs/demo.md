@@ -5,15 +5,15 @@ Clearflow is a production-style fintech operations platform for small organizati
 ## Two To Three Minute Script
 
 1. **Log in or use demo mode.** On local full stack, click **Try Demo**. On Vercel without `NEXT_PUBLIC_API_BASE_URL`, the UI intentionally shows sample financial data and a demo-mode badge.
-2. **View Dashboard.** Point out operating cash, net cash flow, processor fees, refunds, open breaks, forecast chart, payout volume, and recent processor/bank ledger rows.
-3. **Open Reconciliation.** Run processor sync, bank sync, and reconciliation. Explain that real financial write endpoints support idempotency keys and queue work for the worker.
-4. **Explain exact and likely matches.** Show the exact payout/deposit match, the likely amount-mismatch match, the missing payout, and the unmatched deposit.
-5. **Open payout explanation.** Click **View explanation** and walk through gross payments, fees, refunds, net deposit, linked bank deposit, warnings, and plain-English summary.
-6. **View anomalies.** Open **Cash Flow** and show missing payout, unmatched deposit, and high-fee anomaly examples.
-7. **View cash-flow forecast.** Change the horizon and explain assumptions, confidence, projected balance, inflows, and outflows.
-8. **View recommendations.** Show the reserve recommendation, missing payout follow-up, and fee review recommendation.
+2. **Open Onboarding.** Pick a demo company, save the workspace profile, and use the checklist to explain the customer setup path.
+3. **View Dashboard.** Point out operating cash, net cash flow, processor fees, refunds, open breaks, forecast chart, payout volume, and recent processor/bank ledger rows.
+4. **Open Reconciliation.** Run processor sync, bank sync, and reconciliation. Explain that financial write endpoints use idempotency keys and queue worker jobs.
+5. **Resolve a break.** Open the exception workbench, add a resolution note, optionally associate a bank record, and resolve the break.
+6. **Open payout explanation.** Click **View explanation** and walk through gross payments, fees, refunds, net deposit, linked bank deposit, warnings, and plain-English summary.
+7. **Open Transactions.** Search/filter the ledger, select a transaction, inspect details, and update category.
+8. **View cash-flow intelligence.** Open **Cash Flow**, change horizon, and explain the labeled forecast axes, assumptions, anomalies, recommendations, and match confidence.
 9. **Open Ops.** Show async jobs, audit log entries, metrics, idempotency counters, Redis readiness, and OpenTelemetry trace readiness.
-10. **Open Integrations.** Show Stripe and Plaid connection status, Stripe Connect flow shape, webhook verification notes, and the fact that bank credentials are delegated to Plaid.
+10. **Open Integrations and Settings.** Show Stripe/Plaid status, provider sync controls, team roles, sessions, and production deployment separation.
 
 ## Interview Talking Points
 
@@ -51,5 +51,5 @@ Clearflow is a production-style fintech operations platform for small organizati
 ## Demo Modes
 
 - **Vercel demo mode:** frontend only, sample financial data, no backend secrets required.
-- **Full local stack:** frontend, Go API, worker, Postgres, and Redis.
+- **Full local stack:** frontend, Go API, worker, Postgres, and Redis through `make dev`.
 - **Future production architecture:** frontend on Vercel, Go API and worker on a backend host, hosted Postgres/Redis, and `NEXT_PUBLIC_API_BASE_URL` pointing at the deployed API.

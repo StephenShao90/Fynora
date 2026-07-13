@@ -6,9 +6,49 @@ const DEMO_FALLBACK_ENABLED = !CONFIGURED_API_BASE;
 const DEMO_TOKEN = "clearflow-demo-token";
 const TOKEN_KEY = "clearflow_token";
 const LEGACY_TOKEN_KEY = "fynora_token";
+const DEMO_SCENARIO_KEY = "clearflow_demo_scenario";
+
+export type DemoScenario = {
+  id: string;
+  name: string;
+  type: string;
+  currency: string;
+  description: string;
+  cashBalance: number;
+  income: number;
+  expenses: number;
+  fees: number;
+  refunds: number;
+};
+
+const demoScenarios: Record<string, DemoScenario> = {
+  student_org: { id: "student_org", name: "Northside Student Association", type: "student_organization", currency: "USD", description: "Dues, events, sponsor payments, and venue deposits.", cashBalance: 2967.27, income: 3179.72, expenses: 512.45, fees: 258.12, refunds: 175 },
+  creator: { id: "creator", name: "Maple Street Studio", type: "creator", currency: "USD", description: "Digital products, merch drops, refunds, and creator tools.", cashBalance: 8420.44, income: 12180.9, expenses: 2488.2, fees: 612.45, refunds: 660 },
+  saas: { id: "saas", name: "LedgerLoop SaaS", type: "saas", currency: "USD", description: "Subscription payouts, churn refunds, cloud software costs.", cashBalance: 18440.12, income: 32200, expenses: 11840.2, fees: 1188.52, refunds: 1430 },
+  nonprofit: { id: "nonprofit", name: "River Fund Collective", type: "nonprofit", currency: "USD", description: "Donations, grants, program expenses, and sponsor deposits.", cashBalance: 12780.65, income: 18800, expenses: 6990.4, fees: 420.75, refunds: 80 }
+};
 
 export function isDemoFallbackMode() {
   return DEMO_FALLBACK_ENABLED;
+}
+
+export function activeDemoScenario(): DemoScenario {
+  if (typeof window === "undefined") return demoScenarios.student_org;
+  const stored = localStorage.getItem(DEMO_SCENARIO_KEY) || "student_org";
+  try {
+    const parsed = JSON.parse(stored) as Partial<DemoScenario>;
+    if (parsed?.id && parsed.name) return { ...demoScenarios[parsed.id] || demoScenarios.student_org, ...parsed };
+  } catch {
+    // Stored value may be an old plain scenario id.
+  }
+  return demoScenarios[stored] || demoScenarios.student_org;
+}
+
+export function setDemoScenario(id: string, override?: Partial<DemoScenario>) {
+  const base = demoScenarios[id] || demoScenarios.student_org;
+  if (typeof window !== "undefined") {
+    localStorage.setItem(DEMO_SCENARIO_KEY, JSON.stringify({ ...base, ...override, id: base.id }));
+  }
 }
 
 export function token() {
@@ -232,13 +272,20 @@ export function disconnectStripe() {
 
 function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   const method = init.method || "GET";
+  const scenario = activeDemoScenario();
   if (path === "/auth/demo-token") return { token: DEMO_TOKEN, user: { id: "demo-user", email: "demo@clearflow.local" } } as T;
   if (path === "/me") return { id: "demo-user", email: "demo@clearflow.local" } as T;
+  if (path === "/api/v1/me") return { user: { id: "demo-user", email: "demo@clearflow.local", name: "Demo Operator" }, organizations: [{ id: "demo-org", name: scenario.name, type: scenario.type, currency: scenario.currency, role: "owner" }] } as T;
   if (path.startsWith("/api/v1/auth/sessions") && method === "GET") return [{ id: "session-demo-1", created_at: "2026-07-06T18:00:00Z", expires_at: "2026-07-07T18:00:00Z", user_agent: "Demo browser" }] as T;
   if (path.startsWith("/api/v1/auth/sessions") && method === "DELETE") return undefined as T;
-  if (path === "/organizations") return [{ id: "demo-org", name: "Northside Student Association", type: "student_organization", currency: "USD" }] as T;
-  if (path.startsWith("/cash-flow/summary")) return { cash_balance: 2967.27, income: 3179.72, expenses: 512.45, pending_payouts: 0, fees: 258.12, refunds: 175, net_cash_flow: 2667.27 } as T;
-  if (path.startsWith("/cash-flow/forecast")) return [{ days: 7, projected_cash: 2967.27, expected_payouts: 0, expected_expenses: 0 }, { days: 30, projected_cash: 2517.27, expected_payouts: 0, expected_expenses: 450 }, { days: 60, projected_cash: 2517.27, expected_payouts: 0, expected_expenses: 450 }] as T;
+  if (path.startsWith("/api/v1/organizations") && method === "POST") return { id: "demo-org", name: scenario.name, type: scenario.type, currency: scenario.currency, role: "owner" } as T;
+  if (path.match(/^\/api\/v1\/organizations\/[^/]+\/members$/) && method === "GET") return demoMembers as T;
+  if (path.match(/^\/api\/v1\/organizations\/[^/]+\/members$/) && method === "POST") return { id: crypto.randomUUID(), organization_id: "demo-org", user_id: crypto.randomUUID(), user_email: "invited@example.com", user_name: "Invited User", role: "viewer", created_at: new Date().toISOString() } as T;
+  if (path.includes("/members/") && method === "PATCH") return { id: "member-demo-2", organization_id: "demo-org", user_id: "member-demo-2", user_email: "analyst@clearflow.local", user_name: "Analyst", role: "admin", created_at: "2026-07-06T18:00:00Z" } as T;
+  if (path.includes("/members/") && method === "DELETE") return undefined as T;
+  if (path === "/organizations" || path === "/api/v1/organizations") return [{ id: "demo-org", name: scenario.name, type: scenario.type, currency: scenario.currency, role: "owner" }] as T;
+  if (path.startsWith("/cash-flow/summary")) return { cash_balance: scenario.cashBalance, income: scenario.income, expenses: scenario.expenses, pending_payouts: 0, fees: scenario.fees, refunds: scenario.refunds, net_cash_flow: scenario.income - scenario.expenses - scenario.fees - scenario.refunds } as T;
+  if (path.startsWith("/cash-flow/forecast")) return [{ days: 7, projected_cash: scenario.cashBalance, expected_payouts: 0, expected_expenses: 0 }, { days: 30, projected_cash: scenario.cashBalance - scenario.expenses * 0.9, expected_payouts: 0, expected_expenses: scenario.expenses * 0.9 }, { days: 60, projected_cash: scenario.cashBalance - scenario.expenses * 1.7, expected_payouts: 0, expected_expenses: scenario.expenses * 1.7 }] as T;
   if (path.startsWith("/payments")) return demoPayments as T;
   if (path.startsWith("/payouts")) return demoPayouts as T;
   if (path.startsWith("/bank-transactions")) return demoBankTransactions as T;
@@ -249,7 +296,7 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.startsWith("/sync/stripe")) return { payments: 5, refunds: 1, fees: 5, payout: demoPayouts[0] } as T;
   if (path.startsWith("/sync/bank")) return { bank_transactions: 3 } as T;
   if (path.startsWith("/api/v1/payouts/") && (path.includes("/explanation") || path.includes("/breakdown"))) return demoPayoutExplanation as T;
-  if (path.startsWith("/api/v1/cashflow/forecast")) return demoIntelligenceForecast as T;
+  if (path.startsWith("/api/v1/cashflow/forecast")) return demoIntelligenceForecast(scenario) as T;
   if (path.startsWith("/api/v1/insights/anomalies")) return { data: demoAnomalies } as T;
   if (path.startsWith("/api/v1/insights/spending")) return demoSpendingInsights as T;
   if (path.startsWith("/api/v1/recommendations/cash")) return { data: demoCashRecommendations } as T;
@@ -278,6 +325,11 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.startsWith("/insights")) return [] as T;
   return undefined;
 }
+
+const demoMembers = [
+  { id: "member-demo-1", organization_id: "demo-org", user_id: "demo-user", user_email: "demo@clearflow.local", user_name: "Demo Operator", role: "owner", created_at: "2026-07-06T18:00:00Z" },
+  { id: "member-demo-2", organization_id: "demo-org", user_id: "analyst-demo", user_email: "analyst@clearflow.local", user_name: "Analyst", role: "viewer", created_at: "2026-07-06T18:10:00Z" }
+];
 
 const demoPayments = [
   { id: "pay-1", processor_payment_id: "ch_hoodie_001", customer_email: "buyer1@example.com", amount: 48, status: "succeeded", description: "Hoodie order", occurred_at: "2026-07-01T15:30:00Z" },
@@ -310,31 +362,36 @@ const demoExceptions = [
   { id: "ex-3", severity: "medium", title: "Unmatched bank deposit", explanation: "Bank deposit Unknown deposit for $212.45 is not tied to a known payout.", status: "open", created_at: "2026-07-06T15:32:00Z" }
 ];
 
-const demoIntelligenceForecast: CashflowForecast = {
-  organizationId: "demo-org",
-  horizonDays: 30,
-  startingBalanceMinor: 296727,
-  projectedEndingBalanceMinor: 241727,
-  currency: "USD",
-  confidence: "medium",
-  assumptions: [
-    "Used recent bank credits and debits as the operating baseline.",
-    "Included pending processor payouts when expected arrival dates were present.",
-    "Excluded unresolved unmatched deposits from special treatment."
-  ],
-  series: Array.from({ length: 30 }, (_, index) => {
-    const day = index + 1;
-    const date = new Date(Date.UTC(2026, 6, 7 + day));
-    const inflow = day === 7 ? 130155 : day === 21 ? 52000 : 0;
-    const outflow = day % 10 === 0 ? 30000 : 8500;
-    return {
-      date: date.toISOString().slice(0, 10),
-      projectedBalanceMinor: 296727 + (day === 7 ? 130155 : 0) + (day > 21 ? 52000 : 0) - day * 8500 - (day >= 10 ? 30000 : 0),
-      expectedInflowsMinor: inflow,
-      expectedOutflowsMinor: outflow
-    };
-  })
-};
+function demoIntelligenceForecast(scenario: DemoScenario): CashflowForecast {
+  const starting = Math.round(scenario.cashBalance * 100);
+  const dailyBurn = Math.round((scenario.expenses / 30) * 100);
+  const weeklyInflow = Math.round((scenario.income / 4) * 100);
+  return {
+    organizationId: "demo-org",
+    horizonDays: 30,
+    startingBalanceMinor: starting,
+    projectedEndingBalanceMinor: starting + weeklyInflow * 4 - dailyBurn * 30,
+    currency: scenario.currency,
+    confidence: "medium",
+    assumptions: [
+      `Scenario: ${scenario.name}.`,
+      "Used recent bank credits and debits as the operating baseline.",
+      "Included expected weekly processor deposits and recurring operating costs."
+    ],
+    series: Array.from({ length: 30 }, (_, index) => {
+      const day = index + 1;
+      const date = new Date(Date.UTC(2026, 6, 7 + day));
+      const inflow = day % 7 === 0 ? weeklyInflow : 0;
+      const outflow = dailyBurn + (day % 10 === 0 ? Math.round(scenario.fees * 100) : 0);
+      return {
+        date: date.toISOString().slice(0, 10),
+        projectedBalanceMinor: starting + Math.floor(day / 7) * weeklyInflow - day * dailyBurn - Math.floor(day / 10) * Math.round(scenario.fees * 100),
+        expectedInflowsMinor: inflow,
+        expectedOutflowsMinor: outflow
+      };
+    })
+  };
+}
 
 const demoAnomalies: AnomalyInsight[] = [
   {

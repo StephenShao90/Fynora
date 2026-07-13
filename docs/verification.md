@@ -7,10 +7,7 @@ Use this when you want to prove Clearflow works end to end and send logs back fo
 Terminal 1:
 
 ```bash
-make local-env
-make docker-up
-make migrate
-make api
+make dev
 ```
 
 Expected API logs:
@@ -19,12 +16,6 @@ Expected API logs:
 database.connected
 Clearflow API listening on :8080
 http.request
-```
-
-Terminal 2:
-
-```bash
-make worker
 ```
 
 Expected worker logs:
@@ -37,12 +28,6 @@ worker.job.completed
 
 Worker job logs only appear when queued jobs exist.
 
-Terminal 3:
-
-```bash
-make web
-```
-
 Expected web logs:
 
 ```text
@@ -52,13 +37,15 @@ Local: http://localhost:3000
 
 ## 2. Run Automated Smoke Verification
 
-Terminal 4:
+Terminal 2:
 
 ```bash
 make smoke
 ```
 
 The smoke runner prints one line per feature:
+
+You can also run `make dev-smoke` from a stopped state to start the whole local stack, run this smoke suite, and shut the app down automatically.
 
 ```text
 [SMOKE] PASS health endpoint responds
@@ -114,25 +101,27 @@ grep 'worker.job' worker.log
 
 ## 4. Manual Browser Verification
 
-After `make web`, open `http://localhost:3000`.
+After `make dev`, open `http://localhost:3000`.
 
 1. Click **Try Demo**.
-2. Dashboard should load cash, payout, forecast, and exception widgets.
-3. Confirm **Operator checklist** shows the next recommended setup/reconciliation actions.
-4. Open **Reconciliation**.
-5. Click **Run full reconciliation**.
-6. Confirm the activity feed shows processor sync, bank sync, and reconciliation as completed.
-7. Click **View explanation** on a payout.
-8. Resolve one open exception and confirm it leaves the active queue.
-9. Open **Cash Flow** and check forecast, anomalies, recommendations, spending insights.
-10. Open **Portfolio**.
-11. Click **Download sample** under **Holdings snapshot**, then upload `sample_holdings.csv`.
-12. Confirm recent imports shows the holdings import, holdings table is populated, and allocation charts update.
-13. Click **Download sample** under **Activity ledger**, then upload `sample_portfolio_transactions.csv`.
-14. Confirm recent imports shows the activity import and **Recent portfolio activity** lists buys, deposits, and dividends.
-15. Open **Ops** and check jobs, audit logs, metrics, and queue depth.
-16. Open **Integrations** and check Stripe/Plaid status cards.
-17. Open **Settings**, click **Reset demo data**, and confirm you return to Dashboard with the seeded demo scenario restored.
+2. Open **Onboarding**, switch demo scenarios, save the workspace profile, and confirm the checklist updates.
+3. Dashboard should load cash, payout, forecast, and exception widgets.
+4. Confirm **Operator checklist** shows the next recommended setup/reconciliation actions.
+5. Open **Reconciliation**.
+6. Click **Run full reconciliation**.
+7. Confirm the activity feed shows processor sync, bank sync, and reconciliation as completed.
+8. Click **View explanation** on a payout.
+9. Click **Review** on an open break, add a note, resolve it, and confirm it leaves the active queue.
+10. Open **Transactions**, search/filter rows, select a transaction, and change category.
+11. Open **Cash Flow** and check forecast, anomalies, recommendations, spending insights.
+12. Open **Portfolio**.
+13. Click **Download sample** under **Holdings snapshot**, then upload `sample_holdings.csv`.
+14. Confirm recent imports shows the holdings import, holdings table is populated, and allocation charts update.
+15. Click **Download sample** under **Activity ledger**, then upload `sample_portfolio_transactions.csv`.
+16. Confirm recent imports shows the activity import and **Recent portfolio activity** lists buys, deposits, and dividends.
+17. Open **Ops** and check jobs, audit logs, metrics, and queue depth.
+18. Open **Integrations**, run a provider sync control, and confirm a response or queued job appears.
+19. Open **Settings**, add/change/remove a team member where permitted, revoke a session, then click **Reset demo data**.
 
 Frontend browser console logs:
 

@@ -43,16 +43,7 @@ The API and worker propagate W3C trace context through HTTP requests, webhook ha
 ```bash
 cp .env.example .env
 make install
-make docker-up
-make migrate
-make api
-```
-
-In separate terminals:
-
-```bash
-make worker
-make web
+make dev
 ```
 
 Open `http://localhost:3000`, click **Try Demo**, and use the dashboard, reconciliation, cash-flow, integrations, and ops pages.
@@ -132,7 +123,7 @@ Full `npm audit` currently reports a moderate advisory in Next's internal PostCS
 
 ## Production Startup
 
-1. Apply migrations through `004_phase7_integrations.sql`.
+1. Apply all migrations through `005_phase8_production_readiness.sql`.
 2. Start the API process.
 3. Start the worker process separately with `make worker`.
 4. Configure Stripe webhook delivery to `POST /api/v1/webhooks/processors/stripe`.
@@ -156,7 +147,7 @@ Full `npm audit` currently reports a moderate advisory in Next's internal PostCS
 - Invalid Stripe signature: webhook returns `400` and increments Stripe failure metrics.
 - Plaid verification required but missing mock/real signature: webhook returns `401`.
 - Plaid/Stripe real mode vs mock mode: local mock flows work without real provider credentials; real provider calls require configured secrets and provider dashboard setup.
-- Worker not processing jobs: confirm `make worker` is running, Postgres is reachable, and jobs are not scheduled for a future `run_after`.
+- Worker not processing jobs: confirm the worker process is running, Postgres is reachable, and jobs are not scheduled for a future `run_after`.
 - Reused OAuth state: callback returns `401`.
 - Same idempotency key with different request body: returns `409`.
 - Provider token encryption missing in production: startup/config validation fails.

@@ -1,0 +1,147 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { Header } from "@/components/Common";
+import { Card, Shell } from "@/components/Shell";
+import { useToast } from "@/components/ToastProvider";
+import { activeDemoScenario, api, setDemoScenario } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
+
+type Organization = { id: string; name: string; type?: string; currency?: string; role?: string };
+type StripeStatus = { connected: boolean; displayName?: string };
+type PlaidConnection = { id: string; institution_name: string; last_synced_at?: string };
+type PortfolioImport = { id: string };
+
+const businessTypes = [
+  ["small_business", "Small business"],
+  ["creator", "Creator / online seller"],
+  ["student_organization", "Student organization"],
+  ["nonprofit", "Nonprofit"],
+  ["saas", "Small SaaS"]
+];
+
+export default function OnboardingPage() {
+  const { pushToast } = useToast();
+  const scenario = activeDemoScenario();
+  const [name, setName] = useState(scenario.name);
+  const [type, setType] = useState(scenario.type);
+  const [currency, setCurrency] = useState(scenario.currency);
+  const [busy, setBusy] = useState("");
+  const orgs = useApi<Organization[]>("/organizations", []);
+  const stripe = useApi<StripeStatus>("/api/v1/integrations/stripe/status", { connected: false });
+  const plaid = useApi<PlaidConnection[]>("/connections", []);
+  const imports = useApi<PortfolioImport[]>("/portfolio/imports", []);
+  const payouts = useApi<unknown[]>("/payouts", []);
+  const bank = useApi<unknown[]>("/bank-transactions", []);
+
+  const checklist = useMemo(() => [
+    { label: "Workspace created", done: orgs.data.length > 0, href: "/settings", detail: orgs.data[0]?.name || "Create a company workspace" },
+    { label: "Business profile chosen", done: Boolean(type && currency), href: "/onboarding", detail: `${labelForType(type)} · ${currency}` },
+    { label: "Processor connected", done: stripe.data.connected || payouts.data.length > 0, href: "/integrations", detail: stripe.data.connected ? stripe.data.displayName || "Stripe connected" : "Connect Stripe or run mock sync" },
+    { label: "Bank data connected", done: plaid.data.length > 0 || bank.data.length > 0, href: "/imports", detail: plaid.data[0]?.institution_name || "Connect Plaid or import bank CSV" },
+    { label: "Portfolio data optional", done: imports.data.length > 0, href: "/portfolio", detail: imports.data.length ? `${imports.data.length} import(s)` : "Upload holdings/activity if relevant" }
+  ], [bank.data.length, currency, imports.data.length, orgs.data, plaid.data, payouts.data.length, stripe.data, type]);
+
+  async function createWorkspace() {
+    setBusy("Creating workspace...");
+    try {
+      setDemoScenario(typeToScenario(type), { name, type, currency });
+      const created = await api<Organization>("/api/v1/organizations", {
+        method: "POST",
+        body: JSON.stringify({ name, type, currency })
+      });
+      pushToast({ tone: "success", title: "Workspace created", detail: created.name });
+      window.location.reload();
+    } catch (err) {
+      pushToast({ tone: "error", title: "Could not create workspace", detail: (err as Error).message });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function switchScenario(id: string) {
+    setDemoScenario(id);
+    pushToast({ tone: "success", title: "Scenario switched", detail: "Demo data will refresh around the selected company profile." });
+    window.location.reload();
+  }
+
+  return (
+    <Shell>
+      <Header title="Onboarding" subtitle="Set up the workspace, connect provider data, and reach a reliable reconciliation-ready state." />
+
+      <div className="grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
+        <Card title="Workspace profile">
+          <div className="grid gap-3">
+            <label className="grid gap-1 text-sm font-medium text-ink">
+              Organization name
+              <input value={name} onChange={(event) => setName(event.target.value)} className="rounded-md border border-ink/15 px-3 py-2 font-normal" />
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-ink">
+              Business type
+              <select value={type} onChange={(event) => setType(event.target.value)} className="rounded-md border border-ink/15 px-3 py-2 font-normal">
+                {businessTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-ink">
+              Currency
+              <select value={currency} onChange={(event) => setCurrency(event.target.value)} className="rounded-md border border-ink/15 px-3 py-2 font-normal">
+                <option value="USD">USD</option>
+                <option value="CAD">CAD</option>
+              </select>
+            </label>
+          </div>
+          <button onClick={createWorkspace} disabled={Boolean(busy)} className="mt-4 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            {busy || "Save workspace"}
+          </button>
+          <p className="mt-3 text-sm leading-6 text-ink/55">This creates a real organization when the API is running. In demo fallback mode it switches the sample company profile locally.</p>
+        </Card>
+
+        <Card title="Setup checklist">
+          <div className="grid gap-2">
+            {checklist.map((item) => (
+              <Link key={item.label} href={item.href} className={`rounded-md border p-3 transition hover:bg-ink/[0.03] ${item.done ? "border-moss/25 bg-mint/60" : "border-gold/35 bg-gold/10"}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold">{item.label}</p>
+                  <span className={`rounded px-2 py-1 text-xs font-semibold ${item.done ? "bg-white text-moss" : "bg-white text-ink/55"}`}>{item.done ? "done" : "needed"}</span>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-ink/55">{item.detail}</p>
+              </Link>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card title="Demo company switcher">
+          <div className="grid gap-3 md:grid-cols-4">
+            <ScenarioButton active={scenario.id === "student_org"} title="Student org" detail="Dues, event tickets, sponsor payments, venue deposits." onClick={() => switchScenario("student_org")} />
+            <ScenarioButton active={scenario.id === "creator"} title="Creator shop" detail="Stripe storefront payouts, refunds, platform tools." onClick={() => switchScenario("creator")} />
+            <ScenarioButton active={scenario.id === "saas"} title="Small SaaS" detail="Subscription revenue, churn/refunds, software costs." onClick={() => switchScenario("saas")} />
+            <ScenarioButton active={scenario.id === "nonprofit"} title="Nonprofit" detail="Donations, grant deposits, program spend." onClick={() => switchScenario("nonprofit")} />
+          </div>
+        </Card>
+      </div>
+    </Shell>
+  );
+}
+
+function ScenarioButton({ active, title, detail, onClick }: { active: boolean; title: string; detail: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className={`rounded-md border p-4 text-left transition hover:bg-ink/[0.03] ${active ? "border-moss bg-mint/70" : "border-ink/10 bg-white"}`}>
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="mt-2 text-xs leading-5 text-ink/55">{detail}</p>
+    </button>
+  );
+}
+
+function labelForType(value: string) {
+  return businessTypes.find(([id]) => id === value)?.[1] || value;
+}
+
+function typeToScenario(value: string) {
+  if (value === "creator") return "creator";
+  if (value === "saas") return "saas";
+  if (value === "nonprofit") return "nonprofit";
+  return "student_org";
+}

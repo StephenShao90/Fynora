@@ -4,17 +4,21 @@ import { useEffect, useState } from "react";
 import { Empty, Header } from "@/components/Common";
 import { Card, Shell } from "@/components/Shell";
 import { useToast } from "@/components/ToastProvider";
-import { disconnectStripe, getStripeConnectUrl, getStripeStatus, type StripeIntegrationStatus } from "@/lib/api";
+import { api, disconnectStripe, getStripeConnectUrl, getStripeStatus, type StripeIntegrationStatus } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 
 type PlaidConnection = { id: string; institution_name: string; products: string[]; last_synced_at?: string };
+type Organization = { id: string; name: string };
 
 export default function IntegrationsPage() {
   const { pushToast } = useToast();
   const [stripe, setStripe] = useState<{ data?: StripeIntegrationStatus; loading: boolean; error: string }>({ loading: true, error: "" });
   const [busy, setBusy] = useState("");
   const [returnStatus, setReturnStatus] = useState<{ status: string; message: string }>({ status: "", message: "" });
+  const [syncResult, setSyncResult] = useState("");
   const plaid = useApi<PlaidConnection[]>("/connections", []);
+  const organizations = useApi<Organization[]>("/organizations", []);
+  const orgId = organizations.data[0]?.id || "";
 
   async function loadStripe() {
     setStripe((current) => ({ ...current, loading: true, error: "" }));
@@ -60,6 +64,25 @@ export default function IntegrationsPage() {
     } catch (err) {
       setStripe((current) => ({ ...current, error: (err as Error).message }));
       pushToast({ tone: "error", title: "Could not disconnect Stripe", detail: (err as Error).message });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function syncProvider(label: string, path: string) {
+    setBusy(`${label} sync running...`);
+    try {
+      const suffix = path.startsWith("/api/v1/") && orgId ? `?organizationId=${encodeURIComponent(orgId)}` : "";
+      const result = await api<Record<string, unknown>>(`${path}${suffix}`, {
+        method: "POST",
+        headers: { "Idempotency-Key": `${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}` },
+        body: "{}"
+      });
+      setSyncResult(JSON.stringify(result, null, 2));
+      pushToast({ tone: "success", title: `${label} sync started`, detail: "Check Operations for background job status." });
+    } catch (err) {
+      setSyncResult((err as Error).message);
+      pushToast({ tone: "error", title: `${label} sync failed`, detail: (err as Error).message });
     } finally {
       setBusy("");
     }
@@ -113,6 +136,26 @@ export default function IntegrationsPage() {
               ))}
             </div>
           ) : <Empty text="No Plaid bank connection found. Connect a bank from Imports." />}
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card title="Provider sync controls">
+          <div className="grid gap-3 md:grid-cols-3">
+            <button onClick={() => syncProvider("Stripe", "/api/v1/sync/stripe")} className="rounded-md border border-ink/15 px-4 py-3 text-left text-sm font-semibold hover:bg-ink/[0.03]">
+              Sync Stripe data
+              <span className="mt-1 block text-xs font-normal text-ink/50">Queues processor payments, fees, refunds, and payouts.</span>
+            </button>
+            <button onClick={() => syncProvider("Plaid bank", "/connections/plaid/sync-transactions")} className="rounded-md border border-ink/15 px-4 py-3 text-left text-sm font-semibold hover:bg-ink/[0.03]">
+              Sync Plaid bank
+              <span className="mt-1 block text-xs font-normal text-ink/50">Refreshes authorized bank transactions.</span>
+            </button>
+            <button onClick={() => syncProvider("Plaid Investments", "/connections/plaid/sync-investments")} className="rounded-md border border-ink/15 px-4 py-3 text-left text-sm font-semibold hover:bg-ink/[0.03]">
+              Sync investments sample
+              <span className="mt-1 block text-xs font-normal text-ink/50">Imports mock holdings/activity into Portfolio.</span>
+            </button>
+          </div>
+          {syncResult ? <pre className="mt-4 max-h-60 overflow-auto rounded-md bg-ink p-4 text-xs text-white">{syncResult}</pre> : null}
         </Card>
       </div>
 

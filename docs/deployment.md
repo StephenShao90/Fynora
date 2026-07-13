@@ -72,16 +72,7 @@ Best for technical demos and interviews.
 ```bash
 cp .env.example .env
 make install
-make docker-up
-make migrate
-make api
-```
-
-In separate terminals:
-
-```bash
-make worker
-make web
+make dev
 ```
 
 Open `http://localhost:3000`, click **Try Demo**, and walk through Dashboard, Reconciliation, Cash Flow, Ops, and Integrations.

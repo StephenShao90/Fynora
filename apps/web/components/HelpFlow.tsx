@@ -9,6 +9,11 @@ type Slide = {
 };
 
 const flows: Record<string, Slide[]> = {
+  "Onboarding": [
+    { title: "Create the workspace", body: "Start by naming the company, picking the business type, and saving the workspace profile.", steps: ["Choose the closest operating model.", "Confirm currency.", "Save workspace to create or switch the active company."] },
+    { title: "Finish the data checklist", body: "The checklist turns setup into concrete steps so you know exactly what data is missing.", steps: ["Connect or sync processor data.", "Connect Plaid or import bank activity.", "Upload portfolio data only if it matters for the use case."] },
+    { title: "Switch demo companies", body: "The scenario switcher changes the sample company so Clearflow demos across student orgs, creators, SaaS, and nonprofits.", steps: ["Pick a scenario.", "Open Dashboard.", "Verify cash and workflow language fit the company."] }
+  ],
   "Operations dashboard": [
     { title: "Read cash health first", body: "The top cards summarize bank cash, net operating movement, processor costs, refunds, and unresolved breaks.", steps: ["Operating cash is posted bank cash.", "Net flow subtracts debits, fees, and refunds.", "Open breaks are reconciliation issues that still need action."] },
     { title: "Use the forecast", body: "The chart plots projected cash by day so you can see whether expected activity will pressure operating cash.", steps: ["X-axis means days ahead.", "Y-axis means projected dollar amount.", "Hover points to inspect projected cash, payouts, and expenses."] },
@@ -25,7 +30,8 @@ const flows: Record<string, Slide[]> = {
   ],
   "Integrations": [
     { title: "Stripe connection", body: "Stripe Connect authorizes processor data access without storing your Stripe password.", steps: ["Click Connect Stripe.", "Complete or cancel Stripe onboarding.", "You return to this page with connection status."] },
-    { title: "Provider status", body: "The cards show whether Stripe and Plaid are connected and when data last synced.", steps: ["Connected means tokens exist server-side.", "Last sync shows freshness.", "Last error tells you whether provider sync failed."] }
+    { title: "Provider status", body: "The cards show whether Stripe and Plaid are connected and when data last synced.", steps: ["Connected means tokens exist server-side.", "Last sync shows freshness.", "Last error tells you whether provider sync failed."] },
+    { title: "Run syncs manually", body: "Provider sync controls let you trigger ingestion without leaving the integration page.", steps: ["Sync Stripe for processor data.", "Sync Plaid bank for bank transactions.", "Sync investments sample to populate Portfolio."] }
   ],
   "Operations": [
     { title: "Watch the worker", body: "Async jobs show whether background sync and reconciliation are actually being processed.", steps: ["Run Reconciliation workflow.", "Open Ops.", "Recent jobs should show queued/running/completed entries."] },
@@ -45,7 +51,9 @@ const flows: Record<string, Slide[]> = {
     { title: "Review normalized records", body: "Transactions show categorized spending and merchant normalization.", steps: ["Check date and merchant.", "Confirm category/direction.", "Use Imports if rows are missing."] }
   ],
   "Settings": [
-    { title: "Manage local demo state", body: "Settings gives you a quick way to recover a known-good local scenario after lots of manual testing.", steps: ["Use Reset demo data to reseed payments, payouts, bank deposits, and reconciliation breaks.", "Use Log out to clear the browser token.", "Never enter real brokerage credentials in this MVP."] }
+    { title: "Manage local demo state", body: "Settings gives you a quick way to recover a known-good local scenario after lots of manual testing.", steps: ["Use Reset demo data to reseed payments, payouts, bank deposits, and reconciliation breaks.", "Use Log out to clear the browser token.", "Never enter real brokerage credentials in this MVP."] },
+    { title: "Manage team access", body: "The Team panel uses organization membership APIs so you can demonstrate RBAC, invites, role changes, and removal.", steps: ["Add a teammate by email.", "Choose viewer, analyst, or admin.", "Owners are protected from accidental removal."] },
+    { title: "Prepare deployment", body: "Production readiness notes keep frontend, API, worker, database, Redis, and provider secrets separated.", steps: ["Frontend goes to Vercel.", "API and worker go to a backend host.", "Provider secrets stay backend-only."] }
   ]
 };
 

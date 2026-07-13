@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { isDemoFallbackMode, logout } from "@/lib/api";
+import { activeDemoScenario, isDemoFallbackMode, logout, setDemoScenario } from "@/lib/api";
 
 const nav = [
+  ["/onboarding", "Onboarding"],
   ["/dashboard", "Dashboard"],
   ["/reconciliation", "Reconciliation"],
   ["/imports", "Imports"],
@@ -19,6 +20,7 @@ const nav = [
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const scenario = activeDemoScenario();
   return (
     <div className="min-h-screen bg-[#f4f6f2]">
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-ink/10 bg-[#fbfcf8] p-6 lg:block">
@@ -26,8 +28,20 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <p className="mt-2 max-w-52 text-sm leading-6 text-ink/55">Payment reconciliation and cash visibility for small teams.</p>
         <div className="mt-6 rounded-md border border-ink/10 bg-white p-3">
           <p className="text-xs uppercase tracking-wide text-ink/40">Workspace</p>
-          <p className="mt-1 truncate text-sm font-medium text-ink">Demo Organization</p>
+          <p className="mt-1 truncate text-sm font-medium text-ink">{scenario.name}</p>
           {isDemoFallbackMode() ? <p className="mt-2 inline-flex rounded bg-gold/25 px-2 py-1 text-xs font-medium text-ink/70">Demo mode · sample data</p> : null}
+          <label className="mt-3 block text-xs font-medium uppercase tracking-wide text-ink/40" htmlFor="demo-scenario">Scenario</label>
+          <select
+            id="demo-scenario"
+            defaultValue={scenario.id}
+            onChange={(event) => setDemoScenario(event.target.value)}
+            className="mt-1 w-full rounded-md border border-ink/15 bg-white px-2 py-2 text-sm text-ink"
+          >
+            <option value="student_org">Student org</option>
+            <option value="creator">Creator shop</option>
+            <option value="saas">Small SaaS</option>
+            <option value="nonprofit">Nonprofit</option>
+          </select>
         </div>
         <nav className="mt-6 grid max-h-[calc(100vh-17rem)] gap-1 overflow-y-auto pr-1">
           {nav.map(([href, label]) => (

@@ -13,6 +13,7 @@ type Run = { id: string; status: string; matched_count: number; exception_count:
 type Exception = { id: string; severity: string; title: string; explanation: string; status: string; created_at: string };
 type Payment = { id: string; processor_payment_id: string; amount: number; status: string; description: string; occurred_at: string; customer_email?: string };
 type Payout = { id: string; processor_payout_id: string; amount: number; status: string; expected_arrival_at: string };
+type BankTransaction = { id: string; external_id?: string; amount: number; direction: string; description: string; posted_at: string };
 type Activity = { id: string; label: string; detail: string; status: "ok" | "error" | "running"; at: string };
 type Organization = { id: string; name: string };
 type Job = { id: string; type: string; status: string };
@@ -23,17 +24,22 @@ export default function ReconciliationPage() {
   const [workflowRunning, setWorkflowRunning] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedPayoutId, setSelectedPayoutId] = useState("");
+  const [resolvedIds, setResolvedIds] = useState<string[]>([]);
+  const [selectedException, setSelectedException] = useState<Exception | undefined>();
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [manualMatchId, setManualMatchId] = useState("");
   const [explanation, setExplanation] = useState<{ data?: PayoutExplanation; loading: boolean; error: string }>({ loading: false, error: "" });
   const [matches, setMatches] = useState<{ data: ReconciliationMatch[]; loading: boolean; error: string }>({ data: [], loading: false, error: "" });
   const runs = useApi<Run[]>(`/reconciliation/runs?reload=${reloadKey}`, []);
   const exceptions = useApi<Exception[]>(`/reconciliation/exceptions?reload=${reloadKey}`, []);
   const payments = useApi<Payment[]>(`/payments?reload=${reloadKey}`, []);
   const payouts = useApi<Payout[]>(`/payouts?reload=${reloadKey}`, []);
+  const bank = useApi<BankTransaction[]>(`/bank-transactions?reload=${reloadKey}`, []);
   const cash = useApi<Record<string, number>>(`/cash-flow/summary?reload=${reloadKey}`, {});
   const organizations = useApi<Organization[]>("/organizations", []);
   const orgId = organizations.data[0]?.id || "";
 
-  const openExceptions = useMemo(() => exceptions.data.filter((item) => item.status === "open"), [exceptions.data]);
+  const openExceptions = useMemo(() => exceptions.data.filter((item) => item.status === "open" && !resolvedIds.includes(item.id)), [exceptions.data, resolvedIds]);
   const latestRun = runs.data[0];
   const matchRate = latestRun ? Math.round((latestRun.matched_count / Math.max(1, latestRun.matched_count + latestRun.exception_count)) * 100) : 0;
 
@@ -127,10 +133,14 @@ export default function ReconciliationPage() {
     throw new Error(`${label} job did not complete. Make sure make worker is running.`);
   }
 
-  async function resolveException(id: string) {
+  async function resolveException(item: Exception) {
     try {
-      await api(`/reconciliation/exceptions/${id}`, { method: "PATCH", body: JSON.stringify({ status: "resolved" }) });
-      setActivity((items) => [{ id: crypto.randomUUID(), label: "Resolved exception", detail: id.slice(0, 8), status: "ok" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
+      await api(`/reconciliation/exceptions/${item.id}`, { method: "PATCH", body: JSON.stringify({ status: "resolved", note: resolutionNote, matched_bank_transaction_id: manualMatchId }) });
+      setResolvedIds((ids) => Array.from(new Set([...ids, item.id])));
+      setActivity((items) => [{ id: crypto.randomUUID(), label: "Resolved exception", detail: `${item.id.slice(0, 8)} · ${resolutionNote || "No note"}`, status: "ok" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
+      setSelectedException(undefined);
+      setResolutionNote("");
+      setManualMatchId("");
       setReloadKey((value) => value + 1);
       pushToast({ tone: "success", title: "Break resolved", detail: "The active exception queue and open-break count will refresh." });
     } catch (err) {
@@ -208,7 +218,7 @@ export default function ReconciliationPage() {
                       </div>
                       <p className="mt-1 text-sm leading-6 text-ink/65">{item.explanation}</p>
                     </div>
-                    {item.status === "open" ? <button onClick={() => resolveException(item.id)} className="shrink-0 rounded-md border border-ink/15 px-3 py-1.5 text-xs font-medium hover:bg-white">Resolve</button> : null}
+                    {item.status === "open" ? <button onClick={() => { setSelectedException(item); setResolutionNote(""); setManualMatchId(""); }} className="shrink-0 rounded-md border border-ink/15 px-3 py-1.5 text-xs font-medium hover:bg-white">Review</button> : null}
                   </div>
                 </div>
               ))}
@@ -227,6 +237,37 @@ export default function ReconciliationPage() {
           ) : <Empty text="No payouts yet." />}
         </Card>
       </div>
+
+      {selectedException ? (
+        <div className="mt-4">
+          <Card title="Exception workbench">
+            <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+              <div className="rounded-md border border-coral/25 bg-coral/5 p-4">
+                <p className="text-sm font-semibold text-coral">{selectedException.title}</p>
+                <p className="mt-2 text-sm leading-6 text-ink/65">{selectedException.explanation}</p>
+                <p className="mt-3 text-xs uppercase tracking-wide text-ink/45">{selectedException.severity} · {formatDate(selectedException.created_at)}</p>
+              </div>
+              <div className="grid gap-3">
+                <label className="grid gap-1 text-sm font-medium text-ink">
+                  Optional matching bank record
+                  <select value={manualMatchId} onChange={(event) => setManualMatchId(event.target.value)} className="rounded-md border border-ink/15 px-3 py-2 font-normal">
+                    <option value="">No manual match</option>
+                    {bank.data.map((row) => <option key={row.id} value={row.id}>{row.description} · {money(row.amount)} · {formatDate(row.posted_at)}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm font-medium text-ink">
+                  Resolution note
+                  <textarea value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} rows={3} placeholder="Example: verified with bank memo, amount gap is processor reserve release." className="rounded-md border border-ink/15 px-3 py-2 font-normal" />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => resolveException(selectedException)} className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white">Resolve break</button>
+                  <button onClick={() => setSelectedException(undefined)} className="rounded-md border border-ink/15 px-4 py-2 text-sm font-semibold text-ink">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      ) : null}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
         <PayoutExplanationPanel explanation={explanation.data} loading={explanation.loading} error={explanation.error} />

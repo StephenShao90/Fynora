@@ -84,20 +84,18 @@ Then run:
 ```bash
 cp .env.example .env
 make install
-make docker-up
-make migrate
-make api
+make dev
 ```
 
 The Docker Postgres container is exposed on host port `5433` to avoid colliding with a local Postgres install. If you already have a `.env`, make sure `DATABASE_URL=postgres://postgres:postgres@localhost:5433/clearflow?sslmode=disable`.
 
-In another terminal:
+Open `http://localhost:3000` and click **Try Demo**. The demo seeds a user, organization, Stripe-style payments, fees, refund, payout, bank transactions, payout item breakdown, and reconciliation run.
+
+To start the full stack, run the smoke suite, and shut it down automatically:
 
 ```bash
-make web
+make dev-smoke
 ```
-
-Open `http://localhost:3000` and click **Try Demo**. The demo seeds a user, organization, Stripe-style payments, fees, refund, payout, bank transactions, payout item breakdown, and reconciliation run.
 
 ## Useful API Flow
 
@@ -124,16 +122,16 @@ API contract: [`docs/openapi.yaml`](docs/openapi.yaml)
 
 ## Demo Flow
 
-1. Start Postgres, migrations, API, and web with `make docker-up`, `make migrate`, `make api`, and `make web`.
+1. Start Postgres, Redis, migrations, API, worker, and web with `make dev`.
 2. Open `http://localhost:3000`, click **Try Demo**, and land on the operations dashboard.
-3. Open **Reconciliation** and run the processor sync, bank sync, and reconciliation workflow.
-4. Review the match rate, exception queue, and payout ledger.
-5. Click **View explanation** on a payout to show gross payments, fees, refunds, net deposit, matching bank deposit, warnings, and the plain-English explanation.
-6. Open **Cash Flow** to show the financial intelligence dashboard.
-7. Change the forecast horizon between 7, 30, 60, and 90 days and explain the confidence and assumptions.
-8. Review active anomalies, cash recommendations, spending insights, and recent reconciliation match confidence.
-9. Open **Ops** to show async jobs, audit logs, metrics, idempotency, Redis readiness, and tracing readiness.
-10. Open **Integrations** to show Stripe/Plaid connection state and provider security notes.
+3. Open **Onboarding** to choose a demo company, save the workspace profile, and review setup progress.
+4. Open **Reconciliation** and run the processor sync, bank sync, and reconciliation workflow.
+5. Review the match rate, exception queue, payout ledger, payout explanation, and exception workbench.
+6. Open **Transactions** to search/filter the ledger and update categories.
+7. Open **Cash Flow** to show forecasts, anomalies, recommendations, and match scoring.
+8. Open **Ops** to show async jobs, audit logs, metrics, idempotency, Redis readiness, and tracing readiness.
+9. Open **Integrations** to show Stripe/Plaid connection state, provider sync controls, and webhook security notes.
+10. Open **Settings** to show team roles, sessions, demo reset, and production deployment separation.
 
 Interview-ready backend summary:
 
@@ -217,6 +215,8 @@ For live end-to-end verification with the API, worker, Postgres, and Redis runni
 make smoke
 ```
 
+Or use `make dev-smoke` to start the local stack, run smoke verification, and stop the app in one command.
+
 Detailed verification notes live in [`docs/verification.md`](docs/verification.md).
 
 ## Deployment
@@ -224,7 +224,7 @@ Detailed verification notes live in [`docs/verification.md`](docs/verification.m
 Clearflow supports three deployment modes:
 
 - **Mode A: Vercel demo mode.** Deploy `apps/web` to Vercel without backend secrets. If `NEXT_PUBLIC_API_BASE_URL` is not configured, the frontend uses intentional sample financial data and shows a demo-mode indicator.
-- **Mode B: Full local stack.** Run frontend, Go API, worker, Postgres, and Redis locally with `make docker-up`, `make migrate`, `make api`, `make worker`, and `make web`.
+- **Mode B: Full local stack.** Run frontend, Go API, worker, Postgres, and Redis locally with `make dev`.
 - **Mode C: Real production architecture later.** Keep the frontend on Vercel, deploy the Go API and worker to Render, Railway, Fly.io, AWS App Runner, ECS, or a similar backend host, and point Vercel `NEXT_PUBLIC_API_BASE_URL` at that API.
 
 Do not move the Go API or worker into Next.js API routes just to fit Vercel. The backend is intentionally a separate service.

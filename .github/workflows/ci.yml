@@ -64,6 +64,7 @@ jobs:
           node-version: "20"
       - name: script syntax
         run: |
+          node --check scripts/dev.mjs
           node --check scripts/smoke-clearflow.mjs
           node --check scripts/use-local-env.mjs
       - name: docker compose config
