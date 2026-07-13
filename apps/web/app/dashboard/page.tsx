@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, Shell, money } from "@/components/Shell";
 import { Header, Empty } from "@/components/Common";
 import { useApi } from "@/hooks/useApi";
@@ -25,7 +25,7 @@ export default function Dashboard() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Kpi label="Operating cash" value={money(cash.data.cash_balance)} detail="posted bank cash" />
-        <Kpi label="Net flow" value={money(cash.data.net_cash_flow)} detail="credits minus debits" tone="good" />
+        <Kpi label="Net flow" value={money(cash.data.net_cash_flow)} detail="income minus debits, fees, refunds" tone={(cash.data.net_cash_flow || 0) >= 0 ? "good" : "warn"} />
         <Kpi label="Processor cost" value={money(cash.data.fees)} detail="fees this period" tone="warn" />
         <Kpi label="Refunds" value={money(cash.data.refunds)} detail="returned volume" tone="warn" />
         <Kpi label="Open breaks" value={`${openBreaks.length}`} detail="requires review" tone={openBreaks.length ? "warn" : "good"} />
@@ -33,11 +33,16 @@ export default function Dashboard() {
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
         <Card title="Cash forecast">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink/45">
+            <span>X-axis: days from today</span>
+            <span>Y-axis: projected cash amount</span>
+          </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={forecast.data}>
-                <XAxis dataKey="days" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} />
+                <CartesianGrid stroke="#dfe5dc" strokeDasharray="3 3" />
+                <XAxis dataKey="days" tickLine={false} axisLine={false} label={{ value: "Days ahead", position: "insideBottom", offset: -4 }} />
+                <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `$${Number(value).toLocaleString()}`} label={{ value: "Projected cash", angle: -90, position: "insideLeft" }} />
                 <Tooltip formatter={(value) => money(Number(value))} />
                 <Line type="monotone" dataKey="projected_cash" stroke="#17211b" strokeWidth={3} dot={{ r: 4 }} />
               </LineChart>

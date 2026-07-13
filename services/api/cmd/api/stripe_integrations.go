@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/StephenShao90/Fynora/services/api/internal/auth"
@@ -40,22 +42,22 @@ func (a *app) stripeConnectURLV1(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) stripeCallbackV1(w http.ResponseWriter, r *http.Request) {
 	if providerErr := r.URL.Query().Get("error"); providerErr != "" {
-		errorJSON(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Stripe OAuth returned an error")
+		a.redirectStripeCallback(w, r, "error", "Stripe OAuth returned an error")
 		return
 	}
 	code, state := r.URL.Query().Get("code"), r.URL.Query().Get("state")
 	if code == "" || state == "" {
-		errorJSON(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "code and state are required")
+		a.redirectStripeCallback(w, r, "error", "code and state are required")
 		return
 	}
 	oauthState, err := a.consumeOAuthState(r.Context(), "stripe", hashOAuthState(state))
 	if err != nil {
-		errorJSON(w, r, http.StatusUnauthorized, "UNAUTHORIZED", err.Error())
+		a.redirectStripeCallback(w, r, "error", err.Error())
 		return
 	}
 	if queryOrgID := r.URL.Query().Get("organizationId"); queryOrgID != "" && queryOrgID != oauthState.OrganizationID {
 		a.writeAudit(r.Context(), r, oauthState.OrganizationID, oauthState.UserID, "stripe.connect_failed", "provider_connection", "stripe", `{"error":"organization_mismatch"}`)
-		errorJSON(w, r, http.StatusForbidden, "FORBIDDEN", "OAuth state does not match this organization")
+		a.redirectStripeCallback(w, r, "error", "OAuth state does not match this organization")
 		return
 	}
 	client := a.stripeOAuthClient()
@@ -63,32 +65,50 @@ func (a *app) stripeCallbackV1(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		a.incrementMetric(func(m *opsMetrics) { m.StripeOAuthExchangeFailuresTotal++ })
 		a.writeAudit(r.Context(), r, oauthState.OrganizationID, oauthState.UserID, "stripe.connect_failed", "provider_connection", "stripe", `{"error":"exchange_failed"}`)
-		errorJSON(w, r, http.StatusBadGateway, "INTERNAL_ERROR", "could not exchange Stripe authorization code")
+		a.redirectStripeCallback(w, r, "error", "could not exchange Stripe authorization code")
 		return
 	}
 	protector, err := security.NewTokenProtector(a.cfg.AppEnv, a.cfg.ProviderTokenEncryptionKey)
 	if err != nil {
-		errorJSON(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "provider token encryption is not configured")
+		a.redirectStripeCallback(w, r, "error", "provider token encryption is not configured")
 		return
 	}
 	accessCipher, err := protector.Protect(r.Context(), account.AccessToken)
 	if err != nil {
-		errorJSON(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "could not protect provider token")
+		a.redirectStripeCallback(w, r, "error", "could not protect provider token")
 		return
 	}
 	refreshCipher, err := protector.Protect(r.Context(), account.RefreshToken)
 	if err != nil {
-		errorJSON(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "could not protect provider token")
+		a.redirectStripeCallback(w, r, "error", "could not protect provider token")
 		return
 	}
 	conn := models.ProviderConnection{ID: auth.NewID(), OrganizationID: oauthState.OrganizationID, Provider: "stripe", ExternalAccountID: account.AccountID, DisplayName: account.DisplayName, Status: "connected", AccessTokenCiphertext: accessCipher, RefreshTokenCiphertext: refreshCipher, Scopes: account.Scope, ConnectedByUserID: oauthState.UserID, ConnectedAt: time.Now().UTC()}
 	if err := a.upsertProviderConnection(r.Context(), conn); err != nil {
-		errorJSON(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "could not persist Stripe connection")
+		a.redirectStripeCallback(w, r, "error", "could not persist Stripe connection")
 		return
 	}
 	a.writeAudit(r.Context(), r, oauthState.OrganizationID, oauthState.UserID, "stripe.connected", "provider_connection", conn.ExternalAccountID, "{}")
 	a.emitOutbox(r.Context(), oauthState.OrganizationID, "stripe.account_connected", "provider_connection", conn.ExternalAccountID, "{}")
-	writeJSON(w, http.StatusOK, stripeStatusResponse(conn))
+	a.redirectStripeCallback(w, r, "connected", "")
+}
+
+func (a *app) redirectStripeCallback(w http.ResponseWriter, r *http.Request, status, message string) {
+	base := strings.TrimRight(a.cfg.FrontendURL, "/")
+	if base == "" {
+		base = "http://localhost:3000"
+	}
+	u, err := url.Parse(base + "/integrations")
+	if err != nil {
+		u = &url.URL{Scheme: "http", Host: "localhost:3000", Path: "/integrations"}
+	}
+	q := u.Query()
+	q.Set("stripe", status)
+	if message != "" {
+		q.Set("message", message)
+	}
+	u.RawQuery = q.Encode()
+	http.Redirect(w, r, u.String(), http.StatusSeeOther)
 }
 
 func (a *app) stripeStatusV1(w http.ResponseWriter, r *http.Request) {

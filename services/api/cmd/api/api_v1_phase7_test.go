@@ -32,31 +32,30 @@ func TestAPIV1StripeOAuthConnectCallbackStatusAndDisconnect(t *testing.T) {
 	}
 
 	callback := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?code=ac_test_123&state="+connectPayload.State, "", "req_stripe_callback", nil)
-	if callback.Code != http.StatusOK {
-		t.Fatalf("expected callback 200, got %d: %s", callback.Code, callback.Body.String())
+	if callback.Code != http.StatusSeeOther {
+		t.Fatalf("expected callback redirect, got %d: %s", callback.Code, callback.Body.String())
+	}
+	if location := callback.Header().Get("Location"); !strings.Contains(location, "/integrations?") || !strings.Contains(location, "stripe=connected") {
+		t.Fatalf("expected redirect back to integrations, got %q", location)
 	}
 	var status struct {
 		Connected bool   `json:"connected"`
 		AccountID string `json:"accountId"`
 	}
-	if err := json.NewDecoder(callback.Body).Decode(&status); err != nil {
-		t.Fatal(err)
-	}
-	if !status.Connected || status.AccountID == "" {
-		t.Fatalf("expected connected status without tokens, got %#v body=%s", status, callback.Body.String())
-	}
-	if strings.Contains(callback.Body.String(), "sk_mock") {
-		t.Fatal("status response exposed provider token")
-	}
-
-	reuse := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?code=ac_test_456&state="+connectPayload.State, "", "req_stripe_callback_reuse", nil)
-	if reuse.Code != http.StatusUnauthorized {
-		t.Fatalf("expected reused state 401, got %d: %s", reuse.Code, reuse.Body.String())
-	}
-
 	statusRec := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/status?organizationId="+orgID, owner.Token, "req_stripe_status", nil)
 	if statusRec.Code != http.StatusOK || strings.Contains(statusRec.Body.String(), "sk_mock") {
 		t.Fatalf("unexpected status response %d: %s", statusRec.Code, statusRec.Body.String())
+	}
+	if err := json.NewDecoder(statusRec.Body).Decode(&status); err != nil {
+		t.Fatal(err)
+	}
+	if !status.Connected || status.AccountID == "" {
+		t.Fatalf("expected connected status without tokens, got %#v body=%s", status, statusRec.Body.String())
+	}
+
+	reuse := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?code=ac_test_456&state="+connectPayload.State, "", "req_stripe_callback_reuse", nil)
+	if reuse.Code != http.StatusSeeOther || !strings.Contains(reuse.Header().Get("Location"), "stripe=error") {
+		t.Fatalf("expected reused state error redirect, got %d location=%q body=%s", reuse.Code, reuse.Header().Get("Location"), reuse.Body.String())
 	}
 
 	disconnect := performAPIRequest(a, http.MethodDelete, "/api/v1/integrations/stripe?organizationId="+orgID, owner.Token, "req_stripe_disconnect", nil)
@@ -74,8 +73,8 @@ func TestAPIV1StripeOAuthExpiredStateRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?code=ac_test&state="+state, "", "req_stripe_expired", nil)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected expired state 401, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "stripe=error") {
+		t.Fatalf("expected expired state error redirect, got %d location=%q body=%s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 	}
 }
 
@@ -88,8 +87,8 @@ func TestAPIV1StripeOAuthCallbackRejectsOrganizationMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := performAPIRequest(a, http.MethodGet, "/api/v1/integrations/stripe/callback?organizationId=00000000-0000-0000-0000-000000000000&code=ac_test&state="+state, "", "req_stripe_mismatch", nil)
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("expected mismatched organization 403, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "stripe=error") {
+		t.Fatalf("expected mismatched organization error redirect, got %d location=%q body=%s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 	}
 }
 

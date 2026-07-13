@@ -12,6 +12,8 @@ const nav = [
   ["/ops", "Ops"],
   ["/transactions", "Transactions"],
   ["/insights", "Cash Flow"],
+  ["/portfolio", "Portfolio"],
+  ["/advisor", "Advisor"],
   ["/settings", "Settings"]
 ];
 
@@ -27,7 +29,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <p className="mt-1 truncate text-sm font-medium text-ink">Demo Organization</p>
           {isDemoFallbackMode() ? <p className="mt-2 inline-flex rounded bg-gold/25 px-2 py-1 text-xs font-medium text-ink/70">Demo mode · sample data</p> : null}
         </div>
-        <nav className="mt-6 grid gap-1">
+        <nav className="mt-6 grid max-h-[calc(100vh-17rem)] gap-1 overflow-y-auto pr-1">
           {nav.map(([href, label]) => (
             <Link key={href} href={href} className={`rounded-md px-3 py-2.5 text-sm font-medium ${path === href ? "bg-ink text-white" : "text-ink/65 hover:bg-ink/5 hover:text-ink"}`}>
               {label}

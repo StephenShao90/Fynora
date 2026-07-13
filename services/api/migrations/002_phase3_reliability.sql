@@ -30,6 +30,7 @@ ALTER TABLE sync_jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEF
 ALTER TABLE sync_jobs DROP CONSTRAINT IF EXISTS sync_jobs_status_check;
 ALTER TABLE sync_jobs ADD CONSTRAINT sync_jobs_status_check CHECK (status IN ('queued', 'running', 'completed', 'failed', 'dead', 'cancelled'));
 ALTER TABLE sync_jobs DROP CONSTRAINT IF EXISTS sync_jobs_source_check;
+ALTER TABLE sync_jobs DROP CONSTRAINT IF EXISTS sync_jobs_type_check;
 ALTER TABLE sync_jobs ADD CONSTRAINT sync_jobs_type_check CHECK (COALESCE(type, source) IN ('stripe.sync', 'bank.sync', 'plaid.transactions.sync', 'reconciliation.run', 'stripe', 'plaid', 'csv', 'manual'));
 
 CREATE INDEX IF NOT EXISTS idx_sync_jobs_claim ON sync_jobs(status, run_after, created_at);

@@ -632,7 +632,7 @@ func (a *app) clearflowCashSummary(w http.ResponseWriter, r *http.Request) {
 			refunds += refund.Amount
 		}
 	}
-	writeJSON(w, 200, map[string]float64{"cash_balance": round2(cash), "income": round2(income), "expenses": round2(expenses), "pending_payouts": round2(pendingPayouts), "fees": round2(fees), "refunds": round2(refunds), "net_cash_flow": round2(income - expenses)})
+	writeJSON(w, 200, map[string]float64{"cash_balance": round2(cash), "income": round2(income), "expenses": round2(expenses), "pending_payouts": round2(pendingPayouts), "fees": round2(fees), "refunds": round2(refunds), "net_cash_flow": round2(income - expenses - fees - refunds)})
 }
 
 func (a *app) clearflowCashSummaryV1(w http.ResponseWriter, r *http.Request) {

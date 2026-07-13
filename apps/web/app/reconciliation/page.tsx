@@ -13,6 +13,8 @@ type Exception = { id: string; severity: string; title: string; explanation: str
 type Payment = { id: string; processor_payment_id: string; amount: number; status: string; description: string; occurred_at: string; customer_email?: string };
 type Payout = { id: string; processor_payout_id: string; amount: number; status: string; expected_arrival_at: string };
 type Activity = { id: string; label: string; detail: string; status: "ok" | "error" | "running"; at: string };
+type Organization = { id: string; name: string };
+type Job = { id: string; type: string; status: string };
 
 export default function ReconciliationPage() {
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -25,6 +27,8 @@ export default function ReconciliationPage() {
   const payments = useApi<Payment[]>(`/payments?reload=${reloadKey}`, []);
   const payouts = useApi<Payout[]>(`/payouts?reload=${reloadKey}`, []);
   const cash = useApi<Record<string, number>>(`/cash-flow/summary?reload=${reloadKey}`, {});
+  const organizations = useApi<Organization[]>("/organizations", []);
+  const orgId = organizations.data[0]?.id || "";
 
   const openExceptions = useMemo(() => exceptions.data.filter((item) => item.status === "open"), [exceptions.data]);
   const latestRun = runs.data[0];
@@ -54,16 +58,45 @@ export default function ReconciliationPage() {
     return () => { cancelled = true; };
   }, [latestRun?.id, reloadKey]);
 
-  async function action(label: string, path: string) {
+  async function action(label: string, jobPath: string) {
+    if (!orgId) {
+      setActivity((items) => [{ id: crypto.randomUUID(), label, detail: "Organization is still loading", status: "error" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
+      return;
+    }
     const id = crypto.randomUUID();
-    setActivity((items) => [{ id, label, detail: "Running", status: "running" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
+    setActivity((items) => [{ id, label, detail: "Queued for worker", status: "running" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
     try {
-      const result = await api<Record<string, unknown>>(path, { method: "POST", body: "{}" });
-      setActivity((items) => items.map((item) => item.id === id ? { ...item, status: "ok" as const, detail: summarizeResult(path, result), at: new Date().toISOString() } : item));
+      const result = await api<{ jobId?: string; status?: string }>(`${jobPath}?organizationId=${encodeURIComponent(orgId)}`, {
+        method: "POST",
+        headers: { "Idempotency-Key": `${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}` },
+        body: "{}"
+      });
+      if (result.jobId) {
+        await waitForJob(result.jobId, id, label, orgId);
+      } else {
+        setActivity((items) => items.map((item) => item.id === id ? { ...item, status: "ok" as const, detail: "Completed", at: new Date().toISOString() } : item));
+      }
       setReloadKey((value) => value + 1);
     } catch (err) {
       setActivity((items) => items.map((item) => item.id === id ? { ...item, status: "error" as const, detail: (err as Error).message, at: new Date().toISOString() } : item));
     }
+  }
+
+  async function waitForJob(jobId: string, activityId: string, label: string, organizationId: string) {
+    const deadline = Date.now() + 45000;
+    while (Date.now() < deadline) {
+      const job = await api<Job>(`/api/v1/jobs/${jobId}?organizationId=${encodeURIComponent(organizationId)}`);
+      setActivity((items) => items.map((item) => item.id === activityId ? { ...item, detail: `${job.type} ${job.status}`, at: new Date().toISOString() } : item));
+      if (job.status === "completed") {
+        setActivity((items) => items.map((item) => item.id === activityId ? { ...item, status: "ok" as const, detail: `${label} completed`, at: new Date().toISOString() } : item));
+        return;
+      }
+      if (["failed", "dead", "cancelled"].includes(job.status)) {
+        throw new Error(`${label} job ${job.status}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    throw new Error(`${label} job did not complete. Make sure make worker is running.`);
   }
 
   async function resolveException(id: string) {
@@ -87,9 +120,9 @@ export default function ReconciliationPage() {
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
         <Card title="Runbook">
           <div className="grid gap-2">
-            <ActionButton label="1. Sync processor" detail="Load Stripe-style charges, fees, refunds, payout" onClick={() => action("Processor sync", "/sync/stripe")} />
-            <ActionButton label="2. Sync bank" detail="Load bank deposits and operating debits" onClick={() => action("Bank sync", "/sync/bank")} />
-            <ActionButton label="3. Reconcile" detail="Match payouts to bank deposits" onClick={() => action("Reconciliation run", "/reconciliation/runs")} primary />
+            <ActionButton label="1. Sync processor" detail="Queue Stripe-style charges, fees, refunds, payout" onClick={() => action("Processor sync", "/api/v1/sync/stripe")} />
+            <ActionButton label="2. Sync bank" detail="Queue bank deposits and operating debits" onClick={() => action("Bank sync", "/api/v1/sync/bank")} />
+            <ActionButton label="3. Reconcile" detail="Queue payout-to-deposit matching" onClick={() => action("Reconciliation run", "/api/v1/reconciliation-runs")} primary />
           </div>
           <div className="mt-5 border-t border-ink/10 pt-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Activity</p>
@@ -125,9 +158,9 @@ export default function ReconciliationPage() {
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr_.95fr]">
         <Card title="Exception queue">
-          {exceptions.data.length ? (
+          {openExceptions.length ? (
             <div className="grid gap-2">
-              {exceptions.data.slice(0, 8).map((item) => (
+              {openExceptions.slice(0, 8).map((item) => (
                 <div key={item.id} className={`rounded-md border p-3 ${item.status === "open" ? "border-coral/30 bg-coral/5" : "border-ink/10 bg-ink/[0.02]"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -143,7 +176,7 @@ export default function ReconciliationPage() {
                 </div>
               ))}
             </div>
-          ) : <Empty text="No exceptions yet." />}
+          ) : <Empty text="No open exceptions." />}
         </Card>
 
         <Card title="Payout ledger">
@@ -214,13 +247,6 @@ function ActivityRow({ item }: { item: Activity }) {
 function StatusChip({ label, tone }: { label: string; tone: "good" | "warn" | "neutral" }) {
   const classes = tone === "good" ? "bg-mint text-moss" : tone === "warn" ? "bg-coral/10 text-coral" : "bg-ink/5 text-ink/55";
   return <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${classes}`}>{label}</span>;
-}
-
-function summarizeResult(path: string, result: Record<string, unknown>) {
-  if (path.includes("stripe")) return `${result.payments || 0} payments, ${result.fees || 0} fees, ${result.refunds || 0} refunds`;
-  if (path.includes("bank")) return `${result.bank_transactions || 0} bank transactions loaded`;
-  if (path.includes("reconciliation")) return `${result.matched_count || 0} matches, ${result.exception_count || 0} breaks`;
-  return "Completed";
 }
 
 function formatDate(value?: string) {

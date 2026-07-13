@@ -533,6 +533,18 @@ func (r *ClearflowRepository) UpdateException(ctx context.Context, orgID, userID
 	`, status, exceptionID, orgID).Scan(&row.ID, &row.OrganizationID, &row.RunID, &row.Type, &row.Severity, &row.Title, &row.Explanation, &row.Status, &row.ReferenceID, &row.CreatedAt); err != nil {
 		return row, err
 	}
+	if row.RunID != "" {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE reconciliation_runs
+			SET exception_count = (
+				SELECT COUNT(*) FROM reconciliation_exceptions
+				WHERE organization_id = $1 AND run_id = $2 AND status = 'open'
+			)
+			WHERE organization_id = $1 AND id = $2
+		`, orgID, row.RunID); err != nil {
+			return row, err
+		}
+	}
 	if err := insertAudit(ctx, tx, orgID, userID, "reconciliation_exception.updated", "reconciliation_exception", row.ID); err != nil {
 		return row, err
 	}
@@ -607,7 +619,7 @@ func (r *ClearflowRepository) CashSummary(ctx context.Context, orgID string) (ma
 	if err := r.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(amount_minor), 0) FROM refunds WHERE organization_id = $1`, orgID).Scan(&refundsMinor); err != nil {
 		return nil, err
 	}
-	return map[string]float64{"cash_balance": fromMinor(cashMinor), "income": fromMinor(incomeMinor), "expenses": fromMinor(expensesMinor), "pending_payouts": fromMinor(pendingMinor), "fees": fromMinor(feesMinor), "refunds": fromMinor(refundsMinor), "net_cash_flow": fromMinor(incomeMinor - expensesMinor)}, nil
+	return map[string]float64{"cash_balance": fromMinor(cashMinor), "income": fromMinor(incomeMinor), "expenses": fromMinor(expensesMinor), "pending_payouts": fromMinor(pendingMinor), "fees": fromMinor(feesMinor), "refunds": fromMinor(refundsMinor), "net_cash_flow": fromMinor(incomeMinor - expensesMinor - feesMinor - refundsMinor)}, nil
 }
 
 func (r *ClearflowRepository) CashForecast(ctx context.Context, orgID string) ([]map[string]interface{}, error) {

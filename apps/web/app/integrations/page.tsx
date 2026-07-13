@@ -11,6 +11,7 @@ type PlaidConnection = { id: string; institution_name: string; products: string[
 export default function IntegrationsPage() {
   const [stripe, setStripe] = useState<{ data?: StripeIntegrationStatus; loading: boolean; error: string }>({ loading: true, error: "" });
   const [busy, setBusy] = useState("");
+  const [returnStatus, setReturnStatus] = useState<{ status: string; message: string }>({ status: "", message: "" });
   const plaid = useApi<PlaidConnection[]>("/connections", []);
 
   async function loadStripe() {
@@ -23,6 +24,8 @@ export default function IntegrationsPage() {
   }
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setReturnStatus({ status: params.get("stripe") || "", message: params.get("message") || "" });
     loadStripe();
   }, []);
 
@@ -53,6 +56,12 @@ export default function IntegrationsPage() {
   return (
     <Shell>
       <Header title="Integrations" subtitle="Connect payment and bank providers, verify connection health, and keep external sync state visible." />
+
+      {returnStatus.status ? (
+        <div className={`mb-4 rounded-md border px-4 py-3 text-sm ${returnStatus.status === "connected" ? "border-moss/30 bg-mint text-moss" : "border-coral/30 bg-coral/5 text-coral"}`}>
+          {returnStatus.status === "connected" ? "Stripe connected. Connection status is refreshed below." : `Stripe connection failed: ${returnStatus.message || "unknown error"}`}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Stripe">

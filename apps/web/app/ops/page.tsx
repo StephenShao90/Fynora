@@ -15,31 +15,37 @@ type LoadState<T> = { data: T; loading: boolean; error: string };
 
 export default function OpsPage() {
   const orgs = useApi<Organization[]>("/organizations", []);
-  const orgID = orgs.data[0]?.id || "demo-org";
+  const orgID = orgs.data[0]?.id || "";
   const [jobs, setJobs] = useState<LoadState<Job[]>>({ data: [], loading: true, error: "" });
   const [audit, setAudit] = useState<LoadState<AuditLog[]>>({ data: [], loading: true, error: "" });
   const [metrics, setMetrics] = useState<LoadState<Metrics>>({ data: {}, loading: true, error: "" });
 
   useEffect(() => {
+    if (!orgID) return;
     let cancelled = false;
-    setJobs((current) => ({ ...current, loading: true, error: "" }));
-    setAudit((current) => ({ ...current, loading: true, error: "" }));
-    setMetrics((current) => ({ ...current, loading: true, error: "" }));
+    async function load() {
+      setJobs((current) => ({ ...current, loading: true, error: "" }));
+      setAudit((current) => ({ ...current, loading: true, error: "" }));
+      setMetrics((current) => ({ ...current, loading: true, error: "" }));
 
-    api<Paginated<Job>>(`/api/v1/jobs?organizationId=${orgID}`)
-      .then((result) => !cancelled && setJobs({ data: result.data || [], loading: false, error: "" }))
-      .catch((err) => !cancelled && setJobs({ data: [], loading: false, error: (err as Error).message }));
+      api<Paginated<Job>>(`/api/v1/jobs?organizationId=${orgID}`)
+        .then((result) => !cancelled && setJobs({ data: result.data || [], loading: false, error: "" }))
+        .catch((err) => !cancelled && setJobs({ data: [], loading: false, error: (err as Error).message }));
 
-    api<Paginated<AuditLog>>(`/api/v1/audit-logs?organizationId=${orgID}`)
-      .then((result) => !cancelled && setAudit({ data: result.data || [], loading: false, error: "" }))
-      .catch((err) => !cancelled && setAudit({ data: [], loading: false, error: (err as Error).message }));
+      api<Paginated<AuditLog>>(`/api/v1/audit-logs?organizationId=${orgID}`)
+        .then((result) => !cancelled && setAudit({ data: result.data || [], loading: false, error: "" }))
+        .catch((err) => !cancelled && setAudit({ data: [], loading: false, error: (err as Error).message }));
 
-    api<Metrics>("/api/v1/ops/metrics")
-      .then((result) => !cancelled && setMetrics({ data: result, loading: false, error: "" }))
-      .catch((err) => !cancelled && setMetrics({ data: {}, loading: false, error: (err as Error).message }));
+      api<Metrics>("/api/v1/ops/metrics")
+        .then((result) => !cancelled && setMetrics({ data: result, loading: false, error: "" }))
+        .catch((err) => !cancelled && setMetrics({ data: {}, loading: false, error: (err as Error).message }));
+    }
+    load();
+    const interval = window.setInterval(load, 10000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
   }, [orgID]);
 

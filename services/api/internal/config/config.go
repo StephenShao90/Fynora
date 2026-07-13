@@ -26,6 +26,7 @@ type Config struct {
 	StripeSecretKey            string
 	StripeWebhookSecret        string
 	StripeRedirectURL          string
+	FrontendURL                string
 	ProviderTokenEncryptionKey string
 	RedisURL                   string
 	RedisEnabled               string
@@ -66,6 +67,7 @@ func Load() Config {
 		StripeSecretKey:            os.Getenv("STRIPE_SECRET_KEY"),
 		StripeWebhookSecret:        os.Getenv("STRIPE_WEBHOOK_SECRET"),
 		StripeRedirectURL:          env("STRIPE_REDIRECT_URL", "http://localhost:8080/api/v1/integrations/stripe/callback"),
+		FrontendURL:                env("FRONTEND_URL", "http://localhost:3000"),
 		ProviderTokenEncryptionKey: os.Getenv("PROVIDER_TOKEN_ENCRYPTION_KEY"),
 		RedisURL:                   env("REDIS_URL", "redis://localhost:6379/0"),
 		RedisEnabled:               env("REDIS_ENABLED", "false"),
