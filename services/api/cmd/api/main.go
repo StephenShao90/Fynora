@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -314,11 +315,13 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /debug/clearflow/reset-demo", a.authed(a.resetClearflowDemo))
 	mux.HandleFunc("POST /portfolio/import/holdings-csv", a.authed(a.importHoldingsCSV))
 	mux.HandleFunc("POST /portfolio/import/transactions-csv", a.authed(a.importPortfolioTransactionsCSV))
+	mux.HandleFunc("GET /portfolio/imports", a.authed(a.listPortfolioImports))
 	mux.HandleFunc("POST /portfolio/holdings", a.authed(a.createHolding))
 	mux.HandleFunc("GET /portfolio/holdings", a.authed(a.listHoldings))
 	mux.HandleFunc("GET /portfolio/holdings/{id}", a.authed(a.getHolding))
 	mux.HandleFunc("PATCH /portfolio/holdings/{id}", a.authed(a.patchHolding))
 	mux.HandleFunc("DELETE /portfolio/holdings/{id}", a.authed(a.deleteHolding))
+	mux.HandleFunc("GET /portfolio/transactions", a.authed(a.listPortfolioTransactions))
 	mux.HandleFunc("GET /portfolio/summary", a.authed(a.portfolioSummary))
 	mux.HandleFunc("GET /portfolio/allocation", a.authed(a.portfolioAllocation))
 	mux.HandleFunc("GET /portfolio/performance", a.authed(a.portfolioPerformance))
@@ -870,6 +873,7 @@ func (a *app) syncPlaidTransactions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]interface{}{"imported_count": imported, "connection_count": len(connections)})
 }
 func (a *app) importHoldingsCSV(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	file, header, ok := upload(w, r, "file")
 	if !ok {
 		return
@@ -886,9 +890,11 @@ func (a *app) importHoldingsCSV(w http.ResponseWriter, r *http.Request) {
 		a.store.holdings[h.ID] = h
 	}
 	a.store.mu.Unlock()
+	a.logOperation(r, "portfolio.holdings_imported", "", map[string]interface{}{"filename": header.Filename, "rows": imp.RowCount, "imported": imp.ImportedCount, "failed": imp.FailedCount, "latency_ms": time.Since(start).Milliseconds()})
 	writeJSON(w, 201, map[string]interface{}{"import": imp, "holdings": rows})
 }
 func (a *app) importPortfolioTransactionsCSV(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	file, header, ok := upload(w, r, "file")
 	if !ok {
 		return
@@ -906,6 +912,7 @@ func (a *app) importPortfolioTransactionsCSV(w http.ResponseWriter, r *http.Requ
 		a.store.portfolioTransactions[row.ID] = row
 	}
 	a.store.mu.Unlock()
+	a.logOperation(r, "portfolio.transactions_imported", "", map[string]interface{}{"filename": header.Filename, "rows": imp.RowCount, "imported": imp.ImportedCount, "failed": imp.FailedCount, "latency_ms": time.Since(start).Milliseconds()})
 	writeJSON(w, 201, map[string]interface{}{"import": imp, "portfolio_transactions": rows})
 }
 func (a *app) createHolding(w http.ResponseWriter, r *http.Request) {
@@ -970,6 +977,24 @@ func (a *app) deleteHolding(w http.ResponseWriter, r *http.Request) {
 	delete(a.store.holdings, r.PathValue("id"))
 	a.store.mu.Unlock()
 	w.WriteHeader(204)
+}
+func (a *app) listPortfolioTransactions(w http.ResponseWriter, r *http.Request) {
+	rows := a.portfolioTxs(userID(r))
+	sort.Slice(rows, func(i, j int) bool { return rows[i].OccurredAt.After(rows[j].OccurredAt) })
+	writeJSON(w, 200, rows)
+}
+func (a *app) listPortfolioImports(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	out := []models.RawImport{}
+	a.store.mu.RLock()
+	for _, imp := range a.store.imports {
+		if imp.UserID == uid && (imp.ImportType == "holdings" || imp.ImportType == "portfolio_transactions") {
+			out = append(out, imp)
+		}
+	}
+	a.store.mu.RUnlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	writeJSON(w, 200, out)
 }
 func (a *app) portfolioSummary(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, a.summary(userID(r)))
@@ -1347,17 +1372,25 @@ func parseHoldingsCSV(uid, raw, accountID string) ([]models.Holding, int) {
 	var out []models.Holding
 	failed := 0
 	for _, row := range records[1:] {
-		qty, err := strconv.ParseFloat(cell(row, idx, "quantity"), 64)
+		qty, err := parseFloatRequired(cellAny(row, idx, "quantity", "qty", "shares", "units"))
 		if err != nil {
 			failed++
 			continue
 		}
-		avg := parseFloat(cell(row, idx, "average_cost"))
-		mv := parseFloat(cell(row, idx, "market_value"))
-		price := parseFloat(fallback(cell(row, idx, "market_price"), cell(row, idx, "last_price")))
-		h := models.Holding{ID: auth.NewID(), UserID: uid, BrokerageAccountID: accountID, Symbol: strings.ToUpper(cell(row, idx, "symbol")), SecurityName: fallback(cell(row, idx, "name"), cell(row, idx, "security_name")), SecurityType: fallback(cell(row, idx, "security_type"), "etf"), Quantity: qty, AverageCost: avg, Currency: fallback(cell(row, idx, "currency"), "USD"), MarketValue: mv, LastPrice: price, PriceAsOf: time.Now().UTC(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+		avg := parseFloat(firstNonEmpty(cellAny(row, idx, "average_cost", "avg_cost", "cost_basis_per_share", "average_price"), perShareCost(cellAny(row, idx, "cost_basis", "book_cost", "total_cost"), qty)))
+		mv := parseFloat(cellAny(row, idx, "market_value", "value", "current_value"))
+		price := parseFloat(firstNonEmpty(cellAny(row, idx, "market_price", "last_price", "price", "current_price"), perShareCost(cellAny(row, idx, "market_value", "value", "current_value"), qty)))
+		symbol := strings.ToUpper(cellAny(row, idx, "symbol", "ticker", "security_symbol"))
+		if symbol == "" {
+			failed++
+			continue
+		}
+		h := models.Holding{ID: auth.NewID(), UserID: uid, BrokerageAccountID: accountID, Symbol: symbol, SecurityName: fallback(cellAny(row, idx, "name", "security_name", "description", "security"), symbol), SecurityType: normalizeSecurityType(cellAny(row, idx, "security_type", "type", "asset_class")), Quantity: qty, AverageCost: avg, Currency: fallback(cellAny(row, idx, "currency", "ccy"), "USD"), MarketValue: mv, LastPrice: price, PriceAsOf: time.Now().UTC(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 		if h.MarketValue == 0 && h.LastPrice > 0 {
 			h.MarketValue = h.Quantity * h.LastPrice
+		}
+		if h.AverageCost == 0 && h.MarketValue > 0 && h.Quantity > 0 {
+			h.AverageCost = h.MarketValue / h.Quantity
 		}
 		out = append(out, h)
 	}
@@ -1372,12 +1405,19 @@ func parsePortfolioTransactionsCSV(uid, raw, accountID string) ([]models.Portfol
 	var out []models.PortfolioTransaction
 	failed := 0
 	for _, row := range records[1:] {
-		date, err := parseDate(cell(row, idx, "date"))
+		date, err := parseDate(cellAny(row, idx, "date", "trade_date", "transaction_date", "settlement_date", "occurred_at"))
 		if err != nil {
 			failed++
 			continue
 		}
-		out = append(out, models.PortfolioTransaction{ID: auth.NewID(), UserID: uid, BrokerageAccountID: accountID, Symbol: strings.ToUpper(cell(row, idx, "symbol")), TransactionType: strings.ToLower(fallback(cell(row, idx, "action"), cell(row, idx, "transaction_type"))), Quantity: parseFloat(cell(row, idx, "quantity")), Price: parseFloat(cell(row, idx, "price")), Amount: parseFloat(cell(row, idx, "amount")), Fees: parseFloat(cell(row, idx, "fees")), Currency: fallback(cell(row, idx, "currency"), "USD"), OccurredAt: date, Description: cell(row, idx, "description"), CreatedAt: time.Now().UTC()})
+		txType := normalizePortfolioTransactionType(firstNonEmpty(cellAny(row, idx, "action", "transaction_type", "type", "activity"), cellAny(row, idx, "description")))
+		if txType == "" {
+			failed++
+			continue
+		}
+		amount := parseFloat(cellAny(row, idx, "amount", "net_amount", "total", "value"))
+		fees := parseFloat(cellAny(row, idx, "fees", "fee", "commission"))
+		out = append(out, models.PortfolioTransaction{ID: auth.NewID(), UserID: uid, BrokerageAccountID: accountID, Symbol: strings.ToUpper(cellAny(row, idx, "symbol", "ticker", "security_symbol")), TransactionType: txType, Quantity: parseFloat(cellAny(row, idx, "quantity", "qty", "shares", "units")), Price: parseFloat(cellAny(row, idx, "price", "trade_price", "unit_price")), Amount: amount, Fees: fees, Currency: fallback(cellAny(row, idx, "currency", "ccy"), "USD"), OccurredAt: date, Description: firstNonEmpty(cellAny(row, idx, "description", "memo", "details"), txType), CreatedAt: time.Now().UTC()})
 	}
 	return out, failed
 }
@@ -1404,18 +1444,36 @@ func normalizeTransaction(t *models.Transaction) {
 func headerIndex(header []string) map[string]int {
 	m := map[string]int{}
 	for i, h := range header {
-		m[strings.ToLower(strings.TrimSpace(h))] = i
+		m[normalizeHeader(h)] = i
 	}
 	return m
 }
 func cell(row []string, idx map[string]int, key string) string {
-	if i, ok := idx[key]; ok && i < len(row) {
+	if i, ok := idx[normalizeHeader(key)]; ok && i < len(row) {
 		return strings.TrimSpace(row[i])
 	}
 	return ""
 }
+func cellAny(row []string, idx map[string]int, keys ...string) string {
+	for _, key := range keys {
+		if value := cell(row, idx, key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+func normalizeHeader(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	replacer := strings.NewReplacer(" ", "_", "-", "_", "/", "_", ".", "", "(", "", ")", "", "%", "pct")
+	value = replacer.Replace(value)
+	for strings.Contains(value, "__") {
+		value = strings.ReplaceAll(value, "__", "_")
+	}
+	return strings.Trim(value, "_")
+}
 func parseDate(v string) (time.Time, error) {
-	for _, layout := range []string{"2006-01-02", "01/02/2006", "2006/01/02", time.RFC3339} {
+	v = strings.TrimSpace(v)
+	for _, layout := range []string{"2006-01-02", "01/02/2006", "1/2/2006", "2006/01/02", "Jan 2 2006", "January 2 2006", time.RFC3339} {
 		if t, err := time.Parse(layout, v); err == nil {
 			return t, nil
 		}
@@ -1423,14 +1481,90 @@ func parseDate(v string) (time.Time, error) {
 	return time.Time{}, errors.New("invalid date")
 }
 func parseFloat(v string) float64 {
-	f, _ := strconv.ParseFloat(strings.ReplaceAll(v, "$", ""), 64)
+	f, _ := parseFloatRequired(v)
 	return f
+}
+func parseFloatRequired(v string) (float64, error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0, errors.New("missing number")
+	}
+	negative := strings.HasPrefix(v, "(") && strings.HasSuffix(v, ")")
+	v = strings.Trim(v, "()")
+	replacer := strings.NewReplacer("$", "", "C$", "", "CA$", "", "US$", "", ",", "", "%", "")
+	v = strings.TrimSpace(replacer.Replace(v))
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return 0, err
+	}
+	if negative {
+		f = -f
+	}
+	return f, nil
 }
 func fallback(a, b string) string {
 	if strings.TrimSpace(a) != "" {
 		return strings.TrimSpace(a)
 	}
 	return b
+}
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+func perShareCost(totalValue string, quantity float64) string {
+	total := parseFloat(totalValue)
+	if total == 0 || quantity == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%f", total/quantity)
+}
+func normalizeSecurityType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "stock", "equity", "common_stock", "common stock":
+		return "stock"
+	case "etf", "exchange_traded_fund", "exchange traded fund":
+		return "etf"
+	case "mutual_fund", "mutual fund", "fund":
+		return "mutual_fund"
+	case "crypto", "cryptocurrency":
+		return "crypto"
+	case "cash", "money_market", "money market":
+		return "cash"
+	case "":
+		return "etf"
+	default:
+		return "other"
+	}
+}
+func normalizePortfolioTransactionType(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch {
+	case value == "":
+		return ""
+	case strings.Contains(value, "buy") || strings.Contains(value, "purchase"):
+		return "buy"
+	case strings.Contains(value, "sell"):
+		return "sell"
+	case strings.Contains(value, "dividend") || strings.Contains(value, "distribution"):
+		return "dividend"
+	case strings.Contains(value, "deposit") || strings.Contains(value, "contribution"):
+		return "deposit"
+	case strings.Contains(value, "withdraw"):
+		return "withdrawal"
+	case strings.Contains(value, "fee") || strings.Contains(value, "commission"):
+		return "fee"
+	case strings.Contains(value, "transfer"):
+		return "transfer"
+	case strings.Contains(value, "split"):
+		return "split"
+	default:
+		return "other"
+	}
 }
 func abs(v float64) float64 {
 	if v < 0 {

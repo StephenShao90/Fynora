@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,67 @@ func TestReconcileOrganizationMatchesPayoutToBankDeposit(t *testing.T) {
 	}
 	if run.ExceptionCount != 0 {
 		t.Fatalf("expected no exceptions, got %#v", run)
+	}
+}
+
+func TestPortfolioCSVParsersAcceptBrokerStyleHeaders(t *testing.T) {
+	holdingsCSV := `Ticker,Security,Asset Class,Shares,Cost Basis,Current Price,Current Value,CCY
+AAPL,Apple Inc.,Equity,"10","$1,200.00","$200.00","$2,000.00",USD
+CASH,Cash,Money Market,500,500,1,500,USD`
+	holdings, failed := parseHoldingsCSV("user-1", holdingsCSV, "acct-1")
+	if failed != 0 || len(holdings) != 2 {
+		t.Fatalf("expected 2 imported holdings and 0 failures, got holdings=%d failed=%d", len(holdings), failed)
+	}
+	if holdings[0].Symbol != "AAPL" || holdings[0].SecurityType != "stock" || holdings[0].AverageCost != 120 || holdings[0].MarketValue != 2000 {
+		t.Fatalf("unexpected parsed holding: %#v", holdings[0])
+	}
+	if holdings[1].SecurityType != "cash" {
+		t.Fatalf("expected money market to normalize to cash, got %#v", holdings[1])
+	}
+
+	transactionsCSV := `Trade Date,Activity,Ticker,Shares,Trade Price,Net Amount,Commission,CCY,Details
+07/01/2026,Buy,AAPL,3,190,"(570.00)",1.50,USD,Buy Apple
+07/02/2026,Dividend,AAPL,0,0,12.42,0,USD,Dividend received`
+	txs, failed := parsePortfolioTransactionsCSV("user-1", transactionsCSV, "acct-1")
+	if failed != 0 || len(txs) != 2 {
+		t.Fatalf("expected 2 imported transactions and 0 failures, got txs=%d failed=%d", len(txs), failed)
+	}
+	if txs[0].TransactionType != "buy" || txs[0].Amount != -570 || txs[0].Fees != 1.5 {
+		t.Fatalf("unexpected parsed transaction: %#v", txs[0])
+	}
+	if txs[1].TransactionType != "dividend" {
+		t.Fatalf("expected dividend normalization, got %#v", txs[1])
+	}
+}
+
+func TestPortfolioReviewEndpointsReturnImportsAndTransactions(t *testing.T) {
+	a := &app{store: newStore()}
+	uid := "user-1"
+	now := time.Now().UTC()
+	a.store.imports["imp-1"] = models.RawImport{ID: "imp-1", UserID: uid, ImportType: "holdings", OriginalFilename: "holdings.csv", RowCount: 2, ImportedCount: 2, CreatedAt: now}
+	a.store.imports["imp-2"] = models.RawImport{ID: "imp-2", UserID: uid, ImportType: "transactions", OriginalFilename: "bank.csv", RowCount: 1, ImportedCount: 1, CreatedAt: now}
+	a.store.portfolioTransactions["ptx-1"] = models.PortfolioTransaction{ID: "ptx-1", UserID: uid, Symbol: "AAPL", TransactionType: "buy", Amount: -570, Currency: "USD", OccurredAt: now}
+
+	req := httptest.NewRequest(http.MethodGet, "/portfolio/imports", nil)
+	req = req.WithContext(context.WithValue(req.Context(), "user_id", uid))
+	rec := httptest.NewRecorder()
+	a.listPortfolioImports(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected imports status 200, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "holdings.csv") || strings.Contains(body, "bank.csv") {
+		t.Fatalf("unexpected imports body: %s", body)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/portfolio/transactions", nil)
+	req = req.WithContext(context.WithValue(req.Context(), "user_id", uid))
+	rec = httptest.NewRecorder()
+	a.listPortfolioTransactions(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected transactions status 200, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "AAPL") || !strings.Contains(body, "buy") {
+		t.Fatalf("unexpected transactions body: %s", body)
 	}
 }
 

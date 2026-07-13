@@ -124,9 +124,14 @@ After `make web`, open `http://localhost:3000`.
 7. Click **View explanation** on a payout.
 8. Resolve one open exception and confirm it leaves the active queue.
 9. Open **Cash Flow** and check forecast, anomalies, recommendations, spending insights.
-10. Open **Ops** and check jobs, audit logs, metrics, and queue depth.
-11. Open **Integrations** and check Stripe/Plaid status cards.
-12. Open **Settings**, click **Reset demo data**, and confirm you return to Dashboard with the seeded demo scenario restored.
+10. Open **Portfolio**.
+11. Click **Download sample** under **Holdings snapshot**, then upload `sample_holdings.csv`.
+12. Confirm recent imports shows the holdings import, holdings table is populated, and allocation charts update.
+13. Click **Download sample** under **Activity ledger**, then upload `sample_portfolio_transactions.csv`.
+14. Confirm recent imports shows the activity import and **Recent portfolio activity** lists buys, deposits, and dividends.
+15. Open **Ops** and check jobs, audit logs, metrics, and queue depth.
+16. Open **Integrations** and check Stripe/Plaid status cards.
+17. Open **Settings**, click **Reset demo data**, and confirm you return to Dashboard with the seeded demo scenario restored.
 
 Frontend browser console logs:
 

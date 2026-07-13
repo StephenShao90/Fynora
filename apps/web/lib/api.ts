@@ -260,6 +260,12 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.startsWith("/api/v1/audit-logs")) return { data: demoAuditLogs, pagination: demoPagination } as T;
   if (path.startsWith("/api/v1/ops/metrics")) return demoMetrics as T;
   if (path.startsWith("/debug/clearflow/reset-demo")) return { status: "reset", organization_id: "demo-org" } as T;
+  if (path.startsWith("/portfolio/summary")) return demoPortfolioSummary as T;
+  if (path.startsWith("/portfolio/allocation")) return demoPortfolioAllocation as T;
+  if (path.startsWith("/portfolio/holdings")) return demoPortfolioHoldings as T;
+  if (path.startsWith("/portfolio/transactions")) return demoPortfolioTransactions as T;
+  if (path.startsWith("/portfolio/imports")) return demoPortfolioImports as T;
+  if (path.startsWith("/portfolio/risk")) return demoPortfolioRisk as T;
   if (path.startsWith("/connections/plaid/link-token")) return { link_token: "", demo_unavailable: true } as T;
   if (path.startsWith("/connections/plaid/sandbox-connect")) return { demo_unavailable: true, message: "Start the local API with Plaid Sandbox credentials to create a test connection." } as T;
   if (path.startsWith("/connections/plaid/sync-transactions")) return { imported_count: 0, connection_count: 0 } as T;
@@ -453,6 +459,54 @@ const demoStripeStatus: StripeIntegrationStatus = {
 
 const demoPlaidConnections = [
   { id: "plaid-demo-1", institution_name: "Plaid Sandbox Bank", products: ["transactions"], last_synced_at: "2026-07-06T20:58:26Z" }
+];
+
+const demoPortfolioHoldings = [
+  { id: "holding-1", symbol: "VFV.TO", security_name: "Vanguard S&P 500 Index ETF", security_type: "etf", quantity: 45, average_cost: 112, market_value: 6675.75, currency: "CAD" },
+  { id: "holding-2", symbol: "XEQT.TO", security_name: "iShares Core Equity ETF Portfolio", security_type: "etf", quantity: 82, average_cost: 29, market_value: 2986.44, currency: "CAD" },
+  { id: "holding-3", symbol: "AAPL", security_name: "Apple Inc.", security_type: "stock", quantity: 26, average_cost: 152, market_value: 5571.54, currency: "USD" },
+  { id: "holding-4", symbol: "MSFT", security_name: "Microsoft Corp.", security_type: "stock", quantity: 8, average_cost: 320, market_value: 3990.72, currency: "USD" },
+  { id: "holding-5", symbol: "CASH", security_name: "Cash", security_type: "cash", quantity: 1800, average_cost: 1, market_value: 1800, currency: "CAD" }
+];
+
+const demoPortfolioSummary = {
+  total_market_value: 21024.45,
+  total_cost_basis: 15858,
+  unrealized_gain_loss: 5166.45,
+  unrealized_gain_loss_pct: 32.6,
+  cash_value: 1800,
+  invested_value: 19224.45,
+  top_holdings: [
+    { name: "VFV.TO", value: 6675.75, percent: 31.8 },
+    { name: "AAPL", value: 5571.54, percent: 26.5 },
+    { name: "MSFT", value: 3990.72, percent: 19.0 }
+  ]
+};
+
+const demoPortfolioAllocation = {
+  by_security_type: [
+    { name: "etf", value: 9662.19, percent: 46 },
+    { name: "stock", value: 9562.26, percent: 45.5 },
+    { name: "cash", value: 1800, percent: 8.6 }
+  ],
+  by_symbol: demoPortfolioSummary.top_holdings
+};
+
+const demoPortfolioTransactions = [
+  { id: "ptx-1", symbol: "CASH", transaction_type: "deposit", quantity: 0, price: 0, amount: 2500, fees: 0, currency: "CAD", occurred_at: "2026-04-10T00:00:00Z", description: "Monthly contribution" },
+  { id: "ptx-2", symbol: "VFV.TO", transaction_type: "buy", quantity: 15, price: 142, amount: 2130, fees: 0, currency: "CAD", occurred_at: "2026-04-11T00:00:00Z", description: "Core ETF purchase" },
+  { id: "ptx-3", symbol: "AAPL", transaction_type: "buy", quantity: 6, price: 186, amount: 1116, fees: 1.5, currency: "USD", occurred_at: "2026-05-11T00:00:00Z", description: "Individual stock purchase" },
+  { id: "ptx-4", symbol: "VFV.TO", transaction_type: "dividend", quantity: 0, price: 0, amount: 32.4, fees: 0, currency: "CAD", occurred_at: "2026-05-20T00:00:00Z", description: "ETF distribution" }
+];
+
+const demoPortfolioImports = [
+  { id: "pimp-1", import_type: "holdings", original_filename: "sample_holdings.csv", row_count: 5, imported_count: 5, failed_count: 0, created_at: "2026-07-06T20:00:00Z" },
+  { id: "pimp-2", import_type: "portfolio_transactions", original_filename: "sample_portfolio_transactions.csv", row_count: 8, imported_count: 8, failed_count: 0, created_at: "2026-07-06T20:01:00Z" }
+];
+
+const demoPortfolioRisk = [
+  { severity: "medium", title: "Single-holding concentration", explanation: "VFV.TO is above 25% of tracked holdings. Review diversification against your goals." },
+  { severity: "medium", title: "Top-five concentration", explanation: "Your top five holdings exceed 60% of tracked value. This can increase portfolio-specific risk." }
 ];
 
 const demoPagination = { limit: 25, offset: 0, count: 3 };
