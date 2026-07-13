@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { Empty, Header } from "@/components/Common";
 import { Card, Shell } from "@/components/Shell";
+import { useToast } from "@/components/ToastProvider";
 import { disconnectStripe, getStripeConnectUrl, getStripeStatus, type StripeIntegrationStatus } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 
 type PlaidConnection = { id: string; institution_name: string; products: string[]; last_synced_at?: string };
 
 export default function IntegrationsPage() {
+  const { pushToast } = useToast();
   const [stripe, setStripe] = useState<{ data?: StripeIntegrationStatus; loading: boolean; error: string }>({ loading: true, error: "" });
   const [busy, setBusy] = useState("");
   const [returnStatus, setReturnStatus] = useState<{ status: string; message: string }>({ status: "", message: "" });
@@ -26,16 +28,24 @@ export default function IntegrationsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setReturnStatus({ status: params.get("stripe") || "", message: params.get("message") || "" });
+    if (params.get("stripe") === "connected") {
+      pushToast({ tone: "success", title: "Stripe connected", detail: "Processor connection status is refreshed below." });
+    }
+    if (params.get("stripe") === "error") {
+      pushToast({ tone: "error", title: "Stripe connection failed", detail: params.get("message") || "Stripe returned without a usable connection." });
+    }
     loadStripe();
-  }, []);
+  }, [pushToast]);
 
   async function connectStripe() {
     setBusy("Opening Stripe Connect...");
     try {
       const result = await getStripeConnectUrl();
+      pushToast({ tone: "info", title: "Opening Stripe Connect", detail: "You will return to Integrations when Stripe finishes." });
       window.location.href = result.url;
     } catch (err) {
       setStripe((current) => ({ ...current, error: (err as Error).message }));
+      pushToast({ tone: "error", title: "Could not open Stripe", detail: (err as Error).message });
     } finally {
       setBusy("");
     }
@@ -46,8 +56,10 @@ export default function IntegrationsPage() {
     try {
       const result = await disconnectStripe();
       setStripe({ data: result, loading: false, error: "" });
+      pushToast({ tone: "success", title: "Stripe disconnected", detail: "Local provider connection state was cleared." });
     } catch (err) {
       setStripe((current) => ({ ...current, error: (err as Error).message }));
+      pushToast({ tone: "error", title: "Could not disconnect Stripe", detail: (err as Error).message });
     } finally {
       setBusy("");
     }

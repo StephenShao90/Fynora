@@ -117,14 +117,16 @@ After `make web`, open `http://localhost:3000`.
 
 1. Click **Try Demo**.
 2. Dashboard should load cash, payout, forecast, and exception widgets.
-3. Open **Reconciliation**.
-4. Click **Sync processor**.
-5. Click **Sync bank**.
-6. Click **Reconcile**.
+3. Confirm **Operator checklist** shows the next recommended setup/reconciliation actions.
+4. Open **Reconciliation**.
+5. Click **Run full reconciliation**.
+6. Confirm the activity feed shows processor sync, bank sync, and reconciliation as completed.
 7. Click **View explanation** on a payout.
-8. Open **Cash Flow** and check forecast, anomalies, recommendations, spending insights.
-9. Open **Ops** and check jobs, audit logs, metrics.
-10. Open **Integrations** and check Stripe/Plaid status cards.
+8. Resolve one open exception and confirm it leaves the active queue.
+9. Open **Cash Flow** and check forecast, anomalies, recommendations, spending insights.
+10. Open **Ops** and check jobs, audit logs, metrics, and queue depth.
+11. Open **Integrations** and check Stripe/Plaid status cards.
+12. Open **Settings**, click **Reset demo data**, and confirm you return to Dashboard with the seeded demo scenario restored.
 
 Frontend browser console logs:
 

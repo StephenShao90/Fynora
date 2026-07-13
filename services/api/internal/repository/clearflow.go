@@ -364,6 +364,51 @@ func (r *ClearflowRepository) SeedDemo(ctx context.Context, user models.User) er
 	return err
 }
 
+func (r *ClearflowRepository) ResetDemo(ctx context.Context, user models.User) (map[string]interface{}, error) {
+	org, err := r.EnsureOrganization(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer rollback(tx)
+	for _, statement := range []string{
+		`DELETE FROM exception_notes WHERE organization_id = $1`,
+		`DELETE FROM reconciliation_matches WHERE organization_id = $1`,
+		`DELETE FROM reconciliation_exceptions WHERE organization_id = $1`,
+		`DELETE FROM reconciliation_runs WHERE organization_id = $1`,
+		`DELETE FROM payout_items WHERE organization_id = $1`,
+		`DELETE FROM fees WHERE organization_id = $1`,
+		`DELETE FROM refunds WHERE organization_id = $1`,
+		`DELETE FROM payments WHERE organization_id = $1`,
+		`DELETE FROM payouts WHERE organization_id = $1`,
+		`DELETE FROM bank_transactions WHERE organization_id = $1`,
+		`DELETE FROM sync_jobs WHERE organization_id = $1`,
+		`DELETE FROM idempotency_keys WHERE organization_id = $1`,
+		`DELETE FROM audit_logs WHERE organization_id = $1`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement, org.ID); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	if _, err := r.SyncStripeDemo(ctx, org, user.ID); err != nil {
+		return nil, err
+	}
+	if _, err := r.SyncBankDemo(ctx, org, user.ID); err != nil {
+		return nil, err
+	}
+	run, err := r.Reconcile(ctx, org.ID, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"organization_id": org.ID, "status": "reset", "run_id": run.ID, "matched_count": run.MatchedCount, "exception_count": run.ExceptionCount}, nil
+}
+
 func (r *ClearflowRepository) Reconcile(ctx context.Context, orgID, userID string) (models.ReconciliationRun, error) {
 	payouts, err := r.ListPayouts(ctx, orgID)
 	if err != nil {

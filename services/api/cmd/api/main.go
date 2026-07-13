@@ -311,6 +311,7 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/ops/metrics", a.authed(a.opsMetricsV1))
 	mux.HandleFunc("GET /reports/monthly", a.authed(a.clearflowMonthlyReport))
 	mux.HandleFunc("GET /debug/clearflow", a.authed(a.debugClearflowState))
+	mux.HandleFunc("POST /debug/clearflow/reset-demo", a.authed(a.resetClearflowDemo))
 	mux.HandleFunc("POST /portfolio/import/holdings-csv", a.authed(a.importHoldingsCSV))
 	mux.HandleFunc("POST /portfolio/import/transactions-csv", a.authed(a.importPortfolioTransactionsCSV))
 	mux.HandleFunc("POST /portfolio/holdings", a.authed(a.createHolding))

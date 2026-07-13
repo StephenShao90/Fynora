@@ -15,7 +15,7 @@ const flows: Record<string, Slide[]> = {
     { title: "Move to exceptions", body: "If open breaks are nonzero, go to Reconciliation and resolve or explain the exception before reporting.", steps: ["Sync processor.", "Sync bank.", "Run reconciliation.", "Review and resolve open breaks."] }
   ],
   "Reconciliation": [
-    { title: "Run the workflow", body: "The runbook queues production-style jobs so the worker does the financial work outside the request.", steps: ["Sync processor imports Stripe-style charges, fees, refunds, and payouts.", "Sync bank imports deposits and operating debits.", "Reconcile matches payouts to bank deposits."] },
+    { title: "Run the workflow", body: "The runbook queues production-style jobs so the worker does the financial work outside the request.", steps: ["Use Run full reconciliation for the normal path.", "Or run processor sync, bank sync, then reconcile manually.", "Keep make worker running until each job completes."] },
     { title: "Review exceptions", body: "Open exceptions are active operational breaks. Resolving one removes it from the active queue and updates open-break counts.", steps: ["Read the exception explanation.", "Confirm it is expected or handled.", "Click Resolve."] },
     { title: "Explain payouts", body: "The payout ledger lets you inspect how a net bank deposit was formed.", steps: ["Click View explanation.", "Review gross payments, fees, refunds, and bank deposit match.", "Use warnings to decide whether follow-up is needed."] }
   ],
@@ -45,7 +45,7 @@ const flows: Record<string, Slide[]> = {
     { title: "Review normalized records", body: "Transactions show categorized spending and merchant normalization.", steps: ["Check date and merchant.", "Confirm category/direction.", "Use Imports if rows are missing."] }
   ],
   "Settings": [
-    { title: "Manage session", body: "Settings is intentionally minimal while the product is local/demo focused.", steps: ["Read the local-data warning.", "Click Log out to clear the browser token."] }
+    { title: "Manage local demo state", body: "Settings gives you a quick way to recover a known-good local scenario after lots of manual testing.", steps: ["Use Reset demo data to reseed payments, payouts, bank deposits, and reconciliation breaks.", "Use Log out to clear the browser token.", "Never enter real brokerage credentials in this MVP."] }
   ]
 };
 

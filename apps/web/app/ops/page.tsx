@@ -53,14 +53,20 @@ export default function OpsPage() {
     ["HTTP requests", metrics.data.http_requests_total],
     ["Jobs queued", metrics.data.jobs_queued_total],
     ["Jobs completed", metrics.data.jobs_completed_total],
+    ["Queue depth", metrics.data.job_queue_depth],
     ["Webhook events", (metrics.data.stripe_webhook_events_total || 0) + (metrics.data.plaid_webhooks_received_total || 0)],
-    ["Trace starts", metrics.data.otel_traces_started_total],
     ["Idempotency replays", metrics.data.idempotency_replays_total]
   ], [metrics.data]);
 
   return (
     <Shell>
       <Header title="Operations" subtitle="Async jobs, audit trail, metrics, and debugging surfaces for financial operations." />
+
+      <div className={`mb-4 rounded-md border px-4 py-3 text-sm ${Number(metrics.data.job_queue_depth || 0) > 0 ? "border-gold/40 bg-gold/15 text-ink" : "border-moss/25 bg-mint/60 text-moss"}`}>
+        {Number(metrics.data.job_queue_depth || 0) > 0
+          ? `Worker queue has ${Number(metrics.data.job_queue_depth).toLocaleString()} pending job(s). Keep make worker running until this returns to 0.`
+          : "Worker queue is clear. If you just ran Reconciliation, completed jobs should appear below after the next refresh."}
+      </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         {metricCards.map(([label, value]) => (
@@ -89,7 +95,7 @@ export default function OpsPage() {
                 ))}
               </tbody>
             </table>
-          ) : <Empty text="No jobs found." />}
+          ) : <Empty text="No jobs found for this organization yet. Run the Reconciliation workflow with make worker running, then this table will fill with sync and reconciliation jobs." />}
         </Card>
 
         <Card title="Audit trail">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, Shell } from "@/components/Shell";
 import { Header } from "@/components/Common";
+import { useToast } from "@/components/ToastProvider";
 import { api, upload } from "@/lib/api";
 
 const uploads = [
@@ -43,6 +44,7 @@ declare global {
 }
 
 export default function Imports() {
+  const { pushToast } = useToast();
   const [result, setResult] = useState("");
   const [connections, setConnections] = useState<PlaidConnection[]>([]);
   const [plaidStatus, setPlaidStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -56,13 +58,19 @@ export default function Imports() {
         console.error("[plaid-link:load-error]", err);
         setPlaidStatus("error");
         setResult("Plaid Link could not load. Check your browser content blocker/network, then refresh this page.");
+        pushToast({ tone: "error", title: "Plaid Link failed to load", detail: "Check content blockers or network access to cdn.plaid.com." });
       });
-  }, []);
+  }, [pushToast]);
 
   async function send(path: string, file?: File) {
     if (!file) return;
-    const res = await upload(path, file);
-    setResult(JSON.stringify(res, null, 2));
+    try {
+      const res = await upload(path, file);
+      setResult(JSON.stringify(res, null, 2));
+      pushToast({ tone: "success", title: "CSV imported", detail: file.name });
+    } catch (err) {
+      pushToast({ tone: "error", title: "CSV import failed", detail: (err as Error).message });
+    }
   }
 
   async function refreshConnections() {
@@ -76,10 +84,12 @@ export default function Imports() {
   async function connectPlaid() {
     if (plaidStatus === "loading") {
       setResult("Plaid Link is loading. Try again in a moment.");
+      pushToast({ tone: "info", title: "Plaid Link is still loading", detail: "Try again in a moment." });
       return;
     }
     if (plaidStatus === "error" || !window.Plaid) {
       setResult("Plaid Link did not load. Refresh the page or disable browser content blockers for cdn.plaid.com.");
+      pushToast({ tone: "error", title: "Plaid Link is unavailable", detail: "Refresh or disable browser content blockers for cdn.plaid.com." });
       return;
     }
     setBusy("Creating secure Plaid link...");
@@ -105,6 +115,7 @@ export default function Imports() {
           setResult(JSON.stringify({ exchange, sync }, null, 2));
           await refreshConnections();
           setBusy("");
+          pushToast({ tone: "success", title: "Bank connected", detail: "Plaid token exchanged and transaction sync completed." });
         },
         onExit: (error) => {
           setBusy("");
@@ -116,6 +127,7 @@ export default function Imports() {
     } catch (err) {
       setBusy("");
       setResult((err as Error).message);
+      pushToast({ tone: "error", title: "Plaid connection failed", detail: (err as Error).message });
     }
   }
 
@@ -125,8 +137,10 @@ export default function Imports() {
       const sync = await api("/connections/plaid/sync-transactions", { method: "POST", body: "{}" });
       setResult(JSON.stringify(sync, null, 2));
       await refreshConnections();
+      pushToast({ tone: "success", title: "Bank sync complete", detail: "Connected bank transactions were refreshed." });
     } catch (err) {
       setResult((err as Error).message);
+      pushToast({ tone: "error", title: "Bank sync failed", detail: (err as Error).message });
     } finally {
       setBusy("");
     }
@@ -145,8 +159,10 @@ export default function Imports() {
       });
       setResult(JSON.stringify(sandbox, null, 2));
       await refreshConnections();
+      pushToast({ tone: "success", title: "Sandbox bank connected", detail: "A Plaid Sandbox connection was created for local testing." });
     } catch (err) {
       setResult((err as Error).message);
+      pushToast({ tone: "error", title: "Sandbox connection failed", detail: (err as Error).message });
     } finally {
       setBusy("");
     }

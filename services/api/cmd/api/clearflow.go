@@ -796,6 +796,80 @@ func (a *app) debugClearflowState(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]interface{}{"organization": org, "counts": counts, "debug_note": "No secrets are included. Pair this with terminal JSON logs when reporting bugs."})
 }
 
+func (a *app) resetClearflowDemo(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	if a.cfRepo != nil {
+		a.store.mu.RLock()
+		user := a.store.users[uid]
+		a.store.mu.RUnlock()
+		if user.ID == "" {
+			user = models.User{ID: uid, Email: uid + "@clearflow.local", CreatedAt: time.Now().UTC()}
+		}
+		payload, err := a.cfRepo.ResetDemo(r.Context(), user)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not reset demo data")
+			return
+		}
+		writeJSON(w, 200, payload)
+		return
+	}
+	org := a.ensureOrganization(uid)
+	a.store.mu.Lock()
+	for id, row := range a.store.payments {
+		if row.OrganizationID == org.ID {
+			delete(a.store.payments, id)
+		}
+	}
+	for id, row := range a.store.refunds {
+		if row.OrganizationID == org.ID {
+			delete(a.store.refunds, id)
+		}
+	}
+	for id, row := range a.store.fees {
+		if row.OrganizationID == org.ID {
+			delete(a.store.fees, id)
+		}
+	}
+	for id, row := range a.store.payouts {
+		if row.OrganizationID == org.ID {
+			delete(a.store.payouts, id)
+		}
+	}
+	for id, row := range a.store.bankTransactions {
+		if row.OrganizationID == org.ID {
+			delete(a.store.bankTransactions, id)
+		}
+	}
+	for id, row := range a.store.reconciliationRuns {
+		if row.OrganizationID == org.ID {
+			delete(a.store.reconciliationRuns, id)
+		}
+	}
+	for id, row := range a.store.reconciliationMatches {
+		if row.OrganizationID == org.ID {
+			delete(a.store.reconciliationMatches, id)
+		}
+	}
+	for id, row := range a.store.reconciliationExceptions {
+		if row.OrganizationID == org.ID {
+			delete(a.store.reconciliationExceptions, id)
+		}
+	}
+	for id, row := range a.store.jobs {
+		if row.OrganizationID == org.ID {
+			delete(a.store.jobs, id)
+		}
+	}
+	for key, row := range a.store.idempotencyRecords {
+		if row.OrganizationID == org.ID {
+			delete(a.store.idempotencyRecords, key)
+		}
+	}
+	a.store.mu.Unlock()
+	a.seedClearflowDemo(uid)
+	writeJSON(w, 200, map[string]interface{}{"organization_id": org.ID, "status": "reset"})
+}
+
 func (a *app) reconcileOrganization(orgID, uid string) models.ReconciliationRun {
 	now := time.Now().UTC()
 	run := models.ReconciliationRun{ID: auth.NewID(), OrganizationID: orgID, Status: "completed", StartedAt: now}

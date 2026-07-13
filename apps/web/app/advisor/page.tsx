@@ -4,23 +4,35 @@ import { FormEvent, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, Shell, money } from "@/components/Shell";
 import { Header } from "@/components/Common";
+import { useToast } from "@/components/ToastProvider";
 import { api } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 
 export default function Advisor() {
+  const { pushToast } = useToast();
   const plan = useApi<any>("/advisor/plan", {});
   const [projection, setProjection] = useState<any>(null);
   const [answer, setAnswer] = useState("");
   async function project(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    setProjection(await api("/advisor/investment-projection", { method: "POST", body: JSON.stringify({ monthly_contribution: Number(f.get("monthly")), initial_balance: Number(f.get("initial")), years: Number(f.get("years")), risk_tolerance: f.get("risk") }) }));
+    try {
+      setProjection(await api("/advisor/investment-projection", { method: "POST", body: JSON.stringify({ monthly_contribution: Number(f.get("monthly")), initial_balance: Number(f.get("initial")), years: Number(f.get("years")), risk_tolerance: f.get("risk") }) }));
+      pushToast({ tone: "success", title: "Projection updated", detail: "The chart now reflects your contribution assumptions." });
+    } catch (err) {
+      pushToast({ tone: "error", title: "Projection failed", detail: (err as Error).message });
+    }
   }
   async function chat(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const res = await api<{ answer: string }>("/advisor/chat", { method: "POST", body: JSON.stringify({ message: f.get("message") }) });
-    setAnswer(res.answer);
+    try {
+      const res = await api<{ answer: string }>("/advisor/chat", { method: "POST", body: JSON.stringify({ message: f.get("message") }) });
+      setAnswer(res.answer);
+      pushToast({ tone: "success", title: "Advisor answered", detail: "The response is shown below the question." });
+    } catch (err) {
+      pushToast({ tone: "error", title: "Advisor request failed", detail: (err as Error).message });
+    }
   }
   return (
     <Shell>

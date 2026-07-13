@@ -5,6 +5,7 @@ import { Card, Shell, money } from "@/components/Shell";
 import { Header, Empty } from "@/components/Common";
 import { PayoutExplanationPanel } from "@/components/payouts/PayoutExplanationPanel";
 import { ReconciliationMatches } from "@/components/reconciliation/ReconciliationMatches";
+import { useToast } from "@/components/ToastProvider";
 import { api, getPayoutExplanation, getReconciliationMatches, type PayoutExplanation, type ReconciliationMatch } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 
@@ -17,7 +18,9 @@ type Organization = { id: string; name: string };
 type Job = { id: string; type: string; status: string };
 
 export default function ReconciliationPage() {
+  const { pushToast } = useToast();
   const [activity, setActivity] = useState<Activity[]>([]);
+  const [workflowRunning, setWorkflowRunning] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedPayoutId, setSelectedPayoutId] = useState("");
   const [explanation, setExplanation] = useState<{ data?: PayoutExplanation; loading: boolean; error: string }>({ loading: false, error: "" });
@@ -61,7 +64,8 @@ export default function ReconciliationPage() {
   async function action(label: string, jobPath: string) {
     if (!orgId) {
       setActivity((items) => [{ id: crypto.randomUUID(), label, detail: "Organization is still loading", status: "error" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
-      return;
+      pushToast({ tone: "error", title: `${label} could not start`, detail: "Organization is still loading." });
+      return false;
     }
     const id = crypto.randomUUID();
     setActivity((items) => [{ id, label, detail: "Queued for worker", status: "running" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
@@ -77,8 +81,32 @@ export default function ReconciliationPage() {
         setActivity((items) => items.map((item) => item.id === id ? { ...item, status: "ok" as const, detail: "Completed", at: new Date().toISOString() } : item));
       }
       setReloadKey((value) => value + 1);
+      pushToast({ tone: "success", title: `${label} completed`, detail: "The page data has refreshed." });
+      return true;
     } catch (err) {
       setActivity((items) => items.map((item) => item.id === id ? { ...item, status: "error" as const, detail: (err as Error).message, at: new Date().toISOString() } : item));
+      pushToast({ tone: "error", title: `${label} failed`, detail: (err as Error).message });
+      return false;
+    }
+  }
+
+  async function runFullWorkflow() {
+    if (workflowRunning) return;
+    setWorkflowRunning(true);
+    pushToast({ tone: "info", title: "Full reconciliation started", detail: "Processor sync, bank sync, and reconciliation will run in order." });
+    try {
+      const steps: Array<[string, string]> = [
+        ["Processor sync", "/api/v1/sync/stripe"],
+        ["Bank sync", "/api/v1/sync/bank"],
+        ["Reconciliation run", "/api/v1/reconciliation-runs"]
+      ];
+      for (const [label, path] of steps) {
+        const ok = await action(label, path);
+        if (!ok) return;
+      }
+      pushToast({ tone: "success", title: "Full reconciliation complete", detail: "Processor data, bank data, matches, breaks, jobs, and audit logs are updated." });
+    } finally {
+      setWorkflowRunning(false);
     }
   }
 
@@ -100,9 +128,14 @@ export default function ReconciliationPage() {
   }
 
   async function resolveException(id: string) {
-    await api(`/reconciliation/exceptions/${id}`, { method: "PATCH", body: JSON.stringify({ status: "resolved" }) });
-    setActivity((items) => [{ id: crypto.randomUUID(), label: "Resolved exception", detail: id.slice(0, 8), status: "ok" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
-    setReloadKey((value) => value + 1);
+    try {
+      await api(`/reconciliation/exceptions/${id}`, { method: "PATCH", body: JSON.stringify({ status: "resolved" }) });
+      setActivity((items) => [{ id: crypto.randomUUID(), label: "Resolved exception", detail: id.slice(0, 8), status: "ok" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
+      setReloadKey((value) => value + 1);
+      pushToast({ tone: "success", title: "Break resolved", detail: "The active exception queue and open-break count will refresh." });
+    } catch (err) {
+      pushToast({ tone: "error", title: "Could not resolve break", detail: (err as Error).message });
+    }
   }
 
   return (
@@ -119,10 +152,14 @@ export default function ReconciliationPage() {
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
         <Card title="Runbook">
+          <button onClick={runFullWorkflow} disabled={workflowRunning || !orgId} className="mb-3 w-full rounded-md bg-ink px-3 py-3 text-left text-sm font-semibold text-white hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-ink/40">
+            Run full reconciliation
+            <span className="mt-1 block text-xs font-normal text-white/70">Queues processor sync, bank sync, then matching in order.</span>
+          </button>
           <div className="grid gap-2">
-            <ActionButton label="1. Sync processor" detail="Queue Stripe-style charges, fees, refunds, payout" onClick={() => action("Processor sync", "/api/v1/sync/stripe")} />
-            <ActionButton label="2. Sync bank" detail="Queue bank deposits and operating debits" onClick={() => action("Bank sync", "/api/v1/sync/bank")} />
-            <ActionButton label="3. Reconcile" detail="Queue payout-to-deposit matching" onClick={() => action("Reconciliation run", "/api/v1/reconciliation-runs")} primary />
+            <ActionButton label="1. Sync processor" detail="Queue Stripe-style charges, fees, refunds, payout" onClick={() => action("Processor sync", "/api/v1/sync/stripe")} disabled={workflowRunning} />
+            <ActionButton label="2. Sync bank" detail="Queue bank deposits and operating debits" onClick={() => action("Bank sync", "/api/v1/sync/bank")} disabled={workflowRunning} />
+            <ActionButton label="3. Reconcile" detail="Queue payout-to-deposit matching" onClick={() => action("Reconciliation run", "/api/v1/reconciliation-runs")} primary disabled={workflowRunning} />
           </div>
           <div className="mt-5 border-t border-ink/10 pt-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Activity</p>
@@ -223,9 +260,9 @@ function Kpi({ label, value, sub, tone = "neutral" }: { label: string; value: st
   );
 }
 
-function ActionButton({ label, detail, onClick, primary = false }: { label: string; detail: string; onClick: () => void; primary?: boolean }) {
+function ActionButton({ label, detail, onClick, primary = false, disabled = false }: { label: string; detail: string; onClick: () => void; primary?: boolean; disabled?: boolean }) {
   return (
-    <button onClick={onClick} className={`rounded-md border px-3 py-3 text-left transition ${primary ? "border-gold/50 bg-gold/20 hover:bg-gold/30" : "border-ink/10 bg-white hover:bg-ink/[0.03]"}`}>
+    <button onClick={onClick} disabled={disabled} className={`rounded-md border px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${primary ? "border-gold/50 bg-gold/20 hover:bg-gold/30" : "border-ink/10 bg-white hover:bg-ink/[0.03]"}`}>
       <span className="block text-sm font-semibold text-ink">{label}</span>
       <span className="mt-1 block text-xs leading-5 text-ink/50">{detail}</span>
     </button>

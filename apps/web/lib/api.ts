@@ -259,6 +259,7 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.startsWith("/api/v1/jobs")) return { data: demoJobs, pagination: demoPagination } as T;
   if (path.startsWith("/api/v1/audit-logs")) return { data: demoAuditLogs, pagination: demoPagination } as T;
   if (path.startsWith("/api/v1/ops/metrics")) return demoMetrics as T;
+  if (path.startsWith("/debug/clearflow/reset-demo")) return { status: "reset", organization_id: "demo-org" } as T;
   if (path.startsWith("/connections/plaid/link-token")) return { link_token: "", demo_unavailable: true } as T;
   if (path.startsWith("/connections/plaid/sandbox-connect")) return { demo_unavailable: true, message: "Start the local API with Plaid Sandbox credentials to create a test connection." } as T;
   if (path.startsWith("/connections/plaid/sync-transactions")) return { imported_count: 0, connection_count: 0 } as T;

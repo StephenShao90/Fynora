@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, Shell, money } from "@/components/Shell";
 import { Header, Empty } from "@/components/Common";
@@ -9,6 +10,7 @@ type Payout = { id: string; processor_payout_id: string; amount: number; status:
 type Payment = { id: string; amount: number; status: string; description: string; occurred_at: string };
 type BankTransaction = { id: string; amount: number; direction: string; description: string; posted_at: string };
 type Exception = { id: string; title: string; explanation: string; status: string; severity: string };
+type Connection = { id: string; institution_name: string };
 
 export default function Dashboard() {
   const cash = useApi<Record<string, number>>("/cash-flow/summary", {});
@@ -17,7 +19,10 @@ export default function Dashboard() {
   const payouts = useApi<Payout[]>("/payouts", []);
   const payments = useApi<Payment[]>("/payments", []);
   const bank = useApi<BankTransaction[]>("/bank-transactions", []);
+  const connections = useApi<Connection[]>("/connections", []);
+  const metrics = useApi<Record<string, number>>("/api/v1/ops/metrics", {});
   const openBreaks = exceptions.data.filter((item) => item.status === "open");
+  const completedJobs = metrics.data.jobs_completed_total || 0;
 
   return (
     <Shell>
@@ -29,6 +34,17 @@ export default function Dashboard() {
         <Kpi label="Processor cost" value={money(cash.data.fees)} detail="fees this period" tone="warn" />
         <Kpi label="Refunds" value={money(cash.data.refunds)} detail="returned volume" tone="warn" />
         <Kpi label="Open breaks" value={`${openBreaks.length}`} detail="requires review" tone={openBreaks.length ? "warn" : "good"} />
+      </div>
+
+      <div className="mt-4">
+        <Card title="Operator checklist">
+          <div className="grid gap-3 md:grid-cols-4">
+            <ChecklistItem label="Bank connection" done={connections.data.length > 0} detail={connections.data.length ? "Plaid connection available" : "Connect Plaid or create sandbox bank"} href="/imports" />
+            <ChecklistItem label="Processor data" done={payouts.data.length > 0 && payments.data.length > 0} detail={payouts.data.length ? "Payouts and payments loaded" : "Run processor sync"} href="/reconciliation" />
+            <ChecklistItem label="Worker jobs" done={completedJobs > 0} detail={completedJobs ? `${completedJobs} completed job(s)` : "Run full reconciliation with worker on"} href="/ops" />
+            <ChecklistItem label="Open breaks" done={openBreaks.length === 0} detail={openBreaks.length ? `${openBreaks.length} break(s) need review` : "No active breaks"} href="/reconciliation" />
+          </div>
+        </Card>
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
@@ -104,6 +120,16 @@ export default function Dashboard() {
         <Ledger title="Recent bank activity" rows={bank.data.map((row) => ({ id: row.id, label: row.description, detail: row.direction, date: row.posted_at, amount: row.direction === "credit" ? row.amount : -row.amount }))} />
       </div>
     </Shell>
+  );
+}
+
+function ChecklistItem({ label, done, detail, href }: { label: string; done: boolean; detail: string; href: string }) {
+  return (
+    <Link href={href} className={`rounded-md border p-3 transition hover:bg-ink/[0.03] ${done ? "border-moss/25 bg-mint/60" : "border-gold/35 bg-gold/10"}`}>
+      <span className={`inline-flex rounded px-2 py-1 text-xs font-semibold ${done ? "bg-white text-moss" : "bg-white text-ink/65"}`}>{done ? "done" : "next"}</span>
+      <p className="mt-3 text-sm font-semibold text-ink">{label}</p>
+      <p className="mt-1 text-xs leading-5 text-ink/55">{detail}</p>
+    </Link>
   );
 }
 
