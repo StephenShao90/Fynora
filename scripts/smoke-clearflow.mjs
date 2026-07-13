@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 const API_BASE = process.env.API_BASE || "http://localhost:8080";
 const RUN_ID = process.env.SMOKE_RUN_ID || new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
 
@@ -57,6 +60,38 @@ async function call(label, method, path, options = {}) {
   log("HTTP", { label, method, path, status: res.status, requestId: id, latencyMs });
   if (!res.ok && !options.allowFailure) {
     throw new Error(`${method} ${path} returned ${res.status}: ${text.slice(0, 300)}`);
+  }
+  return { status: res.status, body, requestId: id };
+}
+
+async function uploadCSV(label, pathName, filePath) {
+  const id = requestId(label);
+  const form = new FormData();
+  const raw = await readFile(filePath);
+  form.append("file", new Blob([raw], { type: "text/csv" }), path.basename(filePath));
+  const headers = {
+    "X-Request-ID": id
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const started = Date.now();
+  const res = await fetch(`${API_BASE}${pathName}`, {
+    method: "POST",
+    headers,
+    body: form
+  });
+  const text = await res.text();
+  let body = {};
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = { raw: text };
+    }
+  }
+  const latencyMs = Date.now() - started;
+  log("HTTP", { label, method: "POST", path: pathName, status: res.status, requestId: id, latencyMs });
+  if (!res.ok) {
+    throw new Error(`POST ${pathName} returned ${res.status}: ${text.slice(0, 300)}`);
   }
   return { status: res.status, body, requestId: id };
 }
@@ -159,6 +194,31 @@ await step("reconciliation match scoring loads", async () => {
   if (!Array.isArray(result.body.data)) throw new Error("matches response missing data array");
 });
 
+await step("portfolio CSV imports persist", async () => {
+  const holdings = await uploadCSV("portfolio-holdings-import", "/portfolio/import/holdings-csv", "sample-data/sample_holdings.csv");
+  if (holdings.body.import?.imported_count !== 5 || holdings.body.holdings?.length !== 5) {
+    throw new Error("holdings CSV import did not import 5 rows");
+  }
+  const txs = await uploadCSV("portfolio-transactions-import", "/portfolio/import/transactions-csv", "sample-data/sample_portfolio_transactions.csv");
+  if (txs.body.import?.imported_count !== 8 || txs.body.portfolio_transactions?.length !== 8) {
+    throw new Error("portfolio transactions CSV import did not import 8 rows");
+  }
+  const holdingsList = await call("portfolio-holdings", "GET", "/portfolio/holdings");
+  const transactionsList = await call("portfolio-transactions", "GET", "/portfolio/transactions");
+  const imports = await call("portfolio-imports", "GET", "/portfolio/imports");
+  const summary = await call("portfolio-summary", "GET", "/portfolio/summary");
+  if (pickData(holdingsList.body).length < 5) throw new Error("portfolio holdings did not persist");
+  if (pickData(transactionsList.body).length < 8) throw new Error("portfolio transactions did not persist");
+  if (pickData(imports.body).length < 2) throw new Error("portfolio imports did not persist");
+  if (!summary.body.total_market_value || summary.body.total_market_value <= 0) throw new Error("portfolio summary did not calculate market value");
+  log("VALUE portfolio", {
+    holdings: pickData(holdingsList.body).length,
+    transactions: pickData(transactionsList.body).length,
+    imports: pickData(imports.body).length,
+    marketValue: summary.body.total_market_value
+  });
+});
+
 await step("jobs list loads", async () => {
   const result = await call("jobs", "GET", `/api/v1/jobs?organizationId=${encodeURIComponent(orgId)}`);
   if (!Array.isArray(result.body.data)) throw new Error("jobs response missing data array");
@@ -238,6 +298,7 @@ log("LOOK_FOR_IN_API_TERMINAL", {
   messages: ["database.connected", "http.request"],
   requestIdsPrefix: `smoke-${RUN_ID}-`,
   expectedPaths: ["/auth/demo-token", "/sync/stripe", "/sync/bank", "/reconciliation/runs", "/api/v1/ops/metrics"]
+	  .concat(["/portfolio/import/holdings-csv", "/portfolio/import/transactions-csv", "/portfolio/summary"])
 });
 log("LOOK_FOR_IN_WORKER_TERMINAL", {
  messages: ["worker.started", "worker.job.started", "worker.job.completed"],
