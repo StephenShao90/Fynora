@@ -5,7 +5,7 @@ include .env
 export
 endif
 
-.PHONY: install docker-up docker-down migrate seed api worker web smoke test lint fmt build
+.PHONY: install docker-up docker-down migrate seed api worker web local-env smoke test lint fmt build
 
 install:
 	cd apps/web && npm install
@@ -34,6 +34,9 @@ worker:
 
 web:
 	cd apps/web && npm run dev
+
+local-env:
+	node scripts/use-local-env.mjs
 
 smoke:
 	node scripts/smoke-clearflow.mjs

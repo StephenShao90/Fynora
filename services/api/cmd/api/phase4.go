@@ -374,15 +374,39 @@ func (a *app) opsMetricsV1(w http.ResponseWriter, r *http.Request) {
 	a.store.mu.RLock()
 	metrics := a.store.metrics
 	for _, job := range a.store.jobs {
-		if job.Status == "queued" {
-			metrics.JobQueueDepth++
-		}
+		applyJobStatusToMetrics(&metrics, job.Status)
 	}
 	a.store.mu.RUnlock()
 	if a.cfRepo != nil {
-		metrics.JobQueueDepth = -1
+		counts, err := a.cfRepo.JobStatusCounts(r.Context())
+		if err != nil {
+			errorJSON(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "could not load job metrics")
+			return
+		}
+		metrics.JobQueueDepth = 0
+		metrics.JobsCompletedTotal = counts["completed"]
+		metrics.JobsFailedTotal = counts["failed"]
+		metrics.JobsDeadTotal = counts["dead"]
+		for status, count := range counts {
+			if status == "queued" || status == "running" {
+				metrics.JobQueueDepth += count
+			}
+		}
 	}
 	writeJSON(w, 200, metrics)
+}
+
+func applyJobStatusToMetrics(metrics *opsMetrics, status string) {
+	switch status {
+	case "queued", "running":
+		metrics.JobQueueDepth++
+	case "completed":
+		metrics.JobsCompletedTotal++
+	case "failed":
+		metrics.JobsFailedTotal++
+	case "dead":
+		metrics.JobsDeadTotal++
+	}
 }
 
 func (a *app) incrementMetric(fn func(*opsMetrics)) {

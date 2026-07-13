@@ -7,6 +7,7 @@ Use this when you want to prove Clearflow works end to end and send logs back fo
 Terminal 1:
 
 ```bash
+make local-env
 make docker-up
 make migrate
 make api
@@ -73,6 +74,7 @@ The smoke runner prints one line per feature:
 [SMOKE] PASS cash recommendations load
 [SMOKE] PASS reconciliation match scoring loads
 [SMOKE] PASS jobs list loads
+[SMOKE] PASS async worker jobs complete
 [SMOKE] PASS audit logs load
 [SMOKE] PASS ops metrics load
 [SMOKE] PASS idempotency replay returns same stripe sync result
@@ -94,6 +96,7 @@ If anything fails, send:
 - API terminal lines containing `http.request`
 - API terminal lines containing the smoke request ID prefix
 - worker terminal lines containing `worker.job`
+- the `asyncJobIds` from the final `LOOK_FOR_IN_WORKER_TERMINAL` smoke output
 - any frontend browser console lines starting with `[clearflow-api]` or `[clearflow-api:error]`
 
 Useful terminal filters:

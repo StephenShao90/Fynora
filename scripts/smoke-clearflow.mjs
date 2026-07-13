@@ -7,6 +7,7 @@ let token = "";
 let orgId = "";
 let latestRunId = "latest";
 let payoutId = "";
+let asyncJobIds = [];
 
 const checks = [];
 
@@ -64,6 +65,10 @@ function pickData(payload) {
   if (Array.isArray(payload)) return payload;
   if (payload && Array.isArray(payload.data)) return payload.data;
   return [];
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function step(name, fn) {
@@ -160,6 +165,40 @@ await step("jobs list loads", async () => {
   log("VALUE jobs", { count: result.body.data.length, statuses: result.body.data.map((job) => job.status).slice(0, 5) });
 });
 
+await step("async worker jobs complete", async () => {
+  const queued = [];
+  for (const [label, path] of [
+    ["async-stripe", `/api/v1/sync/stripe?organizationId=${encodeURIComponent(orgId)}`],
+    ["async-bank", `/api/v1/sync/bank?organizationId=${encodeURIComponent(orgId)}`],
+    ["async-recon", `/api/v1/reconciliation-runs?organizationId=${encodeURIComponent(orgId)}`]
+  ]) {
+    const result = await call(label, "POST", path, {
+      headers: { "Idempotency-Key": `${label}-${RUN_ID}` },
+      body: {}
+    });
+    if (!result.body.jobId) throw new Error(`${label} did not return jobId`);
+    queued.push(result.body.jobId);
+  }
+  asyncJobIds = queued;
+  log("VALUE async_jobs_queued", { jobIds: asyncJobIds });
+
+  const deadline = Date.now() + Number(process.env.SMOKE_WORKER_TIMEOUT_MS || 45000);
+  while (Date.now() < deadline) {
+    const result = await call("async-jobs-poll", "GET", `/api/v1/jobs?organizationId=${encodeURIComponent(orgId)}`);
+    const jobs = pickData(result.body).filter((job) => asyncJobIds.includes(job.id));
+    const statuses = Object.fromEntries(jobs.map((job) => [job.id, job.status]));
+    log("VALUE async_job_statuses", statuses);
+    if (jobs.length === asyncJobIds.length && jobs.every((job) => job.status === "completed")) {
+      return;
+    }
+    if (jobs.some((job) => ["failed", "dead", "cancelled"].includes(job.status))) {
+      throw new Error(`async job failed: ${JSON.stringify(statuses)}`);
+    }
+    await sleep(2000);
+  }
+  throw new Error(`worker did not complete async jobs before timeout; start make worker and retry jobIds=${asyncJobIds.join(",")}`);
+});
+
 await step("audit logs load", async () => {
   const result = await call("audit", "GET", `/api/v1/audit-logs?organizationId=${encodeURIComponent(orgId)}`);
   if (!Array.isArray(result.body.data)) throw new Error("audit response missing data array");
@@ -172,8 +211,12 @@ await step("ops metrics load", async () => {
   log("VALUE metrics", {
     http_requests_total: result.body.http_requests_total,
     jobs_queued_total: result.body.jobs_queued_total,
+    jobs_completed_total: result.body.jobs_completed_total,
     job_queue_depth: result.body.job_queue_depth
   });
+  if (asyncJobIds.length && result.body.jobs_completed_total < asyncJobIds.length) {
+    throw new Error(`expected at least ${asyncJobIds.length} completed jobs in metrics`);
+  }
 });
 
 await step("idempotency replay returns same stripe sync result", async () => {
@@ -197,8 +240,9 @@ log("LOOK_FOR_IN_API_TERMINAL", {
   expectedPaths: ["/auth/demo-token", "/sync/stripe", "/sync/bank", "/reconciliation/runs", "/api/v1/ops/metrics"]
 });
 log("LOOK_FOR_IN_WORKER_TERMINAL", {
-  messages: ["worker.started", "worker.job.started", "worker.job.completed"],
-  note: "Worker logs appear only for async /api/v1 sync/reconciliation job routes or when queued jobs exist."
+ messages: ["worker.started", "worker.job.started", "worker.job.completed"],
+  asyncJobIds,
+  note: "If this failed, start make worker and rerun make smoke."
 });
 
 if (failed.length) {

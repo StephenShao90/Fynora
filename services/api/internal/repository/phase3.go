@@ -125,6 +125,24 @@ func (r *ClearflowRepository) ListJobs(ctx context.Context, orgID string, limit,
 	return scanJobs(rows)
 }
 
+func (r *ClearflowRepository) JobStatusCounts(ctx context.Context) (map[string]int64, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT status, COUNT(*) FROM sync_jobs GROUP BY status`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	counts := map[string]int64{}
+	for rows.Next() {
+		var status string
+		var count int64
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		counts[status] = count
+	}
+	return counts, rows.Err()
+}
+
 func (r *ClearflowRepository) ClaimJob(ctx context.Context, worker string) (models.Job, bool, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
