@@ -5,9 +5,9 @@ Clearflow is a production-style fintech operations platform for small organizati
 ## Two To Three Minute Script
 
 1. **Log in or use demo mode.** On local full stack, click **Try Demo**. On Vercel without `NEXT_PUBLIC_API_BASE_URL`, the UI intentionally shows sample financial data and a demo-mode badge.
-2. **Open Onboarding.** Pick a demo company, save the workspace profile, and use the checklist to explain the customer setup path.
-3. **View Dashboard.** Point out operating cash, net cash flow, processor fees, refunds, open breaks, forecast chart, payout volume, and recent processor/bank ledger rows.
-4. **Open Reconciliation.** Run processor sync, bank sync, and reconciliation. Explain that financial write endpoints use idempotency keys and queue worker jobs.
+2. **Open Onboarding.** Pick a demo company, save the workspace profile, and click **Run full demo setup** to prepare the complete local story.
+3. **View Dashboard.** Confirm the guided runner passed, then point out operating cash, net cash flow, processor fees, refunds, open breaks, forecast chart, payout volume, and recent processor/bank ledger rows.
+4. **Open Reconciliation.** Rerun processor sync, bank sync, and reconciliation if you want to show the workflow manually. Explain that financial write endpoints use idempotency keys and queue worker jobs.
 5. **Resolve a break.** Open the exception workbench, add a resolution note, optionally associate a bank record, and resolve the break.
 6. **Open payout explanation.** Click **View explanation** and walk through gross payments, fees, refunds, net deposit, linked bank deposit, warnings, and plain-English summary.
 7. **Open Transactions.** Search/filter the ledger, select a transaction, inspect details, and update category.

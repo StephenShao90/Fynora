@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, Shell, money } from "@/components/Shell";
 import { Header, Empty } from "@/components/Common";
+import { DemoPilot } from "@/components/DemoPilot";
 import { useApi } from "@/hooks/useApi";
 
 type Payout = { id: string; processor_payout_id: string; amount: number; status: string; expected_arrival_at: string };
@@ -27,6 +28,10 @@ export default function Dashboard() {
   return (
     <Shell>
       <Header title="Operations dashboard" subtitle="A real-time view of payout settlement, bank cash, open breaks, and forecasted operating runway." />
+
+      <div className="mb-4">
+        <DemoPilot />
+      </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Kpi label="Operating cash" value={money(cash.data.cash_balance)} detail="posted bank cash" />

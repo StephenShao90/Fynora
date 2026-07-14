@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Common";
+import { DemoPilot } from "@/components/DemoPilot";
 import { Card, Shell } from "@/components/Shell";
 import { useToast } from "@/components/ToastProvider";
 import { activeDemoScenario, api, setDemoScenario } from "@/lib/api";
@@ -134,6 +135,10 @@ export default function OnboardingPage() {
             Setup status is persisted through the API when the local backend is running. Provider readiness is derived from actual Stripe/Plaid connections, imported processor data, bank records, and team membership.
           </div>
         </Card>
+      </div>
+
+      <div className="mt-4">
+        <DemoPilot compact />
       </div>
 
       <div className="mt-4">

@@ -104,25 +104,27 @@ grep 'worker.job' worker.log
 After `make dev`, open `http://localhost:3000`.
 
 1. Click **Try Demo**.
-2. Open **Onboarding**, switch demo scenarios, save the workspace profile, and confirm the checklist updates.
-3. Confirm setup status persists by refreshing Onboarding and checking the saved business type/checklist.
-4. Dashboard should load cash, payout, forecast, and exception widgets.
-5. Confirm **Operator checklist** shows the next recommended setup/reconciliation actions.
-6. Open **Reconciliation**.
-7. Click **Run full reconciliation**.
-8. Confirm the activity feed shows processor sync, bank sync, and reconciliation as completed.
-9. Click **View explanation** on a payout.
-10. Click **Review** on an open break, add an investigation note, confirm it appears in note history, then resolve it.
-11. Open **Transactions**, search/filter rows, select a transaction, and change category.
-12. Open **Cash Flow** and check forecast, anomalies, recommendations, spending insights.
-13. Open **Portfolio**.
-14. Click **Download sample** under **Holdings snapshot**, then upload `sample_holdings.csv`.
-15. Confirm recent imports shows the holdings import, holdings table is populated, and allocation charts update.
-16. Click **Download sample** under **Activity ledger**, then upload `sample_portfolio_transactions.csv`.
-17. Confirm recent imports shows the activity import and **Recent portfolio activity** lists buys, deposits, and dividends.
-18. Open **Ops** and check jobs, audit logs, metrics, and queue depth.
-19. Open **Integrations**, run a provider sync control, send local Stripe/Plaid webhook tests, and confirm responses or queued jobs appear.
-20. Open **Settings**, add/change/remove a team member where permitted, revoke a session, then click **Reset demo data**.
+2. Open **Onboarding** or **Dashboard** and click **Run full demo setup**.
+3. Confirm every guided demo runner step shows **passed**: onboarding, processor data, bank data, reconciliation, and portfolio sample.
+4. Refresh Onboarding and confirm setup status persists.
+5. Dashboard should load cash, payout, forecast, exception widgets, and mobile/top navigation on narrow screens.
+6. Confirm **Operator checklist** shows the next recommended setup/reconciliation actions.
+7. Open **Reconciliation**.
+8. Click **Run full reconciliation** if you want to rerun the workflow manually.
+9. Confirm the activity feed shows processor sync, bank sync, and reconciliation as completed.
+10. Click **View explanation** on a payout.
+11. Click **Review** on an open break, add an investigation note, confirm it appears in note history, then resolve it.
+12. Open **Transactions**, search/filter rows, select a transaction, and change category.
+13. Open **Cash Flow** and check forecast, anomalies, recommendations, spending insights.
+14. Open **Portfolio**.
+15. Confirm the Plaid Investments sample from the guided demo runner populated holdings and activity.
+16. Click **Download sample** under **Holdings snapshot**, then upload `sample_holdings.csv`.
+17. Confirm recent imports shows the holdings import, holdings table is populated, and allocation charts update.
+18. Click **Download sample** under **Activity ledger**, then upload `sample_portfolio_transactions.csv`.
+19. Confirm recent imports shows the activity import and **Recent portfolio activity** lists buys, deposits, and dividends.
+20. Open **Ops** and check jobs, audit logs, metrics, and queue depth.
+21. Open **Integrations**, run a provider sync control, send local Stripe/Plaid webhook tests, and confirm responses or queued jobs appear.
+22. Open **Settings**, add/change/remove a team member where permitted, revoke a session, then click **Reset demo data**.
 
 Frontend browser console logs:
 
@@ -130,6 +132,9 @@ Frontend browser console logs:
 [clearflow-api] { path, method, status, durationMs, requestId }
 [clearflow-api:error] { path, status, durationMs, requestId, message }
 [clearflow-api:demo-fallback] { path, method, requestId, reason }
+[clearflow-demo-pilot:start] { steps }
+[clearflow-demo-pilot:step] { id, label }
+[clearflow-demo-pilot:complete] { completedAt }
 ```
 
 `[clearflow-api:error]` is a warning, not a Next.js crash overlay. If it appears, copy the object and the matching API `request_id` log.

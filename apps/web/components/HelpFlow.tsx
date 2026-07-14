@@ -11,10 +11,12 @@ type Slide = {
 const flows: Record<string, Slide[]> = {
   "Onboarding": [
     { title: "Create the workspace", body: "Start by naming the company, picking the business type, and saving the workspace profile.", steps: ["Choose the closest operating model.", "Confirm currency.", "Save workspace to create or switch the active company."] },
+    { title: "Run a full demo setup", body: "The guided demo runner prepares the whole product story without making you remember endpoint order.", steps: ["Click Run full demo setup.", "Wait for every step to show passed.", "Open Reconciliation, Ops, and Portfolio from the ready links."] },
     { title: "Finish the data checklist", body: "The checklist turns setup into concrete steps so you know exactly what data is missing.", steps: ["Connect or sync processor data.", "Connect Plaid or import bank activity.", "Upload portfolio data only if it matters for the use case."] },
     { title: "Switch demo companies", body: "The scenario switcher changes the sample company so Clearflow demos across student orgs, creators, SaaS, and nonprofits.", steps: ["Pick a scenario.", "Open Dashboard.", "Verify cash and workflow language fit the company."] }
   ],
   "Operations dashboard": [
+    { title: "Prepare demo data", body: "Use the guided demo runner when you want a clean local walkthrough without terminal commands.", steps: ["Click Run full demo setup.", "Confirm every step passes.", "Use the checklist and KPI cards to explain what changed."] },
     { title: "Read cash health first", body: "The top cards summarize bank cash, net operating movement, processor costs, refunds, and unresolved breaks.", steps: ["Operating cash is posted bank cash.", "Net flow subtracts debits, fees, and refunds.", "Open breaks are reconciliation issues that still need action."] },
     { title: "Use the forecast", body: "The chart plots projected cash by day so you can see whether expected activity will pressure operating cash.", steps: ["X-axis means days ahead.", "Y-axis means projected dollar amount.", "Hover points to inspect projected cash, payouts, and expenses."] },
     { title: "Move to exceptions", body: "If open breaks are nonzero, go to Reconciliation and resolve or explain the exception before reporting.", steps: ["Sync processor.", "Sync bank.", "Run reconciliation.", "Review and resolve open breaks."] }

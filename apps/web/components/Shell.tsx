@@ -53,6 +53,39 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <button onClick={logout} className="absolute bottom-6 left-6 rounded-md border border-ink/15 bg-white px-3 py-2 text-sm text-ink/65 hover:bg-ink/[0.03]">Log out</button>
       </aside>
       <main className="lg:pl-72">
+        <header className="sticky top-0 z-30 border-b border-ink/10 bg-[#fbfcf8]/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <Link href="/dashboard" className="text-lg font-semibold text-ink">Clearflow</Link>
+            <button onClick={logout} className="rounded-md border border-ink/15 bg-white px-3 py-2 text-xs text-ink/65">Log out</button>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-ink/45" htmlFor="mobile-nav">
+              Page
+              <select
+                id="mobile-nav"
+                value={path}
+                onChange={(event) => { window.location.href = event.target.value; }}
+                className="rounded-md border border-ink/15 bg-white px-2 py-2 text-sm normal-case tracking-normal text-ink"
+              >
+                {nav.map(([href, label]) => <option key={href} value={href}>{label}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-ink/45" htmlFor="mobile-scenario">
+              Scenario
+              <select
+                id="mobile-scenario"
+                defaultValue={scenario.id}
+                onChange={(event) => setDemoScenario(event.target.value)}
+                className="rounded-md border border-ink/15 bg-white px-2 py-2 text-sm normal-case tracking-normal text-ink"
+              >
+                <option value="student_org">Student org</option>
+                <option value="creator">Creator shop</option>
+                <option value="saas">Small SaaS</option>
+                <option value="nonprofit">Nonprofit</option>
+              </select>
+            </label>
+          </div>
+        </header>
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10">{children}</div>
       </main>
     </div>

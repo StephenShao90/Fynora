@@ -126,9 +126,9 @@ Recruiter demo script: [`docs/recruiter-demo.md`](docs/recruiter-demo.md)
 
 1. Start Postgres, Redis, migrations, API, worker, and web with `make dev`.
 2. Open `http://localhost:3000`, click **Try Demo**, and land on the operations dashboard.
-3. Open **Onboarding** to choose a demo company, save the workspace profile, and review setup progress.
-4. Open **Reconciliation** and run the processor sync, bank sync, and reconciliation workflow.
-5. Review the match rate, exception queue, payout ledger, payout explanation, and exception workbench.
+3. Open **Onboarding** or **Dashboard** and click **Run full demo setup** to seed onboarding, processor data, bank data, reconciliation, and portfolio sample data in order.
+4. Open **Reconciliation** and review the match rate, exception queue, payout ledger, payout explanation, and exception workbench.
+5. Resolve a break with an operator note and confirm the note history persists.
 6. Open **Transactions** to search/filter the ledger and update categories.
 7. Open **Cash Flow** to show forecasts, anomalies, recommendations, and match scoring.
 8. Open **Ops** to show async jobs, audit logs, metrics, idempotency, Redis readiness, and tracing readiness.
