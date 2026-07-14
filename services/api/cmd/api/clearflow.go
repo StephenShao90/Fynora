@@ -550,7 +550,9 @@ func (a *app) listReconciliationExceptions(w http.ResponseWriter, r *http.Reques
 func (a *app) patchReconciliationException(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	var req struct {
-		Status string `json:"status"`
+		Status                   string `json:"status"`
+		Note                     string `json:"note"`
+		MatchedBankTransactionID string `json:"matched_bank_transaction_id"`
 	}
 	if !decode(w, r, &req) {
 		return
@@ -564,6 +566,16 @@ func (a *app) patchReconciliationException(w http.ResponseWriter, r *http.Reques
 		if err != nil {
 			errorJSON(w, r, 404, "NOT_FOUND", "exception not found")
 			return
+		}
+		if strings.TrimSpace(req.Note) != "" {
+			noteBody := strings.TrimSpace(req.Note)
+			if req.MatchedBankTransactionID != "" {
+				noteBody += " (manual bank match: " + req.MatchedBankTransactionID + ")"
+			}
+			if _, err := a.cfRepo.AddExceptionNote(r.Context(), org.ID, userID(r), row.ID, noteBody); err != nil {
+				errorJSON(w, r, 500, "DATABASE_ERROR", "could not save exception note")
+				return
+			}
 		}
 		a.logOperation(r, "reconciliation_exception.updated", org.ID, map[string]interface{}{"organization_id": org.ID, "exception_id": row.ID, "status": row.Status, "storage": "postgres", "latency_ms": time.Since(start).Milliseconds()})
 		writeJSON(w, 200, row)
@@ -582,9 +594,187 @@ func (a *app) patchReconciliationException(w http.ResponseWriter, r *http.Reques
 	}
 	row.Status = req.Status
 	a.store.reconciliationExceptions[row.ID] = row
+	if strings.TrimSpace(req.Note) != "" {
+		body := strings.TrimSpace(req.Note)
+		if req.MatchedBankTransactionID != "" {
+			body += " (manual bank match: " + req.MatchedBankTransactionID + ")"
+		}
+		note := models.ExceptionNote{ID: auth.NewID(), OrganizationID: orgID, ExceptionID: row.ID, UserID: userID(r), Body: body, CreatedAt: time.Now().UTC()}
+		a.store.exceptionNotes[note.ID] = note
+	}
 	a.auditLocked(orgID, userID(r), "reconciliation_exception.updated", "reconciliation_exception", row.ID)
 	a.logOperation(r, "reconciliation_exception.updated", orgID, map[string]interface{}{"organization_id": orgID, "exception_id": row.ID, "status": row.Status, "latency_ms": time.Since(start).Milliseconds()})
 	writeJSON(w, 200, row)
+}
+
+func (a *app) listExceptionNotes(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		rows, err := a.cfRepo.ListExceptionNotes(r.Context(), org.ID, r.PathValue("id"))
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not list exception notes")
+			return
+		}
+		writeJSON(w, 200, rows)
+		return
+	}
+	orgID := a.ensureOrganization(userID(r)).ID
+	exceptionID := r.PathValue("id")
+	a.store.mu.RLock()
+	defer a.store.mu.RUnlock()
+	out := []models.ExceptionNote{}
+	for _, note := range a.store.exceptionNotes {
+		if note.OrganizationID == orgID && note.ExceptionID == exceptionID {
+			out = append(out, note)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	writeJSON(w, 200, out)
+}
+
+func (a *app) addExceptionNote(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Body string `json:"body"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	req.Body = strings.TrimSpace(req.Body)
+	if req.Body == "" {
+		errorJSON(w, r, 400, "VALIDATION_ERROR", "body is required")
+		return
+	}
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		note, err := a.cfRepo.AddExceptionNote(r.Context(), org.ID, userID(r), r.PathValue("id"), req.Body)
+		if err != nil {
+			errorJSON(w, r, 404, "NOT_FOUND", "exception not found")
+			return
+		}
+		writeJSON(w, 201, note)
+		return
+	}
+	orgID := a.ensureOrganization(userID(r)).ID
+	exceptionID := r.PathValue("id")
+	a.store.mu.Lock()
+	defer a.store.mu.Unlock()
+	ex, ok := a.store.reconciliationExceptions[exceptionID]
+	if !ok || ex.OrganizationID != orgID {
+		errorJSON(w, r, 404, "NOT_FOUND", "exception not found")
+		return
+	}
+	note := models.ExceptionNote{ID: auth.NewID(), OrganizationID: orgID, ExceptionID: exceptionID, UserID: userID(r), Body: req.Body, CreatedAt: time.Now().UTC()}
+	a.store.exceptionNotes[note.ID] = note
+	a.auditLocked(orgID, userID(r), "reconciliation_exception.note_added", "reconciliation_exception", exceptionID)
+	writeJSON(w, 201, note)
+}
+
+func (a *app) onboardingStatusV1(w http.ResponseWriter, r *http.Request) {
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		status, err := a.cfRepo.OnboardingStatus(r.Context(), org.ID)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not load onboarding status")
+			return
+		}
+		if status.BusinessType == "" {
+			status.BusinessType = org.Type
+		}
+		writeJSON(w, 200, status)
+		return
+	}
+	org := a.ensureOrganization(userID(r))
+	a.store.mu.RLock()
+	status, ok := a.store.organizationSetup[org.ID]
+	payouts, bank, team, openBreaks := 0, 0, 0, 0
+	for _, row := range a.store.payouts {
+		if row.OrganizationID == org.ID {
+			payouts++
+		}
+	}
+	for _, row := range a.store.bankTransactions {
+		if row.OrganizationID == org.ID {
+			bank++
+		}
+	}
+	for _, row := range a.store.organizationMembers {
+		if row.OrganizationID == org.ID {
+			team++
+		}
+	}
+	for _, row := range a.store.reconciliationExceptions {
+		if row.OrganizationID == org.ID && row.Status == "open" {
+			openBreaks++
+		}
+	}
+	a.store.mu.RUnlock()
+	if !ok {
+		status = models.OrganizationSetup{OrganizationID: org.ID, BusinessType: org.Type, Checklist: map[string]interface{}{}, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	}
+	status.ProviderReadiness = map[string]interface{}{"workspace_created": true, "processor_data_ready": payouts > 0, "bank_data_ready": bank > 0, "team_ready": team > 0, "open_breaks": openBreaks}
+	if status.Checklist == nil {
+		status.Checklist = map[string]interface{}{}
+	}
+	for key, value := range status.ProviderReadiness {
+		status.Checklist[key] = value
+	}
+	writeJSON(w, 200, status)
+}
+
+func (a *app) updateOnboardingStatusV1(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SelectedScenario string                 `json:"selected_scenario"`
+		BusinessType     string                 `json:"business_type"`
+		Checklist        map[string]interface{} `json:"checklist"`
+		Completed        bool                   `json:"completed"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if a.cfRepo != nil {
+		org, ok := a.clearflowOrganizationForRequest(w, r)
+		if !ok {
+			return
+		}
+		status, err := a.cfRepo.UpsertOnboardingStatus(r.Context(), org.ID, req.SelectedScenario, req.BusinessType, req.Checklist, req.Completed)
+		if err != nil {
+			errorJSON(w, r, 500, "DATABASE_ERROR", "could not update onboarding status")
+			return
+		}
+		a.writeAudit(r.Context(), r, org.ID, userID(r), "onboarding.updated", "organization", org.ID, "{}")
+		writeJSON(w, 200, status)
+		return
+	}
+	org := a.ensureOrganization(userID(r))
+	now := time.Now().UTC()
+	a.store.mu.Lock()
+	status := a.store.organizationSetup[org.ID]
+	if status.OrganizationID == "" {
+		status = models.OrganizationSetup{OrganizationID: org.ID, CreatedAt: now}
+	}
+	status.SelectedScenario = req.SelectedScenario
+	status.BusinessType = fallback(req.BusinessType, org.Type)
+	status.Checklist = req.Checklist
+	if status.Checklist == nil {
+		status.Checklist = map[string]interface{}{}
+	}
+	if req.Completed {
+		status.CompletedAt = now
+	}
+	status.UpdatedAt = now
+	a.store.organizationSetup[org.ID] = status
+	a.auditLocked(org.ID, userID(r), "onboarding.updated", "organization", org.ID)
+	a.store.mu.Unlock()
+	writeJSON(w, 200, status)
 }
 
 func (a *app) clearflowCashSummary(w http.ResponseWriter, r *http.Request) {

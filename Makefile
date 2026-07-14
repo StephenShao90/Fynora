@@ -26,6 +26,7 @@ migrate: ensure-db
 	docker compose exec -T postgres psql -U postgres -d clearflow < services/api/migrations/003_phase4_operability.sql
 	docker compose exec -T postgres psql -U postgres -d clearflow < services/api/migrations/004_phase7_integrations.sql
 	docker compose exec -T postgres psql -U postgres -d clearflow < services/api/migrations/005_phase8_production_readiness.sql
+	docker compose exec -T postgres psql -U postgres -d clearflow < services/api/migrations/006_product_readiness.sql
 
 seed:
 	@echo "Demo data is seeded automatically by POST /auth/demo-token."

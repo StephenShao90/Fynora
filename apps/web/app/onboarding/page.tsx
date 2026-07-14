@@ -7,6 +7,7 @@ import { Card, Shell } from "@/components/Shell";
 import { useToast } from "@/components/ToastProvider";
 import { activeDemoScenario, api, setDemoScenario } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
+import type { OnboardingStatus } from "@/types";
 
 type Organization = { id: string; name: string; type?: string; currency?: string; role?: string };
 type StripeStatus = { connected: boolean; displayName?: string };
@@ -34,14 +35,18 @@ export default function OnboardingPage() {
   const imports = useApi<PortfolioImport[]>("/portfolio/imports", []);
   const payouts = useApi<unknown[]>("/payouts", []);
   const bank = useApi<unknown[]>("/bank-transactions", []);
+  const setup = useApi<OnboardingStatus>("/api/v1/onboarding/status", { organization_id: "", selected_scenario: scenario.id, business_type: scenario.type, checklist: {} });
 
-  const checklist = useMemo(() => [
-    { label: "Workspace created", done: orgs.data.length > 0, href: "/settings", detail: orgs.data[0]?.name || "Create a company workspace" },
-    { label: "Business profile chosen", done: Boolean(type && currency), href: "/onboarding", detail: `${labelForType(type)} · ${currency}` },
-    { label: "Processor connected", done: stripe.data.connected || payouts.data.length > 0, href: "/integrations", detail: stripe.data.connected ? stripe.data.displayName || "Stripe connected" : "Connect Stripe or run mock sync" },
-    { label: "Bank data connected", done: plaid.data.length > 0 || bank.data.length > 0, href: "/imports", detail: plaid.data[0]?.institution_name || "Connect Plaid or import bank CSV" },
-    { label: "Portfolio data optional", done: imports.data.length > 0, href: "/portfolio", detail: imports.data.length ? `${imports.data.length} import(s)` : "Upload holdings/activity if relevant" }
-  ], [bank.data.length, currency, imports.data.length, orgs.data, plaid.data, payouts.data.length, stripe.data, type]);
+  const checklist = useMemo(() => {
+    const readiness = setup.data.provider_readiness || setup.data.checklist || {};
+    return [
+      { label: "Workspace created", done: Boolean(readiness.workspace_created) || orgs.data.length > 0, href: "/settings", detail: orgs.data[0]?.name || "Create a company workspace" },
+      { label: "Business profile chosen", done: Boolean(type && currency), href: "/onboarding", detail: `${labelForType(type)} · ${currency}` },
+      { label: "Processor connected", done: Boolean(readiness.stripe_connected || readiness.processor_data_ready) || stripe.data.connected || payouts.data.length > 0, href: "/integrations", detail: stripe.data.connected ? stripe.data.displayName || "Stripe connected" : "Connect Stripe or run mock sync" },
+      { label: "Bank data connected", done: Boolean(readiness.plaid_connected || readiness.bank_data_ready) || plaid.data.length > 0 || bank.data.length > 0, href: "/imports", detail: plaid.data[0]?.institution_name || "Connect Plaid or import bank CSV" },
+      { label: "Portfolio data optional", done: imports.data.length > 0, href: "/portfolio", detail: imports.data.length ? `${imports.data.length} import(s)` : "Upload holdings/activity if relevant" }
+    ];
+  }, [bank.data.length, currency, imports.data.length, orgs.data, plaid.data, payouts.data.length, setup.data, stripe.data, type]);
 
   async function createWorkspace() {
     setBusy("Creating workspace...");
@@ -50,6 +55,17 @@ export default function OnboardingPage() {
       const created = await api<Organization>("/api/v1/organizations", {
         method: "POST",
         body: JSON.stringify({ name, type, currency })
+      });
+      await api<OnboardingStatus>("/api/v1/onboarding/status", {
+        method: "PUT",
+        body: JSON.stringify({
+          selected_scenario: typeToScenario(type),
+          business_type: type,
+          checklist: {
+            workspace_created: true,
+            business_profile_chosen: true
+          }
+        })
       });
       pushToast({ tone: "success", title: "Workspace created", detail: created.name });
       window.location.reload();
@@ -62,6 +78,10 @@ export default function OnboardingPage() {
 
   async function switchScenario(id: string) {
     setDemoScenario(id);
+    await api<OnboardingStatus>("/api/v1/onboarding/status", {
+      method: "PUT",
+      body: JSON.stringify({ selected_scenario: id, business_type: activeDemoScenario().type, checklist: setup.data.checklist || {} })
+    }).catch(() => undefined);
     pushToast({ tone: "success", title: "Scenario switched", detail: "Demo data will refresh around the selected company profile." });
     window.location.reload();
   }
@@ -98,6 +118,7 @@ export default function OnboardingPage() {
         </Card>
 
         <Card title="Setup checklist">
+          {setup.loading ? <p className="mb-3 text-sm text-ink/45">Loading saved setup status...</p> : null}
           <div className="grid gap-2">
             {checklist.map((item) => (
               <Link key={item.label} href={item.href} className={`rounded-md border p-3 transition hover:bg-ink/[0.03] ${item.done ? "border-moss/25 bg-mint/60" : "border-gold/35 bg-gold/10"}`}>
@@ -108,6 +129,9 @@ export default function OnboardingPage() {
                 <p className="mt-1 text-xs leading-5 text-ink/55">{item.detail}</p>
               </Link>
             ))}
+          </div>
+          <div className="mt-4 rounded-md bg-ink/[0.03] p-3 text-sm leading-6 text-ink/60">
+            Setup status is persisted through the API when the local backend is running. Provider readiness is derived from actual Stripe/Plaid connections, imported processor data, bank records, and team membership.
           </div>
         </Card>
       </div>

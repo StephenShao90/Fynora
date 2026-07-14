@@ -279,6 +279,10 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.startsWith("/api/v1/auth/sessions") && method === "GET") return [{ id: "session-demo-1", created_at: "2026-07-06T18:00:00Z", expires_at: "2026-07-07T18:00:00Z", user_agent: "Demo browser" }] as T;
   if (path.startsWith("/api/v1/auth/sessions") && method === "DELETE") return undefined as T;
   if (path.startsWith("/api/v1/organizations") && method === "POST") return { id: "demo-org", name: scenario.name, type: scenario.type, currency: scenario.currency, role: "owner" } as T;
+  if (path.startsWith("/api/v1/onboarding/status") && method === "GET") return demoOnboardingStatus(scenario) as T;
+  if (path.startsWith("/api/v1/onboarding/status") && method === "PUT") return demoOnboardingStatus(scenario) as T;
+  if (path.includes("/reconciliation/exceptions/") && path.includes("/notes") && method === "GET") return demoExceptionNotes as T;
+  if (path.includes("/reconciliation/exceptions/") && path.includes("/notes") && method === "POST") return { id: crypto.randomUUID(), organization_id: "demo-org", exception_id: "ex-1", user_id: "demo-user", body: "Demo note saved.", created_at: new Date().toISOString() } as T;
   if (path.match(/^\/api\/v1\/organizations\/[^/]+\/members$/) && method === "GET") return demoMembers as T;
   if (path.match(/^\/api\/v1\/organizations\/[^/]+\/members$/) && method === "POST") return { id: crypto.randomUUID(), organization_id: "demo-org", user_id: crypto.randomUUID(), user_email: "invited@example.com", user_name: "Invited User", role: "viewer", created_at: new Date().toISOString() } as T;
   if (path.includes("/members/") && method === "PATCH") return { id: "member-demo-2", organization_id: "demo-org", user_id: "member-demo-2", user_email: "analyst@clearflow.local", user_name: "Analyst", role: "admin", created_at: "2026-07-06T18:00:00Z" } as T;
@@ -304,6 +308,8 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.startsWith("/api/v1/integrations/stripe/connect-url")) return { url: "https://connect.stripe.com/oauth/authorize?response_type=code&client_id=ca_mock_clearflow&state=demo-state", state: "demo-state" } as T;
   if (path.startsWith("/api/v1/integrations/stripe/status")) return demoStripeStatus as T;
   if (path.startsWith("/api/v1/integrations/stripe") && method === "DELETE") return { connected: false, provider: "stripe" } as T;
+  if (path.startsWith("/api/v1/webhooks/processors/stripe")) return { status: "accepted", provider: "stripe", queued: true } as T;
+  if (path.startsWith("/api/v1/webhooks/plaid")) return { status: "accepted", provider: "plaid", queued: true } as T;
   if (path.startsWith("/api/v1/jobs/dead")) return { data: [], pagination: demoPagination } as T;
   if (path.startsWith("/api/v1/jobs")) return { data: demoJobs, pagination: demoPagination } as T;
   if (path.startsWith("/api/v1/audit-logs")) return { data: demoAuditLogs, pagination: demoPagination } as T;
@@ -329,6 +335,38 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
 const demoMembers = [
   { id: "member-demo-1", organization_id: "demo-org", user_id: "demo-user", user_email: "demo@clearflow.local", user_name: "Demo Operator", role: "owner", created_at: "2026-07-06T18:00:00Z" },
   { id: "member-demo-2", organization_id: "demo-org", user_id: "analyst-demo", user_email: "analyst@clearflow.local", user_name: "Analyst", role: "viewer", created_at: "2026-07-06T18:10:00Z" }
+];
+
+function demoOnboardingStatus(scenario: DemoScenario) {
+  return {
+    organization_id: "demo-org",
+    selected_scenario: scenario.id,
+    business_type: scenario.type,
+    checklist: {
+      workspace_created: true,
+      stripe_connected: true,
+      plaid_connected: true,
+      processor_data_ready: true,
+      bank_data_ready: true,
+      team_ready: true,
+      open_breaks: 2
+    },
+    provider_readiness: {
+      workspace_created: true,
+      stripe_connected: true,
+      plaid_connected: true,
+      processor_data_ready: true,
+      bank_data_ready: true,
+      team_ready: true,
+      open_breaks: 2
+    },
+    created_at: "2026-07-06T18:00:00Z",
+    updated_at: "2026-07-06T20:00:00Z"
+  };
+}
+
+const demoExceptionNotes = [
+  { id: "note-demo-1", organization_id: "demo-org", exception_id: "ex-1", user_id: "demo-user", body: "Verified likely processor fee reserve timing during demo review.", created_at: "2026-07-06T20:12:00Z" }
 ];
 
 const demoPayments = [

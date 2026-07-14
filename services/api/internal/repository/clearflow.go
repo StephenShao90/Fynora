@@ -599,6 +599,153 @@ func (r *ClearflowRepository) UpdateException(ctx context.Context, orgID, userID
 	return row, nil
 }
 
+func (r *ClearflowRepository) ListExceptionNotes(ctx context.Context, orgID, exceptionID string) ([]models.ExceptionNote, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, organization_id, exception_id, COALESCE(user_id::text, ''), body, created_at
+		FROM exception_notes
+		WHERE organization_id = $1 AND exception_id = $2
+		ORDER BY created_at DESC
+	`, orgID, exceptionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.ExceptionNote{}
+	for rows.Next() {
+		var row models.ExceptionNote
+		if err := rows.Scan(&row.ID, &row.OrganizationID, &row.ExceptionID, &row.UserID, &row.Body, &row.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+func (r *ClearflowRepository) AddExceptionNote(ctx context.Context, orgID, userID, exceptionID, body string) (models.ExceptionNote, error) {
+	note := models.ExceptionNote{ID: auth.NewID(), OrganizationID: orgID, ExceptionID: exceptionID, UserID: userID, Body: strings.TrimSpace(body), CreatedAt: time.Now().UTC()}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return note, err
+	}
+	defer rollback(tx)
+	var exists bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM reconciliation_exceptions WHERE id = $1 AND organization_id = $2)`, exceptionID, orgID).Scan(&exists); err != nil {
+		return note, err
+	}
+	if !exists {
+		return note, sql.ErrNoRows
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO exception_notes (id, organization_id, exception_id, user_id, body, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, note.ID, note.OrganizationID, note.ExceptionID, nullableUUID(note.UserID), note.Body, note.CreatedAt); err != nil {
+		return note, err
+	}
+	if err := insertAudit(ctx, tx, orgID, userID, "reconciliation_exception.note_added", "reconciliation_exception", exceptionID); err != nil {
+		return note, err
+	}
+	if err := tx.Commit(); err != nil {
+		return note, err
+	}
+	return note, nil
+}
+
+func (r *ClearflowRepository) OnboardingStatus(ctx context.Context, orgID string) (models.OrganizationSetup, error) {
+	setup := models.OrganizationSetup{OrganizationID: orgID, Checklist: map[string]interface{}{}}
+	var checklistBytes []byte
+	err := r.db.QueryRowContext(ctx, `
+		SELECT organization_id, COALESCE(selected_scenario, ''), COALESCE(business_type, ''), checklist, COALESCE(completed_at, '0001-01-01'::timestamp), created_at, updated_at
+		FROM organization_setup WHERE organization_id = $1
+	`, orgID).Scan(&setup.OrganizationID, &setup.SelectedScenario, &setup.BusinessType, &checklistBytes, &setup.CompletedAt, &setup.CreatedAt, &setup.UpdatedAt)
+	if err != nil && err != sql.ErrNoRows {
+		return setup, err
+	}
+	if len(checklistBytes) > 0 {
+		_ = json.Unmarshal(checklistBytes, &setup.Checklist)
+	}
+	readiness, err := r.providerReadiness(ctx, orgID)
+	if err != nil {
+		return setup, err
+	}
+	setup.ProviderReadiness = readiness
+	if setup.Checklist == nil {
+		setup.Checklist = map[string]interface{}{}
+	}
+	for key, value := range readiness {
+		setup.Checklist[key] = value
+	}
+	return setup, nil
+}
+
+func (r *ClearflowRepository) UpsertOnboardingStatus(ctx context.Context, orgID, scenario, businessType string, checklist map[string]interface{}, completed bool) (models.OrganizationSetup, error) {
+	if checklist == nil {
+		checklist = map[string]interface{}{}
+	}
+	payload, err := json.Marshal(checklist)
+	if err != nil {
+		return models.OrganizationSetup{}, err
+	}
+	var completedAt interface{}
+	if completed {
+		completedAt = time.Now().UTC()
+	}
+	var setup models.OrganizationSetup
+	var checklistBytes []byte
+	err = r.db.QueryRowContext(ctx, `
+		INSERT INTO organization_setup (organization_id, selected_scenario, business_type, checklist, completed_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4::jsonb, $5, now(), now())
+		ON CONFLICT (organization_id) DO UPDATE SET
+			selected_scenario = COALESCE(NULLIF(EXCLUDED.selected_scenario, ''), organization_setup.selected_scenario),
+			business_type = COALESCE(NULLIF(EXCLUDED.business_type, ''), organization_setup.business_type),
+			checklist = EXCLUDED.checklist,
+			completed_at = COALESCE(EXCLUDED.completed_at, organization_setup.completed_at),
+			updated_at = now()
+		RETURNING organization_id, COALESCE(selected_scenario, ''), COALESCE(business_type, ''), checklist, COALESCE(completed_at, '0001-01-01'::timestamp), created_at, updated_at
+	`, orgID, scenario, businessType, string(payload), completedAt).Scan(&setup.OrganizationID, &setup.SelectedScenario, &setup.BusinessType, &checklistBytes, &setup.CompletedAt, &setup.CreatedAt, &setup.UpdatedAt)
+	if err != nil {
+		return setup, err
+	}
+	_ = json.Unmarshal(checklistBytes, &setup.Checklist)
+	readiness, err := r.providerReadiness(ctx, orgID)
+	if err != nil {
+		return setup, err
+	}
+	setup.ProviderReadiness = readiness
+	return setup, nil
+}
+
+func (r *ClearflowRepository) providerReadiness(ctx context.Context, orgID string) (map[string]interface{}, error) {
+	counts := map[string]int{}
+	for key, query := range map[string]string{
+		"processor_data": `SELECT COUNT(*) FROM payouts WHERE organization_id = $1`,
+		"bank_data":      `SELECT COUNT(*) FROM bank_transactions WHERE organization_id = $1`,
+		"open_breaks":    `SELECT COUNT(*) FROM reconciliation_exceptions WHERE organization_id = $1 AND status = 'open'`,
+		"team_members":   `SELECT COUNT(*) FROM organization_members WHERE organization_id = $1`,
+	} {
+		var count int
+		if err := r.db.QueryRowContext(ctx, query, orgID).Scan(&count); err != nil {
+			return nil, err
+		}
+		counts[key] = count
+	}
+	var stripeConnected, plaidConnected bool
+	if err := r.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM provider_connections WHERE organization_id = $1 AND provider = 'stripe' AND status = 'connected')`, orgID).Scan(&stripeConnected); err != nil {
+		return nil, err
+	}
+	if err := r.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM bank_accounts WHERE organization_id = $1 AND provider = 'plaid' AND status = 'active')`, orgID).Scan(&plaidConnected); err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"workspace_created":    true,
+		"stripe_connected":     stripeConnected,
+		"plaid_connected":      plaidConnected,
+		"processor_data_ready": counts["processor_data"] > 0,
+		"bank_data_ready":      counts["bank_data"] > 0,
+		"team_ready":           counts["team_members"] > 0,
+		"open_breaks":          counts["open_breaks"],
+	}, nil
+}
+
 func (r *ClearflowRepository) PayoutBreakdown(ctx context.Context, orgID, payoutID string) (map[string]interface{}, error) {
 	var payout models.Payout
 	var amount int64

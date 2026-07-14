@@ -2,6 +2,8 @@
 
 Clearflow is organized as a monorepo with `apps/web` for the Next.js operations dashboard and `services/api` for the Go API.
 
+The product wedge is intentionally narrow: Stripe-style processor activity plus Plaid/bank activity for payout reconciliation and cash visibility. Portfolio/advisor modules remain useful technical extensions, but the core business workflow is onboarding, provider ingestion, reconciliation, exception review, auditability, and forecasted operating cash.
+
 ```text
 Small organization
   |

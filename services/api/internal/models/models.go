@@ -292,6 +292,26 @@ type ReconciliationException struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
+type ExceptionNote struct {
+	ID             string    `json:"id"`
+	OrganizationID string    `json:"organization_id"`
+	ExceptionID    string    `json:"exception_id"`
+	UserID         string    `json:"user_id"`
+	Body           string    `json:"body"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type OrganizationSetup struct {
+	OrganizationID    string                 `json:"organization_id"`
+	SelectedScenario  string                 `json:"selected_scenario"`
+	BusinessType      string                 `json:"business_type"`
+	Checklist         map[string]interface{} `json:"checklist"`
+	CompletedAt       time.Time              `json:"completed_at,omitempty"`
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
+	ProviderReadiness map[string]interface{} `json:"provider_readiness,omitempty"`
+}
+
 type AuditLog struct {
 	ID             string    `json:"id"`
 	OrganizationID string    `json:"organization_id"`

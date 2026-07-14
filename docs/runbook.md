@@ -123,11 +123,13 @@ Full `npm audit` currently reports a moderate advisory in Next's internal PostCS
 
 ## Production Startup
 
-1. Apply all migrations through `005_phase8_production_readiness.sql`.
+1. Apply all migrations through `006_product_readiness.sql`.
 2. Start the API process.
 3. Start the worker process separately with `make worker`.
 4. Configure Stripe webhook delivery to `POST /api/v1/webhooks/processors/stripe`.
 5. Configure Plaid webhook delivery to `POST /api/v1/webhooks/plaid`.
+6. Verify onboarding setup status with `GET /api/v1/onboarding/status`.
+7. Verify exception notes with `GET /reconciliation/exceptions/{id}/notes` after resolving a break.
 
 ## Operations
 

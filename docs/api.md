@@ -41,8 +41,17 @@ All protected endpoints require `Authorization: Bearer <token>`.
 - `GET /reconciliation/runs/{id}`
 - `GET /reconciliation/exceptions`
 - `PATCH /reconciliation/exceptions/{id}`
+- `GET /reconciliation/exceptions/{id}/notes`
+- `POST /reconciliation/exceptions/{id}/notes`
 
-The reconciliation engine matches processor payouts to bank deposits by amount, arrival date, and description. It creates exceptions for unmatched payouts and unmatched deposits.
+The reconciliation engine matches processor payouts to bank deposits by amount, arrival date, and description. It creates exceptions for unmatched payouts and unmatched deposits. Operators can resolve exceptions with notes or append investigation notes without resolving; notes persist in `exception_notes` and are reflected in audit logs.
+
+## Onboarding
+
+- `GET /api/v1/onboarding/status`
+- `PUT /api/v1/onboarding/status`
+
+Onboarding status persists selected demo/product scenario, business type, checklist state, and derived provider readiness. Provider readiness is computed from actual workspace, Stripe/Plaid connection, processor data, bank data, team, and open-break state.
 
 ## Cash Flow
 
@@ -93,6 +102,8 @@ Portfolio CSV imports return row-level `errors` with row number, field, code, me
 Stripe OAuth creates a signed, expiring state tied to the organization and user. The callback validates the state, protects provider tokens server-side, stores account metadata, writes audit logs, and emits outbox events. Stripe status never returns raw access or refresh tokens.
 
 Stripe webhooks verify `Stripe-Signature` when `STRIPE_WEBHOOK_SECRET` is configured. Plaid webhook verification can be required with `PLAID_WEBHOOK_VERIFICATION=true`; development mock bypass is available outside production only.
+
+The Integrations UI includes local sandbox webhook testers. These are for development verification only; production webhook verification should be tested through Stripe/Plaid dashboards or signed webhook tooling.
 
 ## Legacy Personal-Finance Endpoints
 

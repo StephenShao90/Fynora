@@ -1228,6 +1228,66 @@ paths:
                 $ref: "#/components/schemas/OpsMetrics"
         default:
           $ref: "#/components/responses/StandardError"
+  /api/v1/onboarding/status:
+    get:
+      summary: Return persisted onboarding and provider readiness state
+      responses:
+        "200":
+          description: Onboarding status with derived readiness flags
+        default:
+          $ref: "#/components/responses/StandardError"
+    put:
+      summary: Persist onboarding checklist and selected scenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                selected_scenario: { type: string }
+                business_type: { type: string }
+                checklist: { type: object }
+                completed: { type: boolean }
+      responses:
+        "200":
+          description: Updated onboarding status
+        default:
+          $ref: "#/components/responses/StandardError"
+  /reconciliation/exceptions/{id}/notes:
+    get:
+      summary: List operator notes for a reconciliation exception
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Exception notes
+        default:
+          $ref: "#/components/responses/StandardError"
+    post:
+      summary: Add an operator note to a reconciliation exception
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        "201":
+          description: Created exception note
+        default:
+          $ref: "#/components/responses/StandardError"
   /portfolio/import/holdings-csv:
     post:
       summary: Import a brokerage holdings CSV

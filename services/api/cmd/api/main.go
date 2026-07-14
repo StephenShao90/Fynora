@@ -81,6 +81,8 @@ type memoryStore struct {
 	reconciliationRuns       map[string]models.ReconciliationRun
 	reconciliationMatches    map[string]models.ReconciliationMatch
 	reconciliationExceptions map[string]models.ReconciliationException
+	exceptionNotes           map[string]models.ExceptionNote
+	organizationSetup        map[string]models.OrganizationSetup
 	auditLogs                map[string]models.AuditLog
 	refreshSessions          map[string]models.RefreshSession
 	refreshTokensByHash      map[string]string
@@ -120,6 +122,8 @@ func newStore() *memoryStore {
 		reconciliationRuns:       map[string]models.ReconciliationRun{},
 		reconciliationMatches:    map[string]models.ReconciliationMatch{},
 		reconciliationExceptions: map[string]models.ReconciliationException{},
+		exceptionNotes:           map[string]models.ExceptionNote{},
+		organizationSetup:        map[string]models.OrganizationSetup{},
 		auditLogs:                map[string]models.AuditLog{},
 		refreshSessions:          map[string]models.RefreshSession{},
 		refreshTokensByHash:      map[string]string{},
@@ -291,6 +295,8 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /reconciliation/runs/{id}", a.authed(a.getReconciliationRun))
 	mux.HandleFunc("GET /reconciliation/exceptions", a.authed(a.listReconciliationExceptions))
 	mux.HandleFunc("PATCH /reconciliation/exceptions/{id}", a.authed(a.patchReconciliationException))
+	mux.HandleFunc("GET /reconciliation/exceptions/{id}/notes", a.authed(a.listExceptionNotes))
+	mux.HandleFunc("POST /reconciliation/exceptions/{id}/notes", a.authed(a.addExceptionNote))
 	mux.HandleFunc("GET /cash-flow/summary", a.authed(a.clearflowCashSummary))
 	mux.HandleFunc("GET /api/v1/cash-flow/summary", a.authed(a.clearflowCashSummaryV1))
 	mux.HandleFunc("GET /cash-flow/forecast", a.authed(a.clearflowCashForecast))
@@ -313,6 +319,8 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/webhooks/plaid", a.webhookRateLimited(a.handlePlaidWebhook))
 	mux.HandleFunc("POST /api/v1/webhooks/processors/{provider}", a.webhookRateLimited(a.handleProcessorWebhook))
 	mux.HandleFunc("GET /api/v1/ops/metrics", a.authed(a.opsMetricsV1))
+	mux.HandleFunc("GET /api/v1/onboarding/status", a.authed(a.onboardingStatusV1))
+	mux.HandleFunc("PUT /api/v1/onboarding/status", a.authed(a.updateOnboardingStatusV1))
 	mux.HandleFunc("GET /reports/monthly", a.authed(a.clearflowMonthlyReport))
 	mux.HandleFunc("GET /debug/clearflow", a.authed(a.debugClearflowState))
 	mux.HandleFunc("POST /debug/clearflow/reset-demo", a.authed(a.resetClearflowDemo))

@@ -48,10 +48,12 @@ STRIPE_REDIRECT_URL=https://api.example.com/api/v1/integrations/stripe/callback
 Required release checklist:
 
 - Run `make verify`.
-- Run `make migrate` against the target database, including migration `005_phase8_production_readiness.sql`.
+- Run `make migrate` against the target database, including migration `006_product_readiness.sql`.
 - Run `API_BASE=https://your-api.example.com node scripts/smoke-clearflow.mjs`.
 - Confirm `/ready` returns `{"status":"ready","storage":"postgres"}`.
 - Confirm `POST /portfolio/import/holdings-csv` and `POST /portfolio/import/transactions-csv` persist after an API restart.
+- Confirm `GET /api/v1/onboarding/status` persists setup choices and reports provider readiness.
+- Confirm exception notes remain available through `GET /reconciliation/exceptions/{id}/notes`.
 - Confirm webhook secrets and provider token encryption are configured before using Stripe/Plaid in production mode.
 
 Optional production env:

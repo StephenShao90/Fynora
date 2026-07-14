@@ -120,6 +120,8 @@ curl -s -X POST http://localhost:8080/reconciliation/runs \
 
 API contract: [`docs/openapi.yaml`](docs/openapi.yaml)
 
+Recruiter demo script: [`docs/recruiter-demo.md`](docs/recruiter-demo.md)
+
 ## Demo Flow
 
 1. Start Postgres, Redis, migrations, API, worker, and web with `make dev`.

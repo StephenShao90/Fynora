@@ -8,6 +8,7 @@ import { ReconciliationMatches } from "@/components/reconciliation/Reconciliatio
 import { useToast } from "@/components/ToastProvider";
 import { api, getPayoutExplanation, getReconciliationMatches, type PayoutExplanation, type ReconciliationMatch } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
+import type { ExceptionNote } from "@/types";
 
 type Run = { id: string; status: string; matched_count: number; exception_count: number; started_at: string };
 type Exception = { id: string; severity: string; title: string; explanation: string; status: string; created_at: string };
@@ -28,6 +29,8 @@ export default function ReconciliationPage() {
   const [selectedException, setSelectedException] = useState<Exception | undefined>();
   const [resolutionNote, setResolutionNote] = useState("");
   const [manualMatchId, setManualMatchId] = useState("");
+  const [notes, setNotes] = useState<ExceptionNote[]>([]);
+  const [noteDraft, setNoteDraft] = useState("");
   const [explanation, setExplanation] = useState<{ data?: PayoutExplanation; loading: boolean; error: string }>({ loading: false, error: "" });
   const [matches, setMatches] = useState<{ data: ReconciliationMatch[]; loading: boolean; error: string }>({ data: [], loading: false, error: "" });
   const runs = useApi<Run[]>(`/reconciliation/runs?reload=${reloadKey}`, []);
@@ -66,6 +69,18 @@ export default function ReconciliationPage() {
       .catch((err) => !cancelled && setMatches({ data: [], loading: false, error: (err as Error).message }));
     return () => { cancelled = true; };
   }, [latestRun?.id, reloadKey]);
+
+  useEffect(() => {
+    if (!selectedException?.id) {
+      setNotes([]);
+      return;
+    }
+    let cancelled = false;
+    api<ExceptionNote[]>(`/reconciliation/exceptions/${selectedException.id}/notes`)
+      .then((rows) => !cancelled && setNotes(rows))
+      .catch(() => !cancelled && setNotes([]));
+    return () => { cancelled = true; };
+  }, [selectedException?.id, reloadKey]);
 
   async function action(label: string, jobPath: string) {
     if (!orgId) {
@@ -148,6 +163,21 @@ export default function ReconciliationPage() {
     }
   }
 
+  async function addNote(item: Exception) {
+    if (!noteDraft.trim()) return;
+    try {
+      const note = await api<ExceptionNote>(`/reconciliation/exceptions/${item.id}/notes`, {
+        method: "POST",
+        body: JSON.stringify({ body: noteDraft.trim() })
+      });
+      setNotes((rows) => [note, ...rows]);
+      setNoteDraft("");
+      pushToast({ tone: "success", title: "Note added", detail: "Exception history was updated." });
+    } catch (err) {
+      pushToast({ tone: "error", title: "Could not add note", detail: (err as Error).message });
+    }
+  }
+
   return (
     <Shell>
       <Header title="Reconciliation" subtitle="Processor payouts, bank deposits, exceptions, and operator workflow." />
@@ -218,7 +248,7 @@ export default function ReconciliationPage() {
                       </div>
                       <p className="mt-1 text-sm leading-6 text-ink/65">{item.explanation}</p>
                     </div>
-                    {item.status === "open" ? <button onClick={() => { setSelectedException(item); setResolutionNote(""); setManualMatchId(""); }} className="shrink-0 rounded-md border border-ink/15 px-3 py-1.5 text-xs font-medium hover:bg-white">Review</button> : null}
+                    {item.status === "open" ? <button onClick={() => { setSelectedException(item); setResolutionNote(""); setManualMatchId(""); setNoteDraft(""); }} className="shrink-0 rounded-md border border-ink/15 px-3 py-1.5 text-xs font-medium hover:bg-white">Review</button> : null}
                   </div>
                 </div>
               ))}
@@ -262,6 +292,21 @@ export default function ReconciliationPage() {
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => resolveException(selectedException)} className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white">Resolve break</button>
                   <button onClick={() => setSelectedException(undefined)} className="rounded-md border border-ink/15 px-4 py-2 text-sm font-semibold text-ink">Cancel</button>
+                </div>
+                <div className="rounded-md border border-ink/10 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Note history</p>
+                  <div className="mt-3 grid gap-2">
+                    {notes.length ? notes.map((note) => (
+                      <div key={note.id} className="rounded-md bg-ink/[0.03] p-2 text-sm">
+                        <p className="text-ink/75">{note.body}</p>
+                        <p className="mt-1 text-xs text-ink/40">{formatDate(note.created_at)}</p>
+                      </div>
+                    )) : <p className="text-sm text-ink/50">No notes yet.</p>}
+                  </div>
+                  <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
+                    <input value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} placeholder="Add investigation note without resolving" className="rounded-md border border-ink/15 px-3 py-2 text-sm" />
+                    <button onClick={() => addNote(selectedException)} className="rounded-md border border-ink/15 px-3 py-2 text-sm font-semibold">Add note</button>
+                  </div>
                 </div>
               </div>
             </div>

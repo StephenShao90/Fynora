@@ -105,23 +105,24 @@ After `make dev`, open `http://localhost:3000`.
 
 1. Click **Try Demo**.
 2. Open **Onboarding**, switch demo scenarios, save the workspace profile, and confirm the checklist updates.
-3. Dashboard should load cash, payout, forecast, and exception widgets.
-4. Confirm **Operator checklist** shows the next recommended setup/reconciliation actions.
-5. Open **Reconciliation**.
-6. Click **Run full reconciliation**.
-7. Confirm the activity feed shows processor sync, bank sync, and reconciliation as completed.
-8. Click **View explanation** on a payout.
-9. Click **Review** on an open break, add a note, resolve it, and confirm it leaves the active queue.
-10. Open **Transactions**, search/filter rows, select a transaction, and change category.
-11. Open **Cash Flow** and check forecast, anomalies, recommendations, spending insights.
-12. Open **Portfolio**.
-13. Click **Download sample** under **Holdings snapshot**, then upload `sample_holdings.csv`.
-14. Confirm recent imports shows the holdings import, holdings table is populated, and allocation charts update.
-15. Click **Download sample** under **Activity ledger**, then upload `sample_portfolio_transactions.csv`.
-16. Confirm recent imports shows the activity import and **Recent portfolio activity** lists buys, deposits, and dividends.
-17. Open **Ops** and check jobs, audit logs, metrics, and queue depth.
-18. Open **Integrations**, run a provider sync control, and confirm a response or queued job appears.
-19. Open **Settings**, add/change/remove a team member where permitted, revoke a session, then click **Reset demo data**.
+3. Confirm setup status persists by refreshing Onboarding and checking the saved business type/checklist.
+4. Dashboard should load cash, payout, forecast, and exception widgets.
+5. Confirm **Operator checklist** shows the next recommended setup/reconciliation actions.
+6. Open **Reconciliation**.
+7. Click **Run full reconciliation**.
+8. Confirm the activity feed shows processor sync, bank sync, and reconciliation as completed.
+9. Click **View explanation** on a payout.
+10. Click **Review** on an open break, add an investigation note, confirm it appears in note history, then resolve it.
+11. Open **Transactions**, search/filter rows, select a transaction, and change category.
+12. Open **Cash Flow** and check forecast, anomalies, recommendations, spending insights.
+13. Open **Portfolio**.
+14. Click **Download sample** under **Holdings snapshot**, then upload `sample_holdings.csv`.
+15. Confirm recent imports shows the holdings import, holdings table is populated, and allocation charts update.
+16. Click **Download sample** under **Activity ledger**, then upload `sample_portfolio_transactions.csv`.
+17. Confirm recent imports shows the activity import and **Recent portfolio activity** lists buys, deposits, and dividends.
+18. Open **Ops** and check jobs, audit logs, metrics, and queue depth.
+19. Open **Integrations**, run a provider sync control, send local Stripe/Plaid webhook tests, and confirm responses or queued jobs appear.
+20. Open **Settings**, add/change/remove a team member where permitted, revoke a session, then click **Reset demo data**.
 
 Frontend browser console logs:
 

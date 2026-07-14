@@ -88,6 +88,24 @@ export default function IntegrationsPage() {
     }
   }
 
+  async function sendWebhook(label: string, path: string, body: Record<string, unknown>) {
+    setBusy(`${label} webhook sending...`);
+    try {
+      const suffix = orgId ? `?organizationId=${encodeURIComponent(orgId)}` : "";
+      const result = await api<Record<string, unknown>>(`${path}${suffix}`, {
+        method: "POST",
+        body: JSON.stringify(body)
+      });
+      setSyncResult(JSON.stringify(result, null, 2));
+      pushToast({ tone: "success", title: `${label} webhook accepted`, detail: "Open Ops to verify webhook metrics, queued jobs, and audit logs." });
+    } catch (err) {
+      setSyncResult((err as Error).message);
+      pushToast({ tone: "error", title: `${label} webhook failed`, detail: (err as Error).message });
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
     <Shell>
       <Header title="Integrations" subtitle="Connect payment and bank providers, verify connection health, and keep external sync state visible." />
@@ -156,6 +174,24 @@ export default function IntegrationsPage() {
             </button>
           </div>
           {syncResult ? <pre className="mt-4 max-h-60 overflow-auto rounded-md bg-ink p-4 text-xs text-white">{syncResult}</pre> : null}
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card title="Sandbox webhook tester">
+          <div className="grid gap-3 md:grid-cols-2">
+            <button onClick={() => sendWebhook("Stripe", "/api/v1/webhooks/processors/stripe", { id: `evt_demo_${Date.now()}`, type: "payout.paid", data: { object: { id: "po_demo_webhook" } } })} className="rounded-md border border-ink/15 px-4 py-3 text-left text-sm font-semibold hover:bg-ink/[0.03]">
+              Send Stripe payout webhook
+              <span className="mt-1 block text-xs font-normal text-ink/50">Exercises webhook persistence, dedupe, metrics, outbox, and job queueing in dev.</span>
+            </button>
+            <button onClick={() => sendWebhook("Plaid", "/api/v1/webhooks/plaid", { webhook_type: "TRANSACTIONS", webhook_code: "SYNC_UPDATES_AVAILABLE", item_id: "item_demo_webhook", environment: "sandbox" })} className="rounded-md border border-ink/15 px-4 py-3 text-left text-sm font-semibold hover:bg-ink/[0.03]">
+              Send Plaid transactions webhook
+              <span className="mt-1 block text-xs font-normal text-ink/50">Exercises Plaid webhook handling and transaction-sync job queueing in local mode.</span>
+            </button>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-ink/50">
+            If production webhook verification is enabled, use provider dashboards or signed webhook tooling instead of these local test buttons.
+          </p>
         </Card>
       </div>
 
