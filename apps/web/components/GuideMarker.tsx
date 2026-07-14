@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { GUIDE_MODE_EVENT } from "./HelpFlow";
 
 export type Guide = {
   number: number;
@@ -9,9 +10,26 @@ export type Guide = {
 };
 
 export function GuideMarker({ guide }: { guide: Guide }) {
+  const [visible, setVisible] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(false);
   const open = hovered || pinned;
+
+  useEffect(() => {
+    setVisible(Boolean(window.__clearflowGuideMode));
+    function onGuideMode(event: Event) {
+      const active = Boolean((event as CustomEvent<{ active: boolean }>).detail?.active);
+      setVisible(active);
+      if (!active) {
+        setHovered(false);
+        setPinned(false);
+      }
+    }
+    window.addEventListener(GUIDE_MODE_EVENT, onGuideMode);
+    return () => window.removeEventListener(GUIDE_MODE_EVENT, onGuideMode);
+  }, []);
+
+  if (!visible) return null;
 
   return (
     <span className="relative inline-flex">
