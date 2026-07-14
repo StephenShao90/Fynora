@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, Shell, money } from "@/components/Shell";
 import { Header, Empty } from "@/components/Common";
+import { GuideMarker } from "@/components/GuideMarker";
 import { PayoutExplanationPanel } from "@/components/payouts/PayoutExplanationPanel";
 import { ReconciliationMatches } from "@/components/reconciliation/ReconciliationMatches";
 import { useToast } from "@/components/ToastProvider";
@@ -182,6 +183,7 @@ export default function ReconciliationPage() {
     <Shell>
       <Header title="Reconciliation" subtitle="Processor payouts, bank deposits, exceptions, and operator workflow." />
 
+      <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Reconciliation summary</p><GuideMarker guide={{ number: 1, title: "Summary metrics", body: "Start here to understand whether cash and payouts are reconciled. Match rate and open breaks tell you if the workflow needs review." }} /></div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Kpi label="Cash" value={money(cash.data.cash_balance)} sub="posted bank balance" />
         <Kpi label="Match rate" value={`${matchRate}%`} sub={latestRun ? `${latestRun.matched_count} matched / ${latestRun.exception_count} breaks` : "no run yet"} tone={matchRate >= 80 ? "good" : "warn"} />
@@ -191,7 +193,7 @@ export default function ReconciliationPage() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
-        <Card title="Runbook">
+        <Card title="Runbook" guide={{ number: 2, title: "Runbook", body: "Use Run full reconciliation for the normal path. It queues processor sync, bank sync, then matching through the worker." }}>
           <button onClick={runFullWorkflow} disabled={workflowRunning || !orgId} className="mb-3 w-full rounded-md bg-ink px-3 py-3 text-left text-sm font-semibold text-white hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-ink/40">
             Run full reconciliation
             <span className="mt-1 block text-xs font-normal text-white/70">Queues processor sync, bank sync, then matching in order.</span>
@@ -209,7 +211,7 @@ export default function ReconciliationPage() {
           </div>
         </Card>
 
-        <Card title="Latest reconciliation runs">
+        <Card title="Latest reconciliation runs" guide={{ number: 3, title: "Latest runs", body: "Each run records matching results. Use this table to prove reconciliation executed and to compare matches versus breaks over time." }}>
           {runs.data.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -234,7 +236,7 @@ export default function ReconciliationPage() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr_.95fr]">
-        <Card title="Exception queue">
+        <Card title="Exception queue" guide={{ number: 4, title: "Exception queue", body: "Review these breaks one by one. Click Review to add notes, choose a matching bank record, or resolve the issue." }}>
           {openExceptions.length ? (
             <div className="grid gap-2">
               {openExceptions.slice(0, 8).map((item) => (
@@ -256,7 +258,7 @@ export default function ReconciliationPage() {
           ) : <Empty text="No open exceptions." />}
         </Card>
 
-        <Card title="Payout ledger">
+        <Card title="Payout ledger" guide={{ number: 5, title: "Payout ledger", body: "Processor payouts are the deposits you expect to see in the bank. Click View explanation to inspect gross payments, fees, refunds, and net amount." }}>
           {payouts.data.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -270,7 +272,7 @@ export default function ReconciliationPage() {
 
       {selectedException ? (
         <div className="mt-4">
-          <Card title="Exception workbench">
+          <Card title="Exception workbench" guide={{ number: 6, title: "Exception workbench", body: "This is the operator action area. Add an investigation note, optionally associate a bank record, then resolve the break when it is explained." }}>
             <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
               <div className="rounded-md border border-coral/25 bg-coral/5 p-4">
                 <p className="text-sm font-semibold text-coral">{selectedException.title}</p>
@@ -315,12 +317,12 @@ export default function ReconciliationPage() {
       ) : null}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
-        <PayoutExplanationPanel explanation={explanation.data} loading={explanation.loading} error={explanation.error} />
-        <ReconciliationMatches matches={matches.data} loading={matches.loading} error={matches.error} />
+        <div className="relative"><div className="absolute right-4 top-4 z-10"><GuideMarker guide={{ number: 7, title: "Payout explanation", body: "Use this to explain how gross processor activity becomes the net bank deposit, including fees, refunds, and warnings." }} /></div><PayoutExplanationPanel explanation={explanation.data} loading={explanation.loading} error={explanation.error} /></div>
+        <div className="relative"><div className="absolute right-4 top-4 z-10"><GuideMarker guide={{ number: 8, title: "Match scoring", body: "This explains why Clearflow thinks a payout and bank deposit match, including confidence score and amount/date differences." }} /></div><ReconciliationMatches matches={matches.data} loading={matches.loading} error={matches.error} /></div>
       </div>
 
       <div className="mt-4">
-        <Card title="Recent processor payments">
+        <Card title="Recent processor payments" guide={{ number: 9, title: "Processor payments", body: "These payment rows are the source activity behind fees, refunds, payout items, and payout explanations." }}>
           {payments.data.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">

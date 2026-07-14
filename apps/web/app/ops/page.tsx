@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Empty, Header } from "@/components/Common";
+import { GuideMarker } from "@/components/GuideMarker";
 import { Card, Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
@@ -62,12 +63,14 @@ export default function OpsPage() {
     <Shell>
       <Header title="Operations" subtitle="Async jobs, audit trail, metrics, and debugging surfaces for financial operations." />
 
+      <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Worker status</p><GuideMarker guide={{ number: 1, title: "Worker status", body: "Check this first after running sync or reconciliation. Queue depth should eventually return to zero when the worker is healthy." }} /></div>
       <div className={`mb-4 rounded-md border px-4 py-3 text-sm ${Number(metrics.data.job_queue_depth || 0) > 0 ? "border-gold/40 bg-gold/15 text-ink" : "border-moss/25 bg-mint/60 text-moss"}`}>
         {Number(metrics.data.job_queue_depth || 0) > 0
           ? `Worker queue has ${Number(metrics.data.job_queue_depth).toLocaleString()} pending job(s). Keep make worker running until this returns to 0.`
           : "Worker queue is clear. If you just ran Reconciliation, completed jobs should appear below after the next refresh."}
       </div>
 
+      <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Operational metrics</p><GuideMarker guide={{ number: 2, title: "Operational metrics", body: "Use these counters to prove API traffic, background jobs, webhooks, and idempotency replays are being recorded." }} /></div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         {metricCards.map(([label, value]) => (
           <section key={label} className="rounded-md border border-ink/10 bg-white px-4 py-3 shadow-sm">
@@ -78,7 +81,7 @@ export default function OpsPage() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <Card title="Recent jobs">
+        <Card title="Recent jobs" guide={{ number: 3, title: "Recent jobs", body: "Shows queued, running, completed, or failed async work. Sync and reconciliation should appear here after using the workflow buttons." }}>
           {jobs.loading ? <Skeleton /> : jobs.error ? <Empty text={`Could not load jobs: ${jobs.error}`} /> : jobs.data.length ? (
             <table className="w-full text-left text-sm">
               <thead className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink/45">
@@ -98,7 +101,7 @@ export default function OpsPage() {
           ) : <Empty text="No jobs found for this organization yet. Run the Reconciliation workflow with make worker running, then this table will fill with sync and reconciliation jobs." />}
         </Card>
 
-        <Card title="Audit trail">
+        <Card title="Audit trail" guide={{ number: 4, title: "Audit trail", body: "Audit logs explain who did what and when. Use these entries with request IDs/logs to debug financial workflow issues." }}>
           {audit.loading ? <Skeleton /> : audit.error ? <Empty text={`Could not load audit logs: ${audit.error}`} /> : audit.data.length ? (
             <div className="grid gap-2">
               {audit.data.slice(0, 8).map((entry) => (
@@ -118,7 +121,7 @@ export default function OpsPage() {
       </div>
 
       <div className="mt-4">
-        <Card title="Operational readiness">
+        <Card title="Operational readiness" guide={{ number: 5, title: "Operational readiness", body: "This summarizes production backend concepts recruiters care about: idempotency, async workers, Redis locks/rate limits, and tracing." }}>
           <div className="grid gap-3 text-sm leading-6 text-ink/60 md:grid-cols-3">
             <p>Financial writes use idempotency keys so retries do not duplicate payouts, deposits, or reconciliation jobs.</p>
             <p>The worker processes async sync and reconciliation jobs separately from API request handling.</p>

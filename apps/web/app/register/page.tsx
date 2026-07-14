@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { GuideMarker } from "@/components/GuideMarker";
 import { api, setToken } from "@/lib/api";
 
 export default function Register() {
@@ -18,7 +19,10 @@ export default function Register() {
   return (
     <main className="grid min-h-screen place-items-center bg-mint px-4">
       <form onSubmit={submit} className="w-full max-w-md rounded-lg border border-ink/10 bg-white p-6 shadow-panel">
-        <h1 className="text-2xl font-semibold">Create account</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold">Create account</h1>
+          <GuideMarker guide={{ number: 1, title: "Create account", body: "Register a local user, receive a JWT, and start with a default organization workspace." }} />
+        </div>
         <input name="email" type="email" placeholder="Email" className="mt-6 w-full rounded-md border border-ink/15 px-3 py-2" required />
         <input name="password" type="password" placeholder="Password" className="mt-3 w-full rounded-md border border-ink/15 px-3 py-2" required />
         {error ? <p className="mt-3 text-sm text-coral">{error}</p> : null}

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Common";
 import { DemoPilot } from "@/components/DemoPilot";
+import { GuideMarker } from "@/components/GuideMarker";
 import { Card, Shell } from "@/components/Shell";
 import { useToast } from "@/components/ToastProvider";
 import { activeDemoScenario, api, setDemoScenario } from "@/lib/api";
@@ -92,7 +93,7 @@ export default function OnboardingPage() {
       <Header title="Onboarding" subtitle="Set up the workspace, connect provider data, and reach a reliable reconciliation-ready state." />
 
       <div className="grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
-        <Card title="Workspace profile">
+        <Card title="Workspace profile" guide={{ number: 1, title: "Workspace profile", body: "Set the organization name, business type, and currency. This is the customer/account context for all cash and reconciliation data." }}>
           <div className="grid gap-3">
             <label className="grid gap-1 text-sm font-medium text-ink">
               Organization name
@@ -118,7 +119,7 @@ export default function OnboardingPage() {
           <p className="mt-3 text-sm leading-6 text-ink/55">This creates a real organization when the API is running. In demo fallback mode it switches the sample company profile locally.</p>
         </Card>
 
-        <Card title="Setup checklist">
+        <Card title="Setup checklist" guide={{ number: 2, title: "Setup checklist", body: "Use this to see what is missing before Clearflow can reconcile reliably: processor data, bank data, and optional portfolio data." }}>
           {setup.loading ? <p className="mb-3 text-sm text-ink/45">Loading saved setup status...</p> : null}
           <div className="grid gap-2">
             {checklist.map((item) => (
@@ -138,11 +139,14 @@ export default function OnboardingPage() {
       </div>
 
       <div className="mt-4">
+        <div className="mb-2 flex justify-end">
+          <GuideMarker guide={{ number: 3, title: "Guided demo setup", body: "Click Run full demo setup to prepare the whole walkthrough: onboarding state, processor data, bank data, reconciliation, and portfolio sample data." }} />
+        </div>
         <DemoPilot compact />
       </div>
 
       <div className="mt-4">
-        <Card title="Demo company switcher">
+        <Card title="Demo company switcher" guide={{ number: 4, title: "Demo company switcher", body: "Switch the sample company profile so you can show Clearflow for student orgs, creators, SaaS teams, or nonprofits." }}>
           <div className="grid gap-3 md:grid-cols-4">
             <ScenarioButton active={scenario.id === "student_org"} title="Student org" detail="Dues, event tickets, sponsor payments, venue deposits." onClick={() => switchScenario("student_org")} />
             <ScenarioButton active={scenario.id === "creator"} title="Creator shop" detail="Stripe storefront payouts, refunds, platform tools." onClick={() => switchScenario("creator")} />

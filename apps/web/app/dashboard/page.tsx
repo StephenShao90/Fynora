@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Too
 import { Card, Shell, money } from "@/components/Shell";
 import { Header, Empty } from "@/components/Common";
 import { DemoPilot } from "@/components/DemoPilot";
+import { GuideMarker } from "@/components/GuideMarker";
 import { useApi } from "@/hooks/useApi";
 
 type Payout = { id: string; processor_payout_id: string; amount: number; status: string; expected_arrival_at: string };
@@ -30,9 +31,11 @@ export default function Dashboard() {
       <Header title="Operations dashboard" subtitle="A real-time view of payout settlement, bank cash, open breaks, and forecasted operating runway." />
 
       <div className="mb-4">
+        <div className="mb-2 flex justify-end"><GuideMarker guide={{ number: 1, title: "Guided demo setup", body: "Start here when testing locally. It prepares onboarding, processor data, bank data, reconciliation, and portfolio sample data in the correct order." }} /></div>
         <DemoPilot />
       </div>
 
+      <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Key operating metrics</p><GuideMarker guide={{ number: 2, title: "Operating metrics", body: "Read these cards left to right: available cash, net operating movement after costs/refunds, processor cost, refunds, then open reconciliation breaks." }} /></div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Kpi label="Operating cash" value={money(cash.data.cash_balance)} detail="posted bank cash" />
         <Kpi label="Net flow" value={money(cash.data.net_cash_flow)} detail="income minus debits, fees, refunds" tone={(cash.data.net_cash_flow || 0) >= 0 ? "good" : "warn"} />
@@ -42,7 +45,7 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-4">
-        <Card title="Operator checklist">
+        <Card title="Operator checklist" guide={{ number: 3, title: "Operator checklist", body: "Use this as the daily workflow map. Any card marked next tells you which page to open to finish setup or fix active issues." }}>
           <div className="grid gap-3 md:grid-cols-4">
             <ChecklistItem label="Bank connection" done={connections.data.length > 0} detail={connections.data.length ? "Plaid connection available" : "Connect Plaid or create sandbox bank"} href="/imports" />
             <ChecklistItem label="Processor data" done={payouts.data.length > 0 && payments.data.length > 0} detail={payouts.data.length ? "Payouts and payments loaded" : "Run processor sync"} href="/reconciliation" />
@@ -53,7 +56,7 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
-        <Card title="Cash forecast">
+        <Card title="Cash forecast" guide={{ number: 4, title: "Cash-flow forecast", body: "This chart projects cash over time. The x-axis is days from today and the y-axis is projected cash amount. Use it to spot future cash pressure." }}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink/45">
             <span>X-axis: days from today</span>
             <span>Y-axis: projected cash amount</span>
@@ -71,7 +74,7 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        <Card title="Settlement health">
+        <Card title="Settlement health" guide={{ number: 5, title: "Settlement health", body: "This summarizes whether enough processor and bank data exists to trust reconciliation. If open exceptions are nonzero, review breaks next." }}>
           <div className="grid gap-3">
             <HealthRow label="Payouts imported" value={payouts.data.length} />
             <HealthRow label="Bank transactions" value={bank.data.length} />
@@ -88,7 +91,7 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
-        <Card title="Payout volume">
+        <Card title="Payout volume" guide={{ number: 6, title: "Payout volume", body: "Shows recent processor payouts by amount so you can quickly spot unusually large or small settlement batches." }}>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={payouts.data.slice(0, 8)}>
@@ -101,7 +104,7 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        <Card title="Exception queue">
+        <Card title="Exception queue" guide={{ number: 7, title: "Exception queue", body: "These are reconciliation breaks. Open items need operator review before you trust cash reporting or month-end close." }}>
           {exceptions.data.length ? (
             <div className="grid gap-2">
               {exceptions.data.slice(0, 5).map((item) => (
@@ -121,8 +124,8 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <Ledger title="Recent processor payments" rows={payments.data.map((row) => ({ id: row.id, label: row.description, detail: row.status, date: row.occurred_at, amount: row.amount }))} />
-        <Ledger title="Recent bank activity" rows={bank.data.map((row) => ({ id: row.id, label: row.description, detail: row.direction, date: row.posted_at, amount: row.direction === "credit" ? row.amount : -row.amount }))} />
+        <Ledger title="Recent processor payments" guide={{ number: 8, title: "Processor payments", body: "These are the gross payment records that roll up into Stripe-style payouts, fees, and refunds." }} rows={payments.data.map((row) => ({ id: row.id, label: row.description, detail: row.status, date: row.occurred_at, amount: row.amount }))} />
+        <Ledger title="Recent bank activity" guide={{ number: 9, title: "Bank activity", body: "These are posted bank credits and debits. Reconciliation compares processor payouts against these deposits." }} rows={bank.data.map((row) => ({ id: row.id, label: row.description, detail: row.direction, date: row.posted_at, amount: row.direction === "credit" ? row.amount : -row.amount }))} />
       </div>
     </Shell>
   );
@@ -154,9 +157,9 @@ function HealthRow({ label, value, tone = "neutral" }: { label: string; value: n
   return <div className="flex items-center justify-between border-b border-ink/10 py-2 last:border-0"><span className="text-sm text-ink/60">{label}</span><span className={`text-sm font-semibold ${color}`}>{value}</span></div>;
 }
 
-function Ledger({ title, rows }: { title: string; rows: Array<{ id: string; label: string; detail: string; date: string; amount: number }> }) {
+function Ledger({ title, rows, guide }: { title: string; rows: Array<{ id: string; label: string; detail: string; date: string; amount: number }>; guide?: { number: number; title: string; body: string } }) {
   return (
-    <Card title={title}>
+    <Card title={title} guide={guide}>
       {rows.length ? <table className="w-full text-left text-sm"><tbody>{rows.slice(0, 8).map((row) => <tr key={row.id} className="border-b border-ink/10 last:border-0"><td className="py-3"><p className="font-medium">{row.label}</p><p className="text-xs text-ink/45">{row.detail} · {formatDate(row.date)}</p></td><td className={`text-right font-medium ${row.amount < 0 ? "text-coral" : "text-ink"}`}>{money(row.amount)}</td></tr>)}</tbody></table> : <Empty text="No ledger rows yet." />}
     </Card>
   );

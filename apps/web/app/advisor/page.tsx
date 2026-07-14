@@ -38,13 +38,13 @@ export default function Advisor() {
     <Shell>
       <Header title="Advisor" subtitle="Rule-based guidance grounded in computed cash-flow and portfolio data." />
       <div className="grid gap-5 xl:grid-cols-2">
-        <Card title="Monthly allocation"><pre className="text-sm">{JSON.stringify(plan.data.recommended_allocation || {}, null, 2)}</pre><p className="mt-3 text-sm text-ink/55">Educational estimate only. Clearflow does not provide individualized securities advice.</p></Card>
-        <Card title="Emergency fund"><p className="text-3xl font-semibold">{money(plan.data.emergency_fund?.gap)}</p><p className="mt-2 text-sm text-ink/60">{plan.data.emergency_fund?.explanation}</p></Card>
-        <Card title="Investment projection">
+        <Card title="Monthly allocation" guide={{ number: 1, title: "Monthly allocation", body: "Shows rule-based allocation guidance from the current cash/portfolio context. It is educational and not personalized financial advice." }}><pre className="text-sm">{JSON.stringify(plan.data.recommended_allocation || {}, null, 2)}</pre><p className="mt-3 text-sm text-ink/55">Educational estimate only. Clearflow does not provide individualized securities advice.</p></Card>
+        <Card title="Emergency fund" guide={{ number: 2, title: "Emergency fund", body: "Shows estimated reserve gap. Use this before projections so users understand cash safety first." }}><p className="text-3xl font-semibold">{money(plan.data.emergency_fund?.gap)}</p><p className="mt-2 text-sm text-ink/60">{plan.data.emergency_fund?.explanation}</p></Card>
+        <Card title="Investment projection" guide={{ number: 3, title: "Investment projection", body: "Enter monthly contribution, initial balance, years, and risk level, then simulate to see expected/lower/upper projection bands." }}>
           <form onSubmit={project} className="grid gap-3 sm:grid-cols-4"><input name="monthly" defaultValue="300" className="rounded-md border px-3 py-2" /><input name="initial" defaultValue="1000" className="rounded-md border px-3 py-2" /><input name="years" defaultValue="30" className="rounded-md border px-3 py-2" /><select name="risk" className="rounded-md border px-3 py-2"><option>moderate</option><option>conservative</option><option>aggressive</option></select><button className="rounded-md bg-ink px-4 py-2 text-white sm:col-span-4">Simulate</button></form>
           {projection ? <div className="mt-4 h-72"><ResponsiveContainer><LineChart data={projection.points}><XAxis dataKey="year" /><YAxis /><Tooltip /><Line dataKey="expected" stroke="#315846" /><Line dataKey="lower" stroke="#f07b63" /><Line dataKey="upper" stroke="#d6a53a" /></LineChart></ResponsiveContainer></div> : null}
         </Card>
-        <Card title="Advisor chat">
+        <Card title="Advisor chat" guide={{ number: 4, title: "Advisor chat", body: "Ask educational cash-flow or portfolio questions. The response is rule-based and grounded in available app data." }}>
           <form onSubmit={chat} className="flex gap-2"><input name="message" className="min-w-0 flex-1 rounded-md border px-3 py-2" defaultValue="How much can I invest each month without hurting my cash flow?" /><button className="rounded-md bg-moss px-4 py-2 text-white">Ask</button></form>
           {answer ? <p className="mt-4 rounded-md bg-mint p-4 text-sm leading-6">{answer}</p> : null}
         </Card>

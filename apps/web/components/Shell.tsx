@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { GuideMarker, type Guide } from "@/components/GuideMarker";
 import { activeDemoScenario, isDemoFallbackMode, logout, setDemoScenario } from "@/lib/api";
 
 const nav = [
@@ -92,10 +93,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Card({ title, children }: { title?: string; children: React.ReactNode }) {
+export function Card({ title, children, guide }: { title?: string; children: React.ReactNode; guide?: Guide }) {
   return (
     <section className="rounded-md border border-ink/10 bg-white p-5 shadow-sm">
-      {title ? <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-ink/45">{title}</h2> : null}
+      {title || guide ? (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          {title ? <h2 className="text-xs font-semibold uppercase tracking-wide text-ink/45">{title}</h2> : <span />}
+          {guide ? <GuideMarker guide={guide} /> : null}
+        </div>
+      ) : null}
       {children}
     </section>
   );

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from "recharts";
 import { Card, Metric, Shell, money } from "@/components/Shell";
 import { Empty, Header } from "@/components/Common";
+import { GuideMarker } from "@/components/GuideMarker";
 import { useToast } from "@/components/ToastProvider";
 import { useApi } from "@/hooks/useApi";
 import { api, upload } from "@/lib/api";
@@ -60,6 +61,7 @@ export default function PortfolioPage() {
     <Shell>
       <Header title="Portfolio" subtitle="Import brokerage holdings and activity, normalize it into a clean ledger, then review allocation and concentration risk." />
 
+      <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Portfolio summary</p><GuideMarker guide={{ number: 1, title: "Portfolio summary", body: "Start with market value, gains/losses, cash, and largest holding to understand the portfolio at a glance." }} /></div>
       <div className="grid gap-4 md:grid-cols-4">
         <Metric label="Market value" value={money(summary.data.total_market_value)} />
         <Metric label="Unrealized gain/loss" value={`${money(summary.data.unrealized_gain_loss)} (${gainPct})`} tone={(summary.data.unrealized_gain_loss || 0) >= 0 ? "good" : "warn"} />
@@ -68,7 +70,7 @@ export default function PortfolioPage() {
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[.95fr_1.05fr]">
-        <Card title="Import brokerage data">
+        <Card title="Import brokerage data" guide={{ number: 2, title: "Import brokerage data", body: "Upload holdings and activity CSVs, or run the Plaid Investments sample. This populates the normalized portfolio ledger." }}>
           <div className="grid gap-3 md:grid-cols-2">
             <ImportTile
               icon={<span aria-hidden="true">CSV</span>}
@@ -93,7 +95,7 @@ export default function PortfolioPage() {
           </button>
         </Card>
 
-        <Card title="Recent portfolio imports">
+        <Card title="Recent portfolio imports" guide={{ number: 3, title: "Recent imports", body: "Use this to verify import row counts and spot failed rows. If errors appear, inspect them before trusting analytics." }}>
           {imports.data.length ? (
             <div className="grid gap-2">
               {imports.data.slice(0, 5).map((item) => (
@@ -128,7 +130,7 @@ export default function PortfolioPage() {
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <Card title="Allocation by security type">
+        <Card title="Allocation by security type" guide={{ number: 4, title: "Allocation by type", body: "Shows how portfolio value is distributed across stocks, ETFs, cash, and other security types." }}>
           <div className="h-72">
             <ResponsiveContainer>
               <PieChart>
@@ -140,7 +142,7 @@ export default function PortfolioPage() {
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card title="Top holdings">
+        <Card title="Top holdings" guide={{ number: 5, title: "Top holdings", body: "Shows concentration by symbol. Large single positions create risk and should be reviewed." }}>
           <div className="h-72">
             <ResponsiveContainer>
               <BarChart data={allocation.data.by_symbol?.slice(0, 8)}>
@@ -155,7 +157,7 @@ export default function PortfolioPage() {
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
-        <Card title="Holdings">
+        <Card title="Holdings" guide={{ number: 6, title: "Holdings table", body: "Inspect each position, quantity, cost, and market value. This is the normalized holdings ledger." }}>
           {holdings.data.length ? (
             <table className="w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-ink/45">
@@ -175,13 +177,13 @@ export default function PortfolioPage() {
             </table>
           ) : <Empty text="No holdings yet. Import holdings CSV to populate this view." />}
         </Card>
-        <Card title="Risk">
+        <Card title="Risk" guide={{ number: 7, title: "Risk findings", body: "Flags concentration or allocation issues from imported portfolio data. Treat this as educational, not financial advice." }}>
           {risk.data.length ? risk.data.map((r) => <div key={r.title} className="mb-3 rounded-md bg-gold/15 p-3 text-sm"><p className="font-medium">{r.title}</p><p className="text-ink/65">{r.explanation}</p></div>) : <Empty text="No concentration warnings." />}
         </Card>
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_.8fr]">
-        <Card title="Recent portfolio activity">
+        <Card title="Recent portfolio activity" guide={{ number: 8, title: "Portfolio activity", body: "Shows buys, sells, dividends, deposits, withdrawals, and fees imported from activity CSVs." }}>
           {sortedTransactions.length ? (
             <table className="w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-ink/45">
@@ -200,7 +202,7 @@ export default function PortfolioPage() {
             </table>
           ) : <Empty text="No portfolio activity yet. Import an activity ledger CSV." />}
         </Card>
-        <Card title="Import response">
+        <Card title="Import response" guide={{ number: 9, title: "Import response", body: "Raw response from the last import or sync. Use this when debugging row counts, parsed records, or failed rows." }}>
           {result ? <pre className="max-h-80 overflow-auto rounded-lg bg-ink p-4 text-xs text-white">{result}</pre> : (
             <div className="rounded-md border border-dashed border-ink/15 p-5 text-sm leading-6 text-ink/55">
               <p className="mb-3 font-semibold text-moss">Awaiting import</p>

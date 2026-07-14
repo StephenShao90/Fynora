@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { GuideMarker } from "@/components/GuideMarker";
 import { api, setToken } from "@/lib/api";
 
 export default function Login() {
@@ -22,7 +23,10 @@ function AuthForm({ title, error, onSubmit, button }: { title: string; error: st
   return (
     <main className="grid min-h-screen place-items-center bg-sky px-4">
       <form onSubmit={onSubmit} className="w-full max-w-md rounded-lg border border-ink/10 bg-white p-6 shadow-panel">
-        <h1 className="text-2xl font-semibold">{title}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold">{title}</h1>
+          <GuideMarker guide={{ number: 1, title: "Authentication", body: "Enter an existing email and password to receive a JWT and open the dashboard. For demos, use Try Demo from the landing page." }} />
+        </div>
         <input name="email" type="email" placeholder="Email" className="mt-6 w-full rounded-md border border-ink/15 px-3 py-2" required />
         <input name="password" type="password" placeholder="Password" className="mt-3 w-full rounded-md border border-ink/15 px-3 py-2" required />
         {error ? <p className="mt-3 text-sm text-coral">{error}</p> : null}

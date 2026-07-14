@@ -127,7 +127,7 @@ export default function Settings() {
       <Header title="Settings" subtitle="Workspace, team, profile, deployment, and session controls." />
 
       <div className="grid gap-4 xl:grid-cols-[.8fr_1.2fr]">
-        <Card title="Workspace">
+        <Card title="Workspace" guide={{ number: 1, title: "Workspace", body: "Review the active organization context, reset demo data to a known state, or log out of the local session." }}>
           <p className="text-lg font-semibold text-ink">{org?.name || "No workspace"}</p>
           <p className="mt-1 text-sm text-ink/55">{org?.type || "unknown"} · {org?.currency || "USD"} · {org?.role || "member"}</p>
           <p className="mt-4 text-sm leading-6 text-ink/60">Clearflow stores only demo/local data in this MVP. Do not enter brokerage credentials.</p>
@@ -137,7 +137,7 @@ export default function Settings() {
           </div>
         </Card>
 
-        <Card title="Team">
+        <Card title="Team" guide={{ number: 2, title: "Team", body: "Invite teammates and change roles. Owners are protected so you cannot accidentally remove the last owner." }}>
           <div className="grid gap-2 md:grid-cols-[1fr_160px_auto]">
             <input value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="teammate@example.com" className="rounded-md border border-ink/15 px-3 py-2 text-sm" />
             <select value={inviteRole} onChange={(event) => setInviteRole(event.target.value)} className="rounded-md border border-ink/15 px-3 py-2 text-sm">
@@ -168,7 +168,7 @@ export default function Settings() {
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_.9fr]">
-        <Card title="Role model">
+        <Card title="Role model" guide={{ number: 3, title: "Role model", body: "Explains the RBAC levels Clearflow uses to separate owner/admin operations from analyst and viewer access." }}>
           <div className="grid gap-3 text-sm leading-6 text-ink/60 md:grid-cols-4">
             <p><span className="font-semibold text-ink">Owner</span><br />Billing, team, data, and all operations.</p>
             <p><span className="font-semibold text-ink">Admin</span><br />Can manage team and financial operations.</p>
@@ -176,7 +176,7 @@ export default function Settings() {
             <p><span className="font-semibold text-ink">Viewer</span><br />Read-only access for advisors or officers.</p>
           </div>
         </Card>
-        <Card title="Production readiness">
+        <Card title="Production readiness" guide={{ number: 4, title: "Production readiness", body: "Use this as the deployment checklist: frontend on Vercel, API/worker on backend host, secrets only on backend." }}>
           <ul className="grid gap-2 text-sm leading-6 text-ink/60">
             <li>Backend should run as API + worker services with hosted Postgres and Redis.</li>
             <li>Vercel should point `NEXT_PUBLIC_API_BASE_URL` at the deployed API.</li>
@@ -186,7 +186,7 @@ export default function Settings() {
       </div>
 
       <div className="mt-5">
-        <Card title="Sessions">
+        <Card title="Sessions" guide={{ number: 5, title: "Sessions", body: "Shows refresh sessions. Revoke a session to test auth/session management and demonstrate account security controls." }}>
           {sessions.length ? (
             <div className="grid gap-2">
               {sessions.map((session) => (

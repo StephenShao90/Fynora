@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Header } from "@/components/Common";
+import { GuideMarker } from "@/components/GuideMarker";
 import { Shell } from "@/components/Shell";
 import { AnomalyList } from "@/components/insights/AnomalyList";
 import { CashRecommendations } from "@/components/insights/CashRecommendations";
@@ -85,17 +86,17 @@ export default function Insights() {
       <Header title="Financial intelligence" subtitle="Forecast cash, explain reconciliation outcomes, and surface payment operations issues before they become reporting problems." />
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
-        <CashflowForecastCard forecast={forecast.data} horizon={horizon} onHorizonChange={setHorizon} loading={forecast.loading} error={forecast.error} />
-        <CashRecommendations recommendations={recommendations.data || []} loading={recommendations.loading} error={recommendations.error} />
+        <div className="relative"><div className="absolute right-4 top-4 z-10"><GuideMarker guide={{ number: 1, title: "Cash-flow forecast", body: "Change the horizon to project cash over time. Use the chart and assumptions to explain where cash may tighten." }} /></div><CashflowForecastCard forecast={forecast.data} horizon={horizon} onHorizonChange={setHorizon} loading={forecast.loading} error={forecast.error} /></div>
+        <div className="relative"><div className="absolute right-4 top-4 z-10"><GuideMarker guide={{ number: 2, title: "Cash recommendations", body: "Prioritized operational suggestions based on cash position, reserves, and upcoming pressure." }} /></div><CashRecommendations recommendations={recommendations.data || []} loading={recommendations.loading} error={recommendations.error} /></div>
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
-        <AnomalyList anomalies={anomalies.data || []} loading={anomalies.loading} error={anomalies.error} />
-        <ReconciliationMatches matches={matches.data || []} loading={matches.loading || runs.loading} error={matches.error || runs.error} />
+        <div className="relative"><div className="absolute right-4 top-4 z-10"><GuideMarker guide={{ number: 3, title: "Anomalies", body: "Review unusual or missing financial events. High-severity anomalies should usually send you back to Reconciliation." }} /></div><AnomalyList anomalies={anomalies.data || []} loading={anomalies.loading} error={anomalies.error} /></div>
+        <div className="relative"><div className="absolute right-4 top-4 z-10"><GuideMarker guide={{ number: 4, title: "Match intelligence", body: "Explains reconciliation confidence and reasons. Use this to justify why a payout and bank deposit were matched or flagged." }} /></div><ReconciliationMatches matches={matches.data || []} loading={matches.loading || runs.loading} error={matches.error || runs.error} /></div>
       </div>
 
       <div className="mt-4">
-        <SpendingInsights spending={spending.data} loading={spending.loading} error={spending.error} />
+        <div className="relative"><div className="absolute right-4 top-4 z-10"><GuideMarker guide={{ number: 5, title: "Spending insights", body: "Shows categorized spending patterns from normalized transactions. Use it to understand operating cost drivers." }} /></div><SpendingInsights spending={spending.data} loading={spending.loading} error={spending.error} /></div>
       </div>
     </Shell>
   );

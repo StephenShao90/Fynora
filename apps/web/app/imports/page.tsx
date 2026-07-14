@@ -172,7 +172,7 @@ export default function Imports() {
     <Shell>
       <Header title="Data connections" subtitle="Connect bank data through Plaid, then supplement with processor or bank CSV exports while Stripe sync is in mock mode." />
       <div className="mb-5 grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
-        <Card title="Bank connection">
+        <Card title="Bank connection" guide={{ number: 1, title: "Bank connection", body: "Start here to connect Plaid or create a sandbox bank. This supplies bank deposits and debits for reconciliation." }}>
           <p className="text-sm leading-6 text-ink/65">
             Plaid handles bank login and MFA. Clearflow receives authorized transaction data and stores Plaid tokens on the backend only.
           </p>
@@ -199,7 +199,7 @@ export default function Imports() {
           </p>
           {busy ? <p className="mt-3 text-sm text-moss">{busy}</p> : null}
         </Card>
-        <Card title="Connection status">
+        <Card title="Connection status" guide={{ number: 2, title: "Connection status", body: "This confirms which institutions are connected and whether they have synced. If empty, bank-based reconciliation will be incomplete." }}>
           {connections.length ? (
             <div className="grid gap-2">
               {connections.map((connection) => (
@@ -217,8 +217,8 @@ export default function Imports() {
         </Card>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
-        {uploads.map(([label, path, sample]) => (
-          <Card key={path} title={label}>
+        {uploads.map(([label, path, sample], index) => (
+          <Card key={path} title={label} guide={{ number: index + 3, title: label, body: `Use this CSV fallback when live provider data is unavailable. Download ${sample}, inspect the format, then upload a matching export.` }}>
             <input type="file" accept=".csv" onChange={(e) => send(path, e.target.files?.[0])} className="w-full text-sm" />
             <a className="mt-4 block text-sm text-moss" href={`/sample-data/${sample}`}>Download {sample}</a>
           </Card>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Card, Shell, money } from "@/components/Shell";
 import { Empty, Header } from "@/components/Common";
+import { GuideMarker } from "@/components/GuideMarker";
 import { useToast } from "@/components/ToastProvider";
 import { api } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
@@ -37,6 +38,7 @@ export default function Transactions() {
     <Shell>
       <Header title="Transactions" subtitle="Search, inspect, and categorize normalized bank records." />
 
+      <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Search and filters</p><GuideMarker guide={{ number: 1, title: "Search and filters", body: "Use search and direction filters to narrow the ledger by merchant, description, category, credit, or debit." }} /></div>
       <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search merchant, description, or category" className="rounded-md border border-ink/15 bg-white px-3 py-2 text-sm" />
         <select value={direction} onChange={(event) => setDirection(event.target.value)} className="rounded-md border border-ink/15 bg-white px-3 py-2 text-sm">
@@ -47,7 +49,7 @@ export default function Transactions() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
-        <Card title="Ledger">
+        <Card title="Ledger" guide={{ number: 2, title: "Transaction ledger", body: "Click any row to inspect it. This table is the normalized transaction record used by cash-flow insights." }}>
           {filtered.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -70,7 +72,7 @@ export default function Transactions() {
           ) : <Empty text="No transactions match the current filters. Try the demo flow or upload the sample CSV." />}
         </Card>
 
-        <Card title="Transaction detail">
+        <Card title="Transaction detail" guide={{ number: 3, title: "Transaction detail", body: "Validate merchant normalization and change category here. Category edits feed future spending insights." }}>
           {selected ? (
             <div className="grid gap-4">
               <div>

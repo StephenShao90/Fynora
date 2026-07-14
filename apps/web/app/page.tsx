@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { GuideMarker } from "@/components/GuideMarker";
 import { api, setToken } from "@/lib/api";
 
 export default function Home() {
@@ -14,6 +15,7 @@ export default function Home() {
     <main className="min-h-screen bg-[#f4f6f2] text-ink">
       <section className="mx-auto grid min-h-screen max-w-7xl items-center gap-10 px-6 py-10 lg:grid-cols-[.9fr_1.1fr]">
         <div>
+          <div className="mb-3 flex justify-start"><GuideMarker guide={{ number: 1, title: "Product entry", body: "Read the product promise, then click Try Demo to enter the guided Clearflow workflow with demo auth." }} /></div>
           <p className="text-sm font-semibold uppercase tracking-wide text-moss">Stripe-to-bank reconciliation for small operators</p>
           <h1 className="mt-4 max-w-4xl text-5xl font-semibold leading-tight tracking-normal text-ink sm:text-6xl">Clearflow</h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-ink/70">
@@ -31,6 +33,7 @@ export default function Home() {
         </div>
 
         <div className="rounded-md border border-ink/10 bg-white p-4 shadow-panel">
+          <div className="mb-3 flex justify-end"><GuideMarker guide={{ number: 2, title: "Product preview", body: "This preview shows the core workflow: cash metrics, exceptions, provider pipeline, and cash forecast before entering the app." }} /></div>
           <div className="border-b border-ink/10 pb-4">
             <div className="flex items-center justify-between gap-3">
               <div>

@@ -117,7 +117,7 @@ export default function IntegrationsPage() {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card title="Stripe">
+        <Card title="Stripe" guide={{ number: 1, title: "Stripe connection", body: "Connect Stripe to authorize processor payout/payment access. In local mode, the app can still run mock Stripe syncs for testing." }}>
           {stripe.loading ? <div className="h-36 animate-pulse rounded-md bg-ink/[0.04]" /> : stripe.error ? <Empty text={`Could not load Stripe status: ${stripe.error}`} /> : (
             <div>
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -142,7 +142,7 @@ export default function IntegrationsPage() {
           )}
         </Card>
 
-        <Card title="Plaid">
+        <Card title="Plaid" guide={{ number: 2, title: "Plaid connection", body: "Plaid represents authorized bank access. Use it to pull bank transactions without storing user bank credentials." }}>
           {plaid.loading ? <div className="h-36 animate-pulse rounded-md bg-ink/[0.04]" /> : plaid.error ? <Empty text={`Could not load Plaid connections: ${plaid.error}`} /> : plaid.data.length ? (
             <div className="grid gap-3">
               {plaid.data.map((conn) => (
@@ -158,7 +158,7 @@ export default function IntegrationsPage() {
       </div>
 
       <div className="mt-4">
-        <Card title="Provider sync controls">
+        <Card title="Provider sync controls" guide={{ number: 3, title: "Provider sync controls", body: "Use these buttons to manually refresh processor, bank, or portfolio data. Check Ops afterward to verify queued jobs and logs." }}>
           <div className="grid gap-3 md:grid-cols-3">
             <button onClick={() => syncProvider("Stripe", "/api/v1/sync/stripe")} className="rounded-md border border-ink/15 px-4 py-3 text-left text-sm font-semibold hover:bg-ink/[0.03]">
               Sync Stripe data
@@ -178,7 +178,7 @@ export default function IntegrationsPage() {
       </div>
 
       <div className="mt-4">
-        <Card title="Sandbox webhook tester">
+        <Card title="Sandbox webhook tester" guide={{ number: 4, title: "Webhook tester", body: "Use this in local development to prove webhook handling, dedupe, metrics, and job queueing work without using provider dashboards." }}>
           <div className="grid gap-3 md:grid-cols-2">
             <button onClick={() => sendWebhook("Stripe", "/api/v1/webhooks/processors/stripe", { id: `evt_demo_${Date.now()}`, type: "payout.paid", data: { object: { id: "po_demo_webhook" } } })} className="rounded-md border border-ink/15 px-4 py-3 text-left text-sm font-semibold hover:bg-ink/[0.03]">
               Send Stripe payout webhook
@@ -196,7 +196,7 @@ export default function IntegrationsPage() {
       </div>
 
       <div className="mt-4">
-        <Card title="Integration security">
+        <Card title="Integration security" guide={{ number: 5, title: "Integration security", body: "This explains the security boundary: provider signatures are verified in production, tokens stay server-side, and mock bypasses are local-only." }}>
           <div className="grid gap-3 text-sm leading-6 text-ink/60 md:grid-cols-3">
             <p>Stripe webhooks are verified with `Stripe-Signature` when `STRIPE_WEBHOOK_SECRET` is configured.</p>
             <p>Plaid webhook verification can be required with `PLAID_WEBHOOK_VERIFICATION=true`; local mock bypass is development-only.</p>
