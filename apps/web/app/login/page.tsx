@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { GuideMarker } from "@/components/help";
 import { api, setToken } from "@/lib/api";
@@ -8,30 +9,76 @@ import { api, setToken } from "@/lib/api";
 export default function Login() {
   const router = useRouter();
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setBusy("Signing in...");
+    setError("");
     const form = new FormData(e.currentTarget);
     try {
       const res = await api<{ token: string }>("/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) });
       setToken(res.token); router.push("/dashboard");
-    } catch (err) { setError((err as Error).message); }
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy("");
+    }
   }
-  return <AuthForm title="Log in" error={error} onSubmit={submit} button="Log in" />;
+  async function tryDemo() {
+    setBusy("Opening demo...");
+    setError("");
+    try {
+      const res = await api<{ token: string }>("/auth/demo-token", { method: "POST", body: "{}" });
+      setToken(res.token);
+      router.push("/dashboard");
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy("");
+    }
+  }
+  return <AuthForm title="Log in" error={error} busy={busy} onSubmit={submit} onDemo={tryDemo} button="Log in" />;
 }
 
-function AuthForm({ title, error, onSubmit, button }: { title: string; error: string; onSubmit: (e: FormEvent<HTMLFormElement>) => void; button: string }) {
+function AuthForm({ title, error, busy, onSubmit, onDemo, button }: { title: string; error: string; busy: string; onSubmit: (e: FormEvent<HTMLFormElement>) => void; onDemo: () => void; button: string }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-sky px-4">
-      <form onSubmit={onSubmit} className="w-full max-w-md rounded-lg border border-ink/10 bg-white p-6 shadow-panel">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold">{title}</h1>
-          <GuideMarker guide={{ number: 1, title: "Authentication", body: "Enter an existing email and password to receive a JWT and open the dashboard. For demos, use Try Demo from the landing page." }} />
+    <main className="min-h-screen bg-[#f4f6f2] px-4 py-8 text-ink">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-5xl items-center gap-8 lg:grid-cols-[.9fr_1.1fr]">
+        <section>
+          <Link href="/" className="text-xl font-semibold">Clearflow</Link>
+          <p className="mt-4 text-sm font-semibold uppercase tracking-wide text-moss">Secure workspace access</p>
+          <h1 className="mt-3 max-w-xl text-4xl font-semibold leading-tight">{title} to reconcile payouts</h1>
+          <p className="mt-4 max-w-xl text-sm leading-6 text-ink/60">
+            Access the operator dashboard for Stripe payout matching, bank deposit review, cash forecasting, and audit-ready controls.
+          </p>
+          <div className="mt-6 grid gap-3 text-sm text-ink/65">
+            <p><span className="font-semibold text-ink">JWT auth:</span> local users receive bearer tokens for API requests.</p>
+            <p><span className="font-semibold text-ink">Demo path:</span> use sample data when you want to review the workflow without creating a user.</p>
+          </div>
+        </section>
+
+        <form onSubmit={onSubmit} className="w-full rounded-md border border-ink/10 bg-white p-6 shadow-panel">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-semibold">{title}</h2>
+              <p className="mt-1 text-sm text-ink/50">Use an existing Clearflow account.</p>
+            </div>
+            <GuideMarker guide={{ number: 1, title: "Authentication", body: "Enter an existing email and password to receive a JWT and open the dashboard. Use Try Demo when you only want sample data." }} />
+          </div>
+          <label className="mt-6 grid gap-1 text-sm font-medium">
+            Email
+            <input name="email" type="email" placeholder="you@company.com" className="rounded-md border border-ink/15 px-3 py-2 font-normal" required />
+          </label>
+          <label className="mt-3 grid gap-1 text-sm font-medium">
+            Password
+            <input name="password" type="password" placeholder="Your password" className="rounded-md border border-ink/15 px-3 py-2 font-normal" required />
+          </label>
+          {error ? <p className="mt-3 rounded-md border border-coral/25 bg-coral/5 p-3 text-sm text-coral">{error}</p> : null}
+          <button disabled={Boolean(busy)} className="mt-5 w-full rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy || button}</button>
+          <button type="button" onClick={onDemo} disabled={Boolean(busy)} className="mt-3 w-full rounded-md border border-ink/15 px-4 py-2.5 text-sm font-semibold text-ink disabled:opacity-50">Try demo instead</button>
+          <p className="mt-5 text-center text-sm text-ink/55">
+            New to Clearflow? <Link href="/register" className="font-semibold text-moss">Create an account</Link>
+          </p>
+        </form>
         </div>
-        <input name="email" type="email" placeholder="Email" className="mt-6 w-full rounded-md border border-ink/15 px-3 py-2" required />
-        <input name="password" type="password" placeholder="Password" className="mt-3 w-full rounded-md border border-ink/15 px-3 py-2" required />
-        {error ? <p className="mt-3 text-sm text-coral">{error}</p> : null}
-        <button className="mt-5 w-full rounded-md bg-ink px-4 py-2 text-white">{button}</button>
-      </form>
     </main>
   );
 }

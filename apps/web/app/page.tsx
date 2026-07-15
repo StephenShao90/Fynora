@@ -24,6 +24,7 @@ export default function Home() {
           <div className="mt-8 flex flex-wrap gap-3">
             <button onClick={tryDemo} className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white">Try Demo</button>
             <a href="/login" className="rounded-md border border-ink/15 bg-white px-5 py-3 text-sm font-semibold text-ink">Log in</a>
+            <a href="/register" className="rounded-md border border-moss/25 bg-mint px-5 py-3 text-sm font-semibold text-moss">Create account</a>
           </div>
           <div className="mt-8 grid gap-3 text-sm leading-6 text-ink/65">
             <p><span className="font-semibold text-ink">Built for:</span> student organizations, creator shops, nonprofits, and small SaaS teams that use Stripe and need bank-level cash confidence.</p>
