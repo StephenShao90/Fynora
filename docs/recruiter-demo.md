@@ -18,7 +18,7 @@ Clearflow reconciles Stripe payouts to bank deposits, explains cash movement, pr
 8. Click **View explanation** on a payout.
 9. Open **Transactions**, search/filter, and update a category.
 10. Open **Integrations**, run sync controls, and send sandbox webhook tests.
-11. Open **Ops** and connect the UI action to jobs, audit logs, metrics, idempotency, and traces.
+11. Open **Ops** and show **Bank-grade control evidence**: worker health, idempotency replay evidence, auditability, provider event handling, and job durability.
 12. Open **Settings** and show team/RBAC and sessions.
 
 ## Backend Points To Say Out Loud
@@ -30,6 +30,7 @@ Clearflow reconciles Stripe payouts to bank deposits, explains cash movement, pr
 - Webhooks are persisted and deduped before queueing work.
 - Stripe and Plaid credentials stay server-side.
 - Reconciliation exceptions have operator notes and audit logs.
+- Ops converts raw metrics/jobs/audit logs into a control-evidence view, which is how real financial platforms prove reliability and investigate incidents.
 - The frontend is a client over real API contracts, not the source of truth.
 
 ## What To Show In Logs

@@ -12,7 +12,7 @@ Clearflow is a production-style fintech operations platform for small organizati
 6. **Open payout explanation.** Click **View explanation** and walk through gross payments, fees, refunds, net deposit, linked bank deposit, warnings, and plain-English summary.
 7. **Open Transactions.** Search/filter the ledger, select a transaction, inspect details, and update category.
 8. **View cash-flow intelligence.** Open **Cash Flow**, change horizon, and explain the labeled forecast axes, assumptions, anomalies, recommendations, and match confidence.
-9. **Open Ops.** Show async jobs, audit log entries, metrics, idempotency counters, Redis readiness, and OpenTelemetry trace readiness.
+9. **Open Ops.** Show **Bank-grade control evidence**, then connect it to async jobs, audit log entries, metrics, idempotency counters, Redis readiness, and OpenTelemetry trace readiness.
 10. **Open Integrations and Settings.** Show Stripe/Plaid status, provider sync controls, team roles, sessions, and production deployment separation.
 
 ## Interview Talking Points
@@ -24,6 +24,7 @@ Clearflow is a production-style fintech operations platform for small organizati
 - Sync/reconciliation work can run asynchronously in a separate worker.
 - Plaid/Stripe integration architecture avoids storing bank credentials and verifies webhooks.
 - Audit logs and metrics make operational debugging possible.
+- The Ops page turns backend evidence into a controls view: worker health, idempotency, auditability, provider events, and job durability.
 - Redis and OpenTelemetry are optional locally but ready for production hardening.
 
 ## Final Local Smoke Checklist
