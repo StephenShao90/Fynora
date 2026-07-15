@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { useToast } from "./ToastProvider";
+import { useToast } from "@/components/layout";
 
 type StepStatus = "idle" | "running" | "passed" | "failed";
 type DemoStep = {

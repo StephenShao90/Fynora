@@ -1,8 +1,8 @@
 "use client";
 
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card } from "@/components/Shell";
-import { Empty } from "@/components/Common";
+import { Card } from "@/components/layout";
+import { Empty } from "@/components/layout";
 import type { SpendingInsights as SpendingInsightsType } from "@/lib/api";
 
 export function SpendingInsights({ spending, loading, error }: { spending?: SpendingInsightsType; loading: boolean; error: string }) {

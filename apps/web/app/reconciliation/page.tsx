@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, Shell, money } from "@/components/Shell";
-import { Header, Empty } from "@/components/Common";
-import { GuideMarker } from "@/components/GuideMarker";
+import { Card, Shell, money } from "@/components/layout";
+import { Header, Empty } from "@/components/layout";
+import { GuideMarker } from "@/components/help";
 import { PayoutExplanationPanel } from "@/components/payouts/PayoutExplanationPanel";
 import { ReconciliationMatches } from "@/components/reconciliation/ReconciliationMatches";
-import { useToast } from "@/components/ToastProvider";
+import { useToast } from "@/components/layout";
 import { api, getPayoutExplanation, getReconciliationMatches, type PayoutExplanation, type ReconciliationMatch } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import type { ExceptionNote } from "@/types";

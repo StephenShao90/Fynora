@@ -1,7 +1,7 @@
 "use client";
 
-import { Card } from "@/components/Shell";
-import { Empty } from "@/components/Common";
+import { Card } from "@/components/layout";
+import { Empty } from "@/components/layout";
 import type { CashRecommendation } from "@/lib/api";
 
 export function CashRecommendations({ recommendations, loading, error }: { recommendations: CashRecommendation[]; loading: boolean; error: string }) {

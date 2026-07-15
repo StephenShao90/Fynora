@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Empty, Header } from "@/components/Common";
-import { Card, Shell } from "@/components/Shell";
-import { useToast } from "@/components/ToastProvider";
+import { Empty, Header } from "@/components/layout";
+import { Card, Shell } from "@/components/layout";
+import { useToast } from "@/components/layout";
 import { api, disconnectStripe, getStripeConnectUrl, getStripeStatus, type StripeIntegrationStatus } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { GuideMarker } from "@/components/GuideMarker";
-import { GUIDE_MODE_EVENT } from "@/components/HelpFlow";
+import { GuideMarker } from "@/components/help";
+import { GUIDE_MODE_EVENT } from "@/components/help";
 
 describe("GuideMarker", () => {
   beforeEach(() => {

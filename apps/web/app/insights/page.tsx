@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Header } from "@/components/Common";
-import { GuideMarker } from "@/components/GuideMarker";
-import { Shell } from "@/components/Shell";
+import { Header } from "@/components/layout";
+import { GuideMarker } from "@/components/help";
+import { Shell } from "@/components/layout";
 import { AnomalyList } from "@/components/insights/AnomalyList";
 import { CashRecommendations } from "@/components/insights/CashRecommendations";
 import { CashflowForecastCard } from "@/components/insights/CashflowForecastCard";

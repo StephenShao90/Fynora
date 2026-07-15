@@ -1,7 +1,7 @@
 "use client";
 
-import { Card } from "@/components/Shell";
-import { Empty } from "@/components/Common";
+import { Card } from "@/components/layout";
+import { Empty } from "@/components/layout";
 import type { PayoutExplanation } from "@/lib/api";
 
 export function PayoutExplanationPanel({ explanation, loading, error }: { explanation?: PayoutExplanation; loading: boolean; error: string }) {

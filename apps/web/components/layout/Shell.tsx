@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GuideMarker, type Guide } from "@/components/GuideMarker";
+import { GuideMarker, type Guide } from "@/components/help";
 import { activeDemoScenario, isDemoFallbackMode, logout, setDemoScenario } from "@/lib/api";
 
 const nav = [

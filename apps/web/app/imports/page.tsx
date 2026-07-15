@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, Shell } from "@/components/Shell";
-import { Header } from "@/components/Common";
-import { useToast } from "@/components/ToastProvider";
+import { Card, Shell } from "@/components/layout";
+import { Header } from "@/components/layout";
+import { useToast } from "@/components/layout";
 import { api, upload } from "@/lib/api";
 
 const uploads = [

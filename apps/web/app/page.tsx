@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { GuideMarker } from "@/components/GuideMarker";
+import { GuideMarker } from "@/components/help";
 import { api, setToken } from "@/lib/api";
 
 export default function Home() {

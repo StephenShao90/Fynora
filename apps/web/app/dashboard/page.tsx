@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, Shell, money } from "@/components/Shell";
-import { Header, Empty } from "@/components/Common";
-import { DemoPilot } from "@/components/DemoPilot";
-import { GuideMarker } from "@/components/GuideMarker";
+import { Card, Shell, money } from "@/components/layout";
+import { Header, Empty } from "@/components/layout";
+import { DemoPilot } from "@/components/demo";
+import { GuideMarker } from "@/components/help";
 import { useApi } from "@/hooks/useApi";
 
 type Payout = { id: string; processor_payout_id: string; amount: number; status: string; expected_arrival_at: string };

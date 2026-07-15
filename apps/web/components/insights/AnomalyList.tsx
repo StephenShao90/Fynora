@@ -1,7 +1,7 @@
 "use client";
 
-import { Card } from "@/components/Shell";
-import { Empty } from "@/components/Common";
+import { Card } from "@/components/layout";
+import { Empty } from "@/components/layout";
 import type { AnomalyInsight } from "@/lib/api";
 
 export function AnomalyList({ anomalies, loading, error }: { anomalies: AnomalyInsight[]; loading: boolean; error: string }) {

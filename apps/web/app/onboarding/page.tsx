@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Header } from "@/components/Common";
-import { DemoPilot } from "@/components/DemoPilot";
-import { GuideMarker } from "@/components/GuideMarker";
-import { Card, Shell } from "@/components/Shell";
-import { useToast } from "@/components/ToastProvider";
+import { Header } from "@/components/layout";
+import { DemoPilot } from "@/components/demo";
+import { GuideMarker } from "@/components/help";
+import { Card, Shell } from "@/components/layout";
+import { useToast } from "@/components/layout";
 import { activeDemoScenario, api, setDemoScenario } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import type { OnboardingStatus } from "@/types";

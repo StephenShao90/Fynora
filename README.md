@@ -122,6 +122,8 @@ API contract: [`docs/openapi.yaml`](docs/openapi.yaml)
 
 Recruiter demo script: [`docs/recruiter-demo.md`](docs/recruiter-demo.md)
 
+Code organization guide: [`docs/code-organization.md`](docs/code-organization.md)
+
 ## Demo Flow
 
 1. Start Postgres, Redis, migrations, API, worker, and web with `make dev`.

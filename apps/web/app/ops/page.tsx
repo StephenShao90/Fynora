@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Empty, Header } from "@/components/Common";
-import { GuideMarker } from "@/components/GuideMarker";
-import { Card, Shell } from "@/components/Shell";
+import { Empty, Header } from "@/components/layout";
+import { GuideMarker } from "@/components/help";
+import { Card, Shell } from "@/components/layout";
 import { api } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 

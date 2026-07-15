@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Card, Shell, money } from "@/components/Shell";
-import { Empty, Header } from "@/components/Common";
-import { GuideMarker } from "@/components/GuideMarker";
-import { useToast } from "@/components/ToastProvider";
+import { Card, Shell, money } from "@/components/layout";
+import { Empty, Header } from "@/components/layout";
+import { GuideMarker } from "@/components/help";
+import { useToast } from "@/components/layout";
 import { api } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import type { Transaction } from "@/types";

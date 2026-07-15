@@ -1,4 +1,4 @@
-import { HelpFlow } from "./HelpFlow";
+import { HelpFlow } from "@/components/help";
 
 export function Header({ title, subtitle }: { title: string; subtitle: string }) {
   return (

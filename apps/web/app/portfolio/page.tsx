@@ -3,10 +3,10 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from "recharts";
-import { Card, Metric, Shell, money } from "@/components/Shell";
-import { Empty, Header } from "@/components/Common";
-import { GuideMarker } from "@/components/GuideMarker";
-import { useToast } from "@/components/ToastProvider";
+import { Card, Metric, Shell, money } from "@/components/layout";
+import { Empty, Header } from "@/components/layout";
+import { GuideMarker } from "@/components/help";
+import { useToast } from "@/components/layout";
 import { useApi } from "@/hooks/useApi";
 import { api, upload } from "@/lib/api";
 import type { Holding, ImportError, NamedAmount, PortfolioImport, PortfolioTransaction, RiskFinding, Summary } from "@/types";

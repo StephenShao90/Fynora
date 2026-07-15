@@ -2,9 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, Shell, money } from "@/components/Shell";
-import { Header } from "@/components/Common";
-import { useToast } from "@/components/ToastProvider";
+import { Card, Shell, money } from "@/components/layout";
+import { Header } from "@/components/layout";
+import { useToast } from "@/components/layout";
 import { api } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 

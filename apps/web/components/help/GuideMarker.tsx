@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GUIDE_MODE_EVENT } from "./HelpFlow";
+import { GUIDE_MODE_EVENT } from "@/components/help/HelpFlow";
 
 export type Guide = {
   number: number;
