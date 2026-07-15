@@ -158,8 +158,8 @@ export default function IntegrationsPage() {
       </div>
 
       <div className="mt-4">
-        <Card title="Provider sync controls" guide={{ number: 3, title: "Provider sync controls", body: "Use these buttons to manually refresh processor, bank, or portfolio data. Check Ops afterward to verify queued jobs and logs." }}>
-          <div className="grid gap-3 md:grid-cols-3">
+        <Card title="Provider sync controls" guide={{ number: 3, title: "Provider sync controls", body: "Use these buttons to manually refresh processor and bank data. Check Controls afterward to verify queued jobs, logs, and idempotency evidence." }}>
+          <div className="grid gap-3 md:grid-cols-2">
             <button onClick={() => syncProvider("Stripe", "/api/v1/sync/stripe")} className="rounded-md border border-ink/15 px-4 py-3 text-left text-sm font-semibold hover:bg-ink/[0.03]">
               Sync Stripe data
               <span className="mt-1 block text-xs font-normal text-ink/50">Queues processor payments, fees, refunds, and payouts.</span>
@@ -167,10 +167,6 @@ export default function IntegrationsPage() {
             <button onClick={() => syncProvider("Plaid bank", "/connections/plaid/sync-transactions")} className="rounded-md border border-ink/15 px-4 py-3 text-left text-sm font-semibold hover:bg-ink/[0.03]">
               Sync Plaid bank
               <span className="mt-1 block text-xs font-normal text-ink/50">Refreshes authorized bank transactions.</span>
-            </button>
-            <button onClick={() => syncProvider("Plaid Investments", "/connections/plaid/sync-investments")} className="rounded-md border border-ink/15 px-4 py-3 text-left text-sm font-semibold hover:bg-ink/[0.03]">
-              Sync investments sample
-              <span className="mt-1 block text-xs font-normal text-ink/50">Imports mock holdings/activity into Portfolio.</span>
             </button>
           </div>
           {syncResult ? <pre className="mt-4 max-h-60 overflow-auto rounded-md bg-ink p-4 text-xs text-white">{syncResult}</pre> : null}

@@ -181,7 +181,14 @@ export default function ReconciliationPage() {
 
   return (
     <Shell>
-      <Header title="Reconciliation" subtitle="Processor payouts, bank deposits, exceptions, and operator workflow." />
+      <Header title="Payout reconciliation" subtitle="The core Clearflow workflow: sync Stripe-style payouts, compare bank deposits, explain differences, and close exceptions." />
+
+      <section className="mb-5 grid gap-3 rounded-md border border-ink/10 bg-white p-4 shadow-sm md:grid-cols-4">
+        <WorkflowStep number="1" title="Processor activity" body="Payments, fees, refunds, and payouts are loaded from Stripe-style sync." />
+        <WorkflowStep number="2" title="Bank settlement" body="Plaid or CSV bank activity supplies posted deposits and operating debits." />
+        <WorkflowStep number="3" title="Match engine" body="The API scores amount, date, and memo evidence for payout-to-deposit matches." />
+        <WorkflowStep number="4" title="Exception close" body="Operators resolve breaks with notes, manual matches, and audit history." />
+      </section>
 
       <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Reconciliation summary</p><GuideMarker guide={{ number: 1, title: "Summary metrics", body: "Start here to understand whether cash and payouts are reconciled. Match rate and open breaks tell you if the workflow needs review." }} /></div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -193,7 +200,7 @@ export default function ReconciliationPage() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
-        <Card title="Runbook" guide={{ number: 2, title: "Runbook", body: "Use Run full reconciliation for the normal path. It queues processor sync, bank sync, then matching through the worker." }}>
+        <Card title="Reconciliation workflow" guide={{ number: 2, title: "Reconciliation workflow", body: "Use Run full reconciliation for the normal path. It queues processor sync, bank sync, then matching through the worker." }}>
           <button onClick={runFullWorkflow} disabled={workflowRunning || !orgId} className="mb-3 w-full rounded-md bg-ink px-3 py-3 text-left text-sm font-semibold text-white hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-ink/40">
             Run full reconciliation
             <span className="mt-1 block text-xs font-normal text-white/70">Queues processor sync, bank sync, then matching in order.</span>
@@ -345,6 +352,18 @@ function Kpi({ label, value, sub, tone = "neutral" }: { label: string; value: st
       <p className={`mt-1 text-2xl font-semibold ${valueColor}`}>{value}</p>
       <p className="mt-1 text-xs text-ink/45">{sub}</p>
     </section>
+  );
+}
+
+function WorkflowStep({ number, title, body }: { number: string; title: string; body: string }) {
+  return (
+    <div className="flex gap-3 rounded-md bg-ink/[0.025] p-3">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#83c5ff] text-xs font-bold text-ink">{number}</span>
+      <div>
+        <p className="text-sm font-semibold text-ink">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-ink/55">{body}</p>
+      </div>
+    </div>
   );
 }
 

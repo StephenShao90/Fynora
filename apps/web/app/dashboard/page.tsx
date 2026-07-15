@@ -25,20 +25,49 @@ export default function Dashboard() {
   const metrics = useApi<Record<string, number>>("/api/v1/ops/metrics", {});
   const openBreaks = exceptions.data.filter((item) => item.status === "open");
   const completedJobs = metrics.data.jobs_completed_total || 0;
+  const nextAction = openBreaks.length
+    ? { label: "Review open breaks", href: "/reconciliation", detail: `${openBreaks.length} payout/deposit issue(s) need operator review.` }
+    : payouts.data.length === 0 || bank.data.length === 0
+      ? { label: "Load settlement data", href: "/reconciliation", detail: "Run processor and bank sync before trusting the dashboard." }
+      : { label: "Open control evidence", href: "/ops", detail: "Reconciliation is clear. Verify jobs, audit logs, webhooks, and idempotency." };
 
   return (
     <Shell>
-      <Header title="Operations dashboard" subtitle="A real-time view of payout settlement, bank cash, open breaks, and forecasted operating runway." />
+      <Header title="Today's close" subtitle="One workflow for small-business payment ops: load Stripe payouts, match deposits, resolve breaks, and prove cash is reliable." />
+
+      <section className="mb-5 rounded-md border border-ink/10 bg-[#17211b] p-5 text-white shadow-sm">
+        <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Current operating question</p>
+            <h2 className="mt-2 max-w-3xl text-2xl font-semibold">Can we explain every Stripe payout that hit the bank?</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/65">
+              Clearflow is focused on payout reconciliation: processor payments, refunds, and fees roll into payouts; bank deposits prove settlement; exceptions become an operator queue with audit history.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <StepLink number="1" label="Load data" href="/imports" />
+              <StepLink number="2" label="Run reconciliation" href="/reconciliation" />
+              <StepLink number="3" label="Resolve breaks" href="/reconciliation" />
+              <StepLink number="4" label="Prove controls" href="/ops" />
+            </div>
+          </div>
+          <div className="rounded-md border border-white/10 bg-white/[0.06] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Next best action</p>
+            <p className="mt-2 text-xl font-semibold">{nextAction.label}</p>
+            <p className="mt-2 text-sm leading-6 text-white/65">{nextAction.detail}</p>
+            <Link href={nextAction.href} className="mt-4 inline-flex rounded-md bg-white px-4 py-2 text-sm font-semibold text-ink">Continue workflow</Link>
+          </div>
+        </div>
+      </section>
 
       <div className="mb-4">
-        <div className="mb-2 flex justify-end"><GuideMarker guide={{ number: 1, title: "Guided demo setup", body: "Start here when testing locally. It prepares onboarding, processor data, bank data, reconciliation, and portfolio sample data in the correct order." }} /></div>
+        <div className="mb-2 flex justify-end"><GuideMarker guide={{ number: 1, title: "Guided demo setup", body: "Start here when testing locally. It prepares onboarding, processor data, bank data, and reconciliation in the correct order." }} /></div>
         <DemoPilot />
       </div>
 
       <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Key operating metrics</p><GuideMarker guide={{ number: 2, title: "Operating metrics", body: "Read these cards left to right: available cash, net operating movement after costs/refunds, processor cost, refunds, then open reconciliation breaks." }} /></div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Kpi label="Operating cash" value={money(cash.data.cash_balance)} detail="posted bank cash" />
-        <Kpi label="Net flow" value={money(cash.data.net_cash_flow)} detail="income minus debits, fees, refunds" tone={(cash.data.net_cash_flow || 0) >= 0 ? "good" : "warn"} />
+        <Kpi label="Net flow" value={money(cash.data.net_cash_flow)} detail="cash credits minus debits, fees, refunds" tone={(cash.data.net_cash_flow || 0) >= 0 ? "good" : "warn"} />
         <Kpi label="Processor cost" value={money(cash.data.fees)} detail="fees this period" tone="warn" />
         <Kpi label="Refunds" value={money(cash.data.refunds)} detail="returned volume" tone="warn" />
         <Kpi label="Open breaks" value={`${openBreaks.length}`} detail="requires review" tone={openBreaks.length ? "warn" : "good"} />
@@ -128,6 +157,15 @@ export default function Dashboard() {
         <Ledger title="Recent bank activity" guide={{ number: 9, title: "Bank activity", body: "These are posted bank credits and debits. Reconciliation compares processor payouts against these deposits." }} rows={bank.data.map((row) => ({ id: row.id, label: row.description, detail: row.direction, date: row.posted_at, amount: row.direction === "credit" ? row.amount : -row.amount }))} />
       </div>
     </Shell>
+  );
+}
+
+function StepLink({ number, label, href }: { number: string; label: string; href: string }) {
+  return (
+    <Link href={href} className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white hover:bg-white/[0.1]">
+      <span className="grid h-6 w-6 place-items-center rounded-full bg-[#83c5ff] text-xs font-bold text-ink">{number}</span>
+      {label}
+    </Link>
   );
 }
 

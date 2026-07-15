@@ -67,15 +67,6 @@ export function DemoPilot({ compact = false }: { compact?: boolean }) {
         headers: { "Idempotency-Key": `demo-pilot-recon-${Date.now()}` },
         body: "{}"
       })
-    },
-    {
-      id: "portfolio",
-      label: "Sync portfolio sample",
-      purpose: "Populates the portfolio ledger for the broader fintech demo.",
-      run: () => api("/connections/plaid/sync-investments", {
-        method: "POST",
-        body: "{}"
-      })
     }
   ], []);
 
@@ -96,7 +87,7 @@ export function DemoPilot({ compact = false }: { compact?: boolean }) {
       const completedAt = new Date().toISOString();
       setLastRun(completedAt);
       console.info("[clearflow-demo-pilot:complete]", { completedAt });
-      pushToast({ tone: "success", title: "Demo workflow ready", detail: "Dashboard, reconciliation, ops, and portfolio now have fresh data." });
+      pushToast({ tone: "success", title: "Demo workflow ready", detail: "Dashboard, reconciliation, cash forecast, and ops now have fresh data." });
     } catch (err) {
       const message = (err as Error).message;
       setError(message);
@@ -117,10 +108,10 @@ export function DemoPilot({ compact = false }: { compact?: boolean }) {
     <section className="rounded-md border border-ink/10 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Guided demo runner</p>
-          <h2 className="mt-1 text-lg font-semibold text-ink">Prepare the full Clearflow story</h2>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Settlement demo runner</p>
+          <h2 className="mt-1 text-lg font-semibold text-ink">Prepare the payout reconciliation story</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-ink/55">
-            Runs the local workflow in the same order you would demo it: setup, processor data, bank data, reconciliation, and portfolio sample.
+            Runs the local workflow in the same order an operator would use it: setup, processor data, bank data, then payout-to-deposit reconciliation.
           </p>
         </div>
         <button
@@ -133,7 +124,7 @@ export function DemoPilot({ compact = false }: { compact?: boolean }) {
         </button>
       </div>
 
-      <div className={`mt-4 grid gap-2 ${compact ? "md:grid-cols-1" : "md:grid-cols-5"}`}>
+      <div className={`mt-4 grid gap-2 ${compact ? "md:grid-cols-1" : "md:grid-cols-4"}`}>
         {steps.map((step) => (
           <div key={step.id} className="rounded-md border border-ink/10 p-3">
             <div className="flex items-center justify-between gap-2">
@@ -151,7 +142,6 @@ export function DemoPilot({ compact = false }: { compact?: boolean }) {
           <span className="font-semibold">Ready at {new Date(lastRun).toLocaleTimeString()}</span>
           <Link href="/reconciliation" className="underline">Review breaks</Link>
           <Link href="/ops" className="underline">Check jobs/audit</Link>
-          <Link href="/portfolio" className="underline">Inspect portfolio</Link>
         </div>
       ) : null}
     </section>

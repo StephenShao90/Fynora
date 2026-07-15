@@ -2,7 +2,7 @@
 
 Clearflow is organized as a monorepo with `apps/web` for the Next.js operations dashboard and `services/api` for the Go API.
 
-The product wedge is intentionally narrow: Stripe-style processor activity plus Plaid/bank activity for payout reconciliation and cash visibility. Portfolio/advisor modules remain useful technical extensions, but the core business workflow is onboarding, provider ingestion, reconciliation, exception review, auditability, and forecasted operating cash.
+The product wedge is intentionally narrow: Stripe-style processor activity plus Plaid/bank activity for payout reconciliation and cash visibility. Portfolio/advisor modules remain hidden technical extensions, but the core business workflow is provider ingestion, reconciliation, exception review, auditability, and forecasted operating cash.
 
 ```text
 Small organization
@@ -14,7 +14,6 @@ Next.js Dashboard
 Go API
   |-> Auth and organizations
   |-> Plaid bank connection
-  |-> Plaid Investments-shaped portfolio sync
   |-> Stripe-style processor sync
   |-> Payment, refund, fee, payout models
   |-> Bank transaction models
@@ -78,7 +77,7 @@ The Phase 5 and Phase 6 intelligence layer turns stored financial records into o
 ## Integration Boundaries
 
 - Plaid owns bank authentication and returns transaction data to Clearflow.
-- Portfolio ingestion uses a normalized ledger for CSV imports and Plaid Investments-shaped sync results. The current investment sync endpoint imports deterministic mock data into the same durable tables; the boundary is ready for real Plaid Investments holdings and investment transactions.
+- Portfolio ingestion exists as a hidden technical extension, but it is intentionally outside the primary product workflow.
 - Stripe-style processor ingestion currently uses deterministic sample data, but the database includes `processor_accounts` and `webhook_events` for real API/webhook ingestion.
 - Clearflow stores reconciliation state, exceptions, audit logs, payout breakdowns, and reporting aggregates.
 

@@ -11,14 +11,14 @@ Clearflow reconciles Stripe payouts to bank deposits, explains cash movement, pr
 1. Start the stack with `make dev`.
 2. Open `http://localhost:3000`.
 3. Click **Try Demo**.
-4. Open **Onboarding** and show persisted setup status.
-5. Open **Dashboard** and explain cash, fees, refunds, open breaks, and forecast.
-6. Open **Reconciliation** and run the full workflow.
+4. Open **Today** and explain the core operating question: whether every Stripe payout can be explained against bank deposits.
+5. Run the demo setup, then explain cash, fees, refunds, open breaks, next best action, and forecast.
+6. Open **Reconcile** and run the full workflow.
 7. Open an exception, add an investigation note, resolve it, and show note history.
 8. Click **View explanation** on a payout.
 9. Open **Transactions**, search/filter, and update a category.
-10. Open **Integrations**, run sync controls, and send sandbox webhook tests.
-11. Open **Ops** and show **Bank-grade control evidence**: worker health, idempotency replay evidence, auditability, provider event handling, and job durability.
+10. Open **Provider Health**, run sync controls, and send sandbox webhook tests.
+11. Open **Controls** and show **Bank-grade control evidence**: worker health, idempotency replay evidence, auditability, provider event handling, and job durability.
 12. Open **Settings** and show team/RBAC and sessions.
 
 ## Backend Points To Say Out Loud
@@ -42,7 +42,7 @@ Clearflow reconciles Stripe payouts to bank deposits, explains cash movement, pr
 
 ## Product Boundary
 
-The commercial wedge is Stripe plus bank reconciliation for small operators. Portfolio/advisor features are useful resume depth, but they are not the core product.
+The commercial wedge is Stripe plus bank reconciliation for small operators. Portfolio/advisor modules are hidden technical extensions and should not be presented as the product.
 
 ## What Is Still External
 

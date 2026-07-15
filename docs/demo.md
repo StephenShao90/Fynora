@@ -1,19 +1,19 @@
 # Demo Walkthrough
 
-Clearflow is a production-style fintech operations platform for small organizations. It reconciles processor payouts with bank deposits, explains payout composition, surfaces anomalies, forecasts cash flow, manages integrations, runs async jobs, and exposes operational audit/metrics/debug surfaces.
+Clearflow is a production-style payout reconciliation platform for small organizations. It reconciles Stripe-style processor payouts with bank deposits, explains payout composition, surfaces exceptions, forecasts operating cash, and exposes operational control evidence.
 
 ## Two To Three Minute Script
 
 1. **Log in or use demo mode.** On local full stack, click **Try Demo**. On Vercel without `NEXT_PUBLIC_API_BASE_URL`, the UI intentionally shows sample financial data and a demo-mode badge.
-2. **Open Onboarding.** Pick a demo company, save the workspace profile, and click **Run full demo setup** to prepare the complete local story.
-3. **View Dashboard.** Confirm the guided runner passed, then point out operating cash, net cash flow, processor fees, refunds, open breaks, forecast chart, payout volume, and recent processor/bank ledger rows.
-4. **Open Reconciliation.** Rerun processor sync, bank sync, and reconciliation if you want to show the workflow manually. Explain that financial write endpoints use idempotency keys and queue worker jobs.
+2. **View Today's Close.** Start with the product question: "Can we explain every Stripe payout that hit the bank?" Then click **Run full demo setup**.
+3. **Read the next best action.** Point out operating cash, net flow after costs/refunds, open breaks, forecast chart, payout volume, and recent processor/bank ledger rows.
+4. **Open Payout Reconciliation.** Rerun processor sync, bank sync, and reconciliation if you want to show the workflow manually. Explain that financial write endpoints use idempotency keys and queue worker jobs.
 5. **Resolve a break.** Open the exception workbench, add a resolution note, optionally associate a bank record, and resolve the break.
 6. **Open payout explanation.** Click **View explanation** and walk through gross payments, fees, refunds, net deposit, linked bank deposit, warnings, and plain-English summary.
 7. **Open Transactions.** Search/filter the ledger, select a transaction, inspect details, and update category.
-8. **View cash-flow intelligence.** Open **Cash Flow**, change horizon, and explain the labeled forecast axes, assumptions, anomalies, recommendations, and match confidence.
-9. **Open Ops.** Show **Bank-grade control evidence**, then connect it to async jobs, audit log entries, metrics, idempotency counters, Redis readiness, and OpenTelemetry trace readiness.
-10. **Open Integrations and Settings.** Show Stripe/Plaid status, provider sync controls, team roles, sessions, and production deployment separation.
+8. **View cash-flow intelligence.** Open **Cash Forecast**, change horizon, and explain the labeled forecast axes, assumptions, anomalies, recommendations, and match confidence.
+9. **Open Controls.** Show **Bank-grade control evidence**, then connect it to async jobs, audit log entries, metrics, idempotency counters, Redis readiness, and OpenTelemetry trace readiness.
+10. **Open Provider Health and Settings.** Show Stripe/Plaid status, provider sync controls, team roles, sessions, and production deployment separation.
 
 ## Interview Talking Points
 

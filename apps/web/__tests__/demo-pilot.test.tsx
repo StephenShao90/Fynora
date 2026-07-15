@@ -20,15 +20,14 @@ describe("DemoPilot", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run full demo setup" }));
 
     await waitFor(() => expect(screen.getByText(/Ready at/)).toBeInTheDocument());
-    expect(apiMock).toHaveBeenCalledTimes(5);
+    expect(apiMock).toHaveBeenCalledTimes(4);
     expect(apiMock.mock.calls.map((call) => call[0])).toEqual([
       "/api/v1/onboarding/status",
       "/sync/stripe",
       "/sync/bank",
-      "/reconciliation/runs",
-      "/connections/plaid/sync-investments"
+      "/reconciliation/runs"
     ]);
-    expect(screen.getAllByText("passed")).toHaveLength(5);
+    expect(screen.getAllByText("passed")).toHaveLength(4);
   });
 
   it("marks the active step failed when the workflow stops", async () => {

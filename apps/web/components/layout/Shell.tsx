@@ -6,16 +6,13 @@ import { GuideMarker, type Guide } from "@/components/help";
 import { activeDemoScenario, isDemoFallbackMode, logout, setDemoScenario } from "@/lib/api";
 
 const nav = [
-  ["/onboarding", "Onboarding"],
-  ["/dashboard", "Dashboard"],
-  ["/reconciliation", "Reconciliation"],
-  ["/imports", "Imports"],
-  ["/integrations", "Integrations"],
-  ["/ops", "Ops"],
+  ["/dashboard", "Today"],
+  ["/reconciliation", "Reconcile"],
+  ["/imports", "Data connections"],
+  ["/integrations", "Provider health"],
+  ["/insights", "Cash forecast"],
   ["/transactions", "Transactions"],
-  ["/insights", "Cash Flow"],
-  ["/portfolio", "Portfolio"],
-  ["/advisor", "Advisor"],
+  ["/ops", "Controls"],
   ["/settings", "Settings"]
 ];
 
@@ -26,7 +23,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[#f4f6f2]">
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-ink/10 bg-[#fbfcf8] p-6 lg:block">
         <Link href="/dashboard" className="text-2xl font-semibold text-ink">Clearflow</Link>
-        <p className="mt-2 max-w-52 text-sm leading-6 text-ink/55">Payment reconciliation and cash visibility for small teams.</p>
+        <p className="mt-2 max-w-52 text-sm leading-6 text-ink/55">Stripe payouts matched to bank deposits, with cash visibility and audit proof.</p>
         <div className="mt-6 rounded-md border border-ink/10 bg-white p-3">
           <p className="text-xs uppercase tracking-wide text-ink/40">Workspace</p>
           <p className="mt-1 truncate text-sm font-medium text-ink">{scenario.name}</p>

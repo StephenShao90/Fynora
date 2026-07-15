@@ -14,7 +14,6 @@ import type { OnboardingStatus } from "@/types";
 type Organization = { id: string; name: string; type?: string; currency?: string; role?: string };
 type StripeStatus = { connected: boolean; displayName?: string };
 type PlaidConnection = { id: string; institution_name: string; last_synced_at?: string };
-type PortfolioImport = { id: string };
 
 const businessTypes = [
   ["small_business", "Small business"],
@@ -34,7 +33,6 @@ export default function OnboardingPage() {
   const orgs = useApi<Organization[]>("/organizations", []);
   const stripe = useApi<StripeStatus>("/api/v1/integrations/stripe/status", { connected: false });
   const plaid = useApi<PlaidConnection[]>("/connections", []);
-  const imports = useApi<PortfolioImport[]>("/portfolio/imports", []);
   const payouts = useApi<unknown[]>("/payouts", []);
   const bank = useApi<unknown[]>("/bank-transactions", []);
   const setup = useApi<OnboardingStatus>("/api/v1/onboarding/status", { organization_id: "", selected_scenario: scenario.id, business_type: scenario.type, checklist: {} });
@@ -46,9 +44,9 @@ export default function OnboardingPage() {
       { label: "Business profile chosen", done: Boolean(type && currency), href: "/onboarding", detail: `${labelForType(type)} · ${currency}` },
       { label: "Processor connected", done: Boolean(readiness.stripe_connected || readiness.processor_data_ready) || stripe.data.connected || payouts.data.length > 0, href: "/integrations", detail: stripe.data.connected ? stripe.data.displayName || "Stripe connected" : "Connect Stripe or run mock sync" },
       { label: "Bank data connected", done: Boolean(readiness.plaid_connected || readiness.bank_data_ready) || plaid.data.length > 0 || bank.data.length > 0, href: "/imports", detail: plaid.data[0]?.institution_name || "Connect Plaid or import bank CSV" },
-      { label: "Portfolio data optional", done: imports.data.length > 0, href: "/portfolio", detail: imports.data.length ? `${imports.data.length} import(s)` : "Upload holdings/activity if relevant" }
+      { label: "First reconciliation run", done: Boolean(readiness.reconciliation_ready), href: "/reconciliation", detail: "Match processor payouts to bank deposits" }
     ];
-  }, [bank.data.length, currency, imports.data.length, orgs.data, plaid.data, payouts.data.length, setup.data, stripe.data, type]);
+  }, [bank.data.length, currency, orgs.data, plaid.data, payouts.data.length, setup.data, stripe.data, type]);
 
   async function createWorkspace() {
     setBusy("Creating workspace...");
@@ -119,7 +117,7 @@ export default function OnboardingPage() {
           <p className="mt-3 text-sm leading-6 text-ink/55">This creates a real organization when the API is running. In demo fallback mode it switches the sample company profile locally.</p>
         </Card>
 
-        <Card title="Setup checklist" guide={{ number: 2, title: "Setup checklist", body: "Use this to see what is missing before Clearflow can reconcile reliably: processor data, bank data, and optional portfolio data." }}>
+        <Card title="Setup checklist" guide={{ number: 2, title: "Setup checklist", body: "Use this to see what is missing before Clearflow can reconcile reliably: workspace, processor data, bank data, and a first reconciliation run." }}>
           {setup.loading ? <p className="mb-3 text-sm text-ink/45">Loading saved setup status...</p> : null}
           <div className="grid gap-2">
             {checklist.map((item) => (
@@ -140,7 +138,7 @@ export default function OnboardingPage() {
 
       <div className="mt-4">
         <div className="mb-2 flex justify-end">
-          <GuideMarker guide={{ number: 3, title: "Guided demo setup", body: "Click Run full demo setup to prepare the whole walkthrough: onboarding state, processor data, bank data, reconciliation, and portfolio sample data." }} />
+          <GuideMarker guide={{ number: 3, title: "Guided demo setup", body: "Click Run full demo setup to prepare the whole walkthrough: onboarding state, processor data, bank data, and reconciliation." }} />
         </div>
         <DemoPilot compact />
       </div>

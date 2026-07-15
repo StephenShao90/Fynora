@@ -7,9 +7,7 @@ import { useToast } from "@/components/layout";
 import { api, upload } from "@/lib/api";
 
 const uploads = [
-  ["Bank activity CSV", "/imports/transactions-csv", "sample_transactions.csv"],
-  ["Processor export CSV", "/portfolio/import/transactions-csv", "sample_portfolio_transactions.csv"],
-  ["Legacy holdings CSV", "/portfolio/import/holdings-csv", "sample_holdings.csv"]
+  ["Bank activity CSV", "/imports/transactions-csv", "sample_transactions.csv"]
 ];
 
 type PlaidHandler = {
@@ -170,7 +168,7 @@ export default function Imports() {
 
   return (
     <Shell>
-      <Header title="Data connections" subtitle="Connect bank data through Plaid, then supplement with processor or bank CSV exports while Stripe sync is in mock mode." />
+      <Header title="Data connections" subtitle="Connect bank data through Plaid or import bank activity CSVs so deposits can be matched against processor payouts." />
       <div className="mb-5 grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
         <Card title="Bank connection" guide={{ number: 1, title: "Bank connection", body: "Start here to connect Plaid or create a sandbox bank. This supplies bank deposits and debits for reconciliation." }}>
           <p className="text-sm leading-6 text-ink/65">
@@ -216,13 +214,19 @@ export default function Imports() {
           )}
         </Card>
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         {uploads.map(([label, path, sample], index) => (
           <Card key={path} title={label} guide={{ number: index + 3, title: label, body: `Use this CSV fallback when live provider data is unavailable. Download ${sample}, inspect the format, then upload a matching export.` }}>
             <input type="file" accept=".csv" onChange={(e) => send(path, e.target.files?.[0])} className="w-full text-sm" />
             <a className="mt-4 block text-sm text-moss" href={`/sample-data/${sample}`}>Download {sample}</a>
           </Card>
         ))}
+        <Card title="Processor data source" guide={{ number: 4, title: "Processor data source", body: "Processor payouts currently come from Stripe Connect or the mock Stripe sync. Use Reconciliation or Provider Health to run that sync." }}>
+          <p className="text-sm leading-6 text-ink/60">
+            Stripe-style payments, refunds, fees, and payouts are loaded from the provider sync path instead of CSV upload. That keeps the main workflow close to how a payment operations team would work.
+          </p>
+          <a className="mt-4 inline-flex rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white" href="/reconciliation">Run reconciliation workflow</a>
+        </Card>
       </div>
       {result ? <pre className="mt-5 overflow-auto rounded-lg bg-ink p-4 text-xs text-white">{result}</pre> : null}
     </Shell>
