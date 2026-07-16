@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import dynamic from "next/dynamic";
 import { Card, Shell, SkeletonBlock, money } from "@/components/layout";
 import { Header, Empty } from "@/components/layout";
 import { DemoPilot } from "@/components/demo";
 import { GuideMarker } from "@/components/help";
+import { activeDemoScenario } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 
 type Payout = { id: string; processor_payout_id: string; amount: number; status: string; expected_arrival_at: string };
@@ -14,15 +15,25 @@ type BankTransaction = { id: string; amount: number; direction: string; descript
 type Exception = { id: string; title: string; explanation: string; status: string; severity: string };
 type Connection = { id: string; institution_name: string };
 
+const CashForecastMiniChart = dynamic(() => import("@/components/charts/DashboardCharts").then((mod) => mod.CashForecastMiniChart), {
+  ssr: false,
+  loading: () => <SkeletonBlock className="h-full" />
+});
+const PayoutVolumeChart = dynamic(() => import("@/components/charts/DashboardCharts").then((mod) => mod.PayoutVolumeChart), {
+  ssr: false,
+  loading: () => <SkeletonBlock className="h-full" />
+});
+
 export default function Dashboard() {
-  const cash = useApi<Record<string, number>>("/cash-flow/summary", {});
-  const forecast = useApi<Array<Record<string, number>>>("/cash-flow/forecast", []);
-  const exceptions = useApi<Exception[]>("/reconciliation/exceptions", []);
-  const payouts = useApi<Payout[]>("/payouts", []);
-  const payments = useApi<Payment[]>("/payments", []);
-  const bank = useApi<BankTransaction[]>("/bank-transactions", []);
-  const connections = useApi<Connection[]>("/connections", []);
-  const metrics = useApi<Record<string, number>>("/api/v1/ops/metrics", {});
+  const fallback = dashboardFallback();
+  const cash = useApi<Record<string, number>>("/cash-flow/summary", fallback.cash, { instant: true });
+  const forecast = useApi<Array<Record<string, number>>>("/cash-flow/forecast", fallback.forecast, { instant: true });
+  const exceptions = useApi<Exception[]>("/reconciliation/exceptions", fallback.exceptions, { instant: true });
+  const payouts = useApi<Payout[]>("/payouts", fallback.payouts, { instant: true });
+  const payments = useApi<Payment[]>("/payments", fallback.payments, { instant: true });
+  const bank = useApi<BankTransaction[]>("/bank-transactions", fallback.bank, { instant: true });
+  const connections = useApi<Connection[]>("/connections", fallback.connections, { instant: true });
+  const metrics = useApi<Record<string, number>>("/api/v1/ops/metrics", fallback.metrics, { instant: true });
   const openBreaks = exceptions.data.filter((item) => item.status === "open");
   const completedJobs = metrics.data.jobs_completed_total || 0;
   const metricsLoading = cash.loading || exceptions.loading;
@@ -92,17 +103,7 @@ export default function Dashboard() {
             <span>Y-axis: projected cash amount</span>
           </div>
           <div className="h-72">
-            {forecast.loading ? <SkeletonBlock className="h-full" /> : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={forecast.data}>
-                <CartesianGrid stroke="#dfe5dc" strokeDasharray="3 3" />
-                <XAxis dataKey="days" tickLine={false} axisLine={false} label={{ value: "Days ahead", position: "insideBottom", offset: -4 }} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `$${Number(value).toLocaleString()}`} label={{ value: "Projected cash", angle: -90, position: "insideLeft" }} />
-                <Tooltip formatter={(value) => money(Number(value))} />
-                <Line type="monotone" dataKey="projected_cash" stroke="#17211b" strokeWidth={3} dot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-            )}
+            <CashForecastMiniChart data={forecast.data} />
           </div>
         </Card>
 
@@ -125,16 +126,7 @@ export default function Dashboard() {
       <div className="mt-4 grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
         <Card title="Payout volume" guide={{ number: 6, title: "Payout volume", body: "Shows recent processor payouts by amount so you can quickly spot unusually large or small settlement batches." }}>
           <div className="h-72">
-            {payouts.loading ? <SkeletonBlock className="h-full" /> : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={payouts.data.slice(0, 8)}>
-                <XAxis dataKey="processor_payout_id" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} />
-                <Tooltip formatter={(value) => money(Number(value))} />
-                <Bar dataKey="amount" fill="#315846" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-            )}
+            <PayoutVolumeChart data={payouts.data.slice(0, 8)} />
           </div>
         </Card>
 
@@ -212,4 +204,41 @@ function Ledger({ title, rows, guide }: { title: string; rows: Array<{ id: strin
 function formatDate(value?: string) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(value));
+}
+
+function dashboardFallback() {
+  const scenario = activeDemoScenario();
+  const cash = {
+    cash_balance: scenario.cashBalance,
+    income: scenario.income,
+    expenses: scenario.expenses,
+    pending_payouts: 0,
+    fees: scenario.fees,
+    refunds: scenario.refunds,
+    net_cash_flow: scenario.income - scenario.expenses - scenario.fees - scenario.refunds
+  };
+  return {
+    cash,
+    forecast: [
+      { days: 7, projected_cash: scenario.cashBalance, expected_payouts: 0, expected_expenses: 0 },
+      { days: 30, projected_cash: scenario.cashBalance - scenario.expenses * 0.9, expected_payouts: 0, expected_expenses: scenario.expenses * 0.9 },
+      { days: 60, projected_cash: scenario.cashBalance - scenario.expenses * 1.7, expected_payouts: 0, expected_expenses: scenario.expenses * 1.7 }
+    ],
+    exceptions: [
+      { id: "fallback-ex-1", title: "Likely payout amount mismatch", explanation: "Processor payout is close to a bank deposit but differs by expected fees or reserves.", status: "open", severity: "medium" }
+    ],
+    payouts: [
+      { id: "fallback-po-1", processor_payout_id: "po_demo_001", amount: Math.max(0, scenario.income - scenario.fees - scenario.refunds), status: "paid", expected_arrival_at: new Date().toISOString() }
+    ],
+    payments: [
+      { id: "fallback-pay-1", amount: Math.round(scenario.income * 0.55), status: "succeeded", description: "Customer payments batch", occurred_at: new Date().toISOString() },
+      { id: "fallback-pay-2", amount: Math.round(scenario.income * 0.45), status: "succeeded", description: "Sponsor or subscription payments", occurred_at: new Date().toISOString() }
+    ],
+    bank: [
+      { id: "fallback-bank-1", amount: scenario.cashBalance, direction: "credit", description: "Stripe payout deposit", posted_at: new Date().toISOString() },
+      { id: "fallback-bank-2", amount: scenario.expenses, direction: "debit", description: "Operating expenses", posted_at: new Date().toISOString() }
+    ],
+    connections: [{ id: "fallback-conn-1", institution_name: "Connected bank" }],
+    metrics: { jobs_completed_total: 3, job_queue_depth: 0, http_requests_total: 0 }
+  };
 }

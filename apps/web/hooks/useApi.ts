@@ -13,10 +13,14 @@ type CacheEntry<T> = {
 const CACHE_TTL_MS = 30000;
 const apiCache = new Map<string, CacheEntry<unknown>>();
 
-export function useApi<T>(path: string, fallback: T) {
+type UseApiOptions = {
+  instant?: boolean;
+};
+
+export function useApi<T>(path: string, fallback: T, options: UseApiOptions = {}) {
   const cached = apiCache.get(path) as CacheEntry<T> | undefined;
   const [data, setData] = useState<T>(cached?.data !== undefined ? cached.data as T : fallback);
-  const [loading, setLoading] = useState(cached?.data === undefined);
+  const [loading, setLoading] = useState(options.instant ? false : cached?.data === undefined);
   const [error, setError] = useState(cached?.data !== undefined ? "" : cached?.error || "");
 
   useEffect(() => {
@@ -33,7 +37,7 @@ export function useApi<T>(path: string, fallback: T) {
       };
     }
 
-    setLoading(true);
+    if (!options.instant) setLoading(true);
     setError("");
     const request = cached?.promise as Promise<T> | undefined || api<T>(path);
     apiCache.set(path, { ...cached, promise: request, updatedAt: cached?.updatedAt || 0 });
@@ -55,7 +59,7 @@ export function useApi<T>(path: string, fallback: T) {
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [options.instant, path]);
 
   return { data, loading, error };
 }
