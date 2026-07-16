@@ -1,13 +1,12 @@
 "use client";
 
-import { Card } from "@/components/layout";
-import { Empty } from "@/components/layout";
+import { Card, Empty, SkeletonBlock } from "@/components/layout";
 import type { AnomalyInsight } from "@/lib/api";
 
 export function AnomalyList({ anomalies, loading, error }: { anomalies: AnomalyInsight[]; loading: boolean; error: string }) {
   return (
     <Card title="Active anomalies">
-      {loading ? <div className="h-40 animate-pulse rounded-md bg-ink/[0.04]" /> : error ? <Empty text={`Could not load anomalies: ${error}`} /> : anomalies.length ? (
+      {loading ? <SkeletonBlock className="h-40" /> : error ? <Empty text={`Could not load anomalies: ${error}`} /> : anomalies.length ? (
         <div className="grid gap-3">
           {anomalies.map((item) => (
             <article key={item.id} className="rounded-md border border-ink/10 p-4">

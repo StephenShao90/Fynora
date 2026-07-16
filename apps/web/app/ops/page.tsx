@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Empty, Header } from "@/components/layout";
+import { Empty, Header, SkeletonBlock } from "@/components/layout";
 import { GuideMarker } from "@/components/help";
 import { Card, Shell } from "@/components/layout";
 import { api } from "@/lib/api";
@@ -210,7 +210,7 @@ function ControlStatus({ value }: { value: string }) {
 }
 
 function Skeleton() {
-  return <div className="h-48 animate-pulse rounded-md bg-ink/[0.04]" />;
+  return <SkeletonBlock className="h-48" />;
 }
 
 function formatDate(value?: string) {

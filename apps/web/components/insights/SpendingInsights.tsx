@@ -1,15 +1,14 @@
 "use client";
 
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card } from "@/components/layout";
-import { Empty } from "@/components/layout";
+import { Card, Empty, SkeletonBlock } from "@/components/layout";
 import type { SpendingInsights as SpendingInsightsType } from "@/lib/api";
 
 export function SpendingInsights({ spending, loading, error }: { spending?: SpendingInsightsType; loading: boolean; error: string }) {
   const chart = spending?.categories.map((item) => ({ ...item, amount: item.amountMinor / 100 })) || [];
   return (
     <Card title="Spending insights">
-      {loading ? <div className="h-64 animate-pulse rounded-md bg-ink/[0.04]" /> : error ? <Empty text={`Could not load spending insights: ${error}`} /> : spending && spending.totalSpendMinor > 0 ? (
+      {loading ? <SkeletonBlock className="h-64" /> : error ? <Empty text={`Could not load spending insights: ${error}`} /> : spending && spending.totalSpendMinor > 0 ? (
         <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
           <div>
             <p className="text-sm text-ink/55">Total spend</p>

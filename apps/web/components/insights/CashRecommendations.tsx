@@ -1,14 +1,13 @@
 "use client";
 
-import { Card } from "@/components/layout";
-import { Empty } from "@/components/layout";
+import { Card, Empty, SkeletonBlock } from "@/components/layout";
 import type { CashRecommendation } from "@/lib/api";
 
 export function CashRecommendations({ recommendations, loading, error }: { recommendations: CashRecommendation[]; loading: boolean; error: string }) {
   return (
     <Card title="Cash recommendations">
       <p className="mb-4 text-sm leading-6 text-ink/60">Operational cash-management guidance only. This is not investment, tax, or lending advice.</p>
-      {loading ? <div className="h-44 animate-pulse rounded-md bg-ink/[0.04]" /> : error ? <Empty text={`Could not load recommendations: ${error}`} /> : recommendations.length ? (
+      {loading ? <SkeletonBlock className="h-44" /> : error ? <Empty text={`Could not load recommendations: ${error}`} /> : recommendations.length ? (
         <div className="grid gap-3">
           {recommendations.map((item) => (
             <article key={`${item.type}:${item.title}`} className="rounded-md border border-ink/10 p-4">

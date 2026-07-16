@@ -1,13 +1,12 @@
 "use client";
 
-import { Card } from "@/components/layout";
-import { Empty } from "@/components/layout";
+import { Card, Empty, SkeletonBlock } from "@/components/layout";
 import type { ReconciliationMatch } from "@/lib/api";
 
 export function ReconciliationMatches({ matches, loading, error }: { matches: ReconciliationMatch[]; loading: boolean; error: string }) {
   return (
     <Card title="Match intelligence">
-      {loading ? <div className="h-48 animate-pulse rounded-md bg-ink/[0.04]" /> : error ? <Empty text={`Could not load match intelligence: ${error}`} /> : matches.length ? (
+      {loading ? <SkeletonBlock className="h-48" /> : error ? <Empty text={`Could not load match intelligence: ${error}`} /> : matches.length ? (
         <div className="grid gap-3">
           {matches.slice(0, 8).map((item) => (
             <article key={item.id} className="rounded-md border border-ink/10 p-4">

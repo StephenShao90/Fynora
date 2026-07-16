@@ -1,7 +1,6 @@
 "use client";
 
-import { Card } from "@/components/layout";
-import { Empty } from "@/components/layout";
+import { Card, Empty, SkeletonBlock } from "@/components/layout";
 import type { CashflowForecast } from "@/lib/api";
 import { ForecastChart } from "./ForecastChart";
 
@@ -73,7 +72,7 @@ function Metric({ label, value, tone = "neutral" }: { label: string; value: stri
 }
 
 function Skeleton() {
-  return <div className="h-72 animate-pulse rounded-md bg-ink/[0.04]" />;
+  return <SkeletonBlock className="h-72" />;
 }
 
 function moneyMinor(value: number, currency: string) {

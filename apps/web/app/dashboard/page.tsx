@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, Shell, money } from "@/components/layout";
+import { Card, Shell, SkeletonBlock, money } from "@/components/layout";
 import { Header, Empty } from "@/components/layout";
 import { DemoPilot } from "@/components/demo";
 import { GuideMarker } from "@/components/help";
@@ -25,6 +25,7 @@ export default function Dashboard() {
   const metrics = useApi<Record<string, number>>("/api/v1/ops/metrics", {});
   const openBreaks = exceptions.data.filter((item) => item.status === "open");
   const completedJobs = metrics.data.jobs_completed_total || 0;
+  const metricsLoading = cash.loading || exceptions.loading;
   const nextAction = openBreaks.length
     ? { label: "Review open breaks", href: "/reconciliation", detail: `${openBreaks.length} payout/deposit issue(s) need operator review.` }
     : payouts.data.length === 0 || bank.data.length === 0
@@ -66,20 +67,20 @@ export default function Dashboard() {
 
       <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Key operating metrics</p><GuideMarker guide={{ number: 2, title: "Operating metrics", body: "Read these cards left to right: available cash, net operating movement after costs/refunds, processor cost, refunds, then open reconciliation breaks." }} /></div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <Kpi label="Operating cash" value={money(cash.data.cash_balance)} detail="posted bank cash" />
-        <Kpi label="Net flow" value={money(cash.data.net_cash_flow)} detail="cash credits minus debits, fees, refunds" tone={(cash.data.net_cash_flow || 0) >= 0 ? "good" : "warn"} />
-        <Kpi label="Processor cost" value={money(cash.data.fees)} detail="fees this period" tone="warn" />
-        <Kpi label="Refunds" value={money(cash.data.refunds)} detail="returned volume" tone="warn" />
-        <Kpi label="Open breaks" value={`${openBreaks.length}`} detail="requires review" tone={openBreaks.length ? "warn" : "good"} />
+        <Kpi label="Operating cash" value={money(cash.data.cash_balance)} detail="posted bank cash" loading={cash.loading} />
+        <Kpi label="Net flow" value={money(cash.data.net_cash_flow)} detail="cash credits minus debits, fees, refunds" tone={(cash.data.net_cash_flow || 0) >= 0 ? "good" : "warn"} loading={cash.loading} />
+        <Kpi label="Processor cost" value={money(cash.data.fees)} detail="fees this period" tone="warn" loading={cash.loading} />
+        <Kpi label="Refunds" value={money(cash.data.refunds)} detail="returned volume" tone="warn" loading={cash.loading} />
+        <Kpi label="Open breaks" value={`${openBreaks.length}`} detail="requires review" tone={openBreaks.length ? "warn" : "good"} loading={metricsLoading} />
       </div>
 
       <div className="mt-4">
         <Card title="Operator checklist" guide={{ number: 3, title: "Operator checklist", body: "Use this as the daily workflow map. Any card marked next tells you which page to open to finish setup or fix active issues." }}>
           <div className="grid gap-3 md:grid-cols-4">
-            <ChecklistItem label="Bank connection" done={connections.data.length > 0} detail={connections.data.length ? "Plaid connection available" : "Connect Plaid or create sandbox bank"} href="/imports" />
-            <ChecklistItem label="Processor data" done={payouts.data.length > 0 && payments.data.length > 0} detail={payouts.data.length ? "Payouts and payments loaded" : "Run processor sync"} href="/reconciliation" />
-            <ChecklistItem label="Worker jobs" done={completedJobs > 0} detail={completedJobs ? `${completedJobs} completed job(s)` : "Run full reconciliation with worker on"} href="/ops" />
-            <ChecklistItem label="Open breaks" done={openBreaks.length === 0} detail={openBreaks.length ? `${openBreaks.length} break(s) need review` : "No active breaks"} href="/reconciliation" />
+            <ChecklistItem label="Bank connection" done={connections.data.length > 0} detail={connections.data.length ? "Plaid connection available" : "Connect Plaid or create sandbox bank"} href="/imports" loading={connections.loading} />
+            <ChecklistItem label="Processor data" done={payouts.data.length > 0 && payments.data.length > 0} detail={payouts.data.length ? "Payouts and payments loaded" : "Run processor sync"} href="/reconciliation" loading={payouts.loading || payments.loading} />
+            <ChecklistItem label="Worker jobs" done={completedJobs > 0} detail={completedJobs ? `${completedJobs} completed job(s)` : "Run full reconciliation with worker on"} href="/ops" loading={metrics.loading} />
+            <ChecklistItem label="Open breaks" done={openBreaks.length === 0} detail={openBreaks.length ? `${openBreaks.length} break(s) need review` : "No active breaks"} href="/reconciliation" loading={exceptions.loading} />
           </div>
         </Card>
       </div>
@@ -91,6 +92,7 @@ export default function Dashboard() {
             <span>Y-axis: projected cash amount</span>
           </div>
           <div className="h-72">
+            {forecast.loading ? <SkeletonBlock className="h-full" /> : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={forecast.data}>
                 <CartesianGrid stroke="#dfe5dc" strokeDasharray="3 3" />
@@ -100,15 +102,16 @@ export default function Dashboard() {
                 <Line type="monotone" dataKey="projected_cash" stroke="#17211b" strokeWidth={3} dot={{ r: 4 }} />
               </LineChart>
             </ResponsiveContainer>
+            )}
           </div>
         </Card>
 
         <Card title="Settlement health" guide={{ number: 5, title: "Settlement health", body: "This summarizes whether enough processor and bank data exists to trust reconciliation. If open exceptions are nonzero, review breaks next." }}>
           <div className="grid gap-3">
-            <HealthRow label="Payouts imported" value={payouts.data.length} />
-            <HealthRow label="Bank transactions" value={bank.data.length} />
-            <HealthRow label="Processor payments" value={payments.data.length} />
-            <HealthRow label="Open exceptions" value={openBreaks.length} tone={openBreaks.length ? "warn" : "good"} />
+            <HealthRow label="Payouts imported" value={payouts.data.length} loading={payouts.loading} />
+            <HealthRow label="Bank transactions" value={bank.data.length} loading={bank.loading} />
+            <HealthRow label="Processor payments" value={payments.data.length} loading={payments.loading} />
+            <HealthRow label="Open exceptions" value={openBreaks.length} tone={openBreaks.length ? "warn" : "good"} loading={exceptions.loading} />
           </div>
           <div className="mt-5 rounded-md bg-ink/[0.03] p-4">
             <p className="text-sm font-medium">Next operator action</p>
@@ -122,6 +125,7 @@ export default function Dashboard() {
       <div className="mt-4 grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
         <Card title="Payout volume" guide={{ number: 6, title: "Payout volume", body: "Shows recent processor payouts by amount so you can quickly spot unusually large or small settlement batches." }}>
           <div className="h-72">
+            {payouts.loading ? <SkeletonBlock className="h-full" /> : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={payouts.data.slice(0, 8)}>
                 <XAxis dataKey="processor_payout_id" tickLine={false} axisLine={false} />
@@ -130,11 +134,12 @@ export default function Dashboard() {
                 <Bar dataKey="amount" fill="#315846" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </div>
         </Card>
 
         <Card title="Exception queue" guide={{ number: 7, title: "Exception queue", body: "These are reconciliation breaks. Open items need operator review before you trust cash reporting or month-end close." }}>
-          {exceptions.data.length ? (
+          {exceptions.loading ? <SkeletonBlock className="h-56" /> : exceptions.data.length ? (
             <div className="grid gap-2">
               {exceptions.data.slice(0, 5).map((item) => (
                 <div key={item.id} className="rounded-md border border-ink/10 p-3">
@@ -169,7 +174,8 @@ function StepLink({ number, label, href }: { number: string; label: string; href
   );
 }
 
-function ChecklistItem({ label, done, detail, href }: { label: string; done: boolean; detail: string; href: string }) {
+function ChecklistItem({ label, done, detail, href, loading = false }: { label: string; done: boolean; detail: string; href: string; loading?: boolean }) {
+  if (loading) return <SkeletonBlock className="h-28" />;
   return (
     <Link href={href} className={`rounded-md border p-3 transition hover:bg-ink/[0.03] ${done ? "border-moss/25 bg-mint/60" : "border-gold/35 bg-gold/10"}`}>
       <span className={`inline-flex rounded px-2 py-1 text-xs font-semibold ${done ? "bg-white text-moss" : "bg-white text-ink/65"}`}>{done ? "done" : "next"}</span>
@@ -179,20 +185,20 @@ function ChecklistItem({ label, done, detail, href }: { label: string; done: boo
   );
 }
 
-function Kpi({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail: string; tone?: "neutral" | "good" | "warn" }) {
+function Kpi({ label, value, detail, tone = "neutral", loading = false }: { label: string; value: string; detail: string; tone?: "neutral" | "good" | "warn"; loading?: boolean }) {
   const color = tone === "good" ? "text-moss" : tone === "warn" ? "text-coral" : "text-ink";
   return (
     <section className="rounded-md border border-ink/10 bg-white px-4 py-3 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-ink/45">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${color}`}>{value}</p>
-      <p className="mt-1 text-xs text-ink/45">{detail}</p>
+      {loading ? <SkeletonBlock className="mt-2 h-8 w-28" /> : <p className={`mt-1 text-2xl font-semibold ${color}`}>{value}</p>}
+      {loading ? <SkeletonBlock className="mt-2 h-3 w-24" /> : <p className="mt-1 text-xs text-ink/45">{detail}</p>}
     </section>
   );
 }
 
-function HealthRow({ label, value, tone = "neutral" }: { label: string; value: number; tone?: "neutral" | "good" | "warn" }) {
+function HealthRow({ label, value, tone = "neutral", loading = false }: { label: string; value: number; tone?: "neutral" | "good" | "warn"; loading?: boolean }) {
   const color = tone === "good" ? "text-moss" : tone === "warn" ? "text-coral" : "text-ink";
-  return <div className="flex items-center justify-between border-b border-ink/10 py-2 last:border-0"><span className="text-sm text-ink/60">{label}</span><span className={`text-sm font-semibold ${color}`}>{value}</span></div>;
+  return <div className="flex items-center justify-between border-b border-ink/10 py-2 last:border-0"><span className="text-sm text-ink/60">{label}</span>{loading ? <SkeletonBlock className="h-4 w-8" /> : <span className={`text-sm font-semibold ${color}`}>{value}</span>}</div>;
 }
 
 function Ledger({ title, rows, guide }: { title: string; rows: Array<{ id: string; label: string; detail: string; date: string; amount: number }>; guide?: { number: number; title: string; body: string } }) {

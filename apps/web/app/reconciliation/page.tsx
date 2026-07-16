@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, Shell, money } from "@/components/layout";
+import { Card, Shell, SkeletonBlock, money } from "@/components/layout";
 import { Header, Empty } from "@/components/layout";
 import { GuideMarker } from "@/components/help";
 import { PayoutExplanationPanel } from "@/components/payouts/PayoutExplanationPanel";
@@ -219,7 +219,7 @@ export default function ReconciliationPage() {
         </Card>
 
         <Card title="Latest reconciliation runs" guide={{ number: 3, title: "Latest runs", body: "Each run records matching results. Use this table to prove reconciliation executed and to compare matches versus breaks over time." }}>
-          {runs.data.length ? (
+          {runs.loading ? <SkeletonBlock className="h-64" /> : runs.data.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink/45">
@@ -244,7 +244,7 @@ export default function ReconciliationPage() {
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr_.95fr]">
         <Card title="Exception queue" guide={{ number: 4, title: "Exception queue", body: "Review these breaks one by one. Click Review to add notes, choose a matching bank record, or resolve the issue." }}>
-          {openExceptions.length ? (
+          {exceptions.loading ? <SkeletonBlock className="h-64" /> : openExceptions.length ? (
             <div className="grid gap-2">
               {openExceptions.slice(0, 8).map((item) => (
                 <div key={item.id} className={`rounded-md border p-3 ${item.status === "open" ? "border-coral/30 bg-coral/5" : "border-ink/10 bg-ink/[0.02]"}`}>
@@ -266,7 +266,7 @@ export default function ReconciliationPage() {
         </Card>
 
         <Card title="Payout ledger" guide={{ number: 5, title: "Payout ledger", body: "Processor payouts are the deposits you expect to see in the bank. Click View explanation to inspect gross payments, fees, refunds, and net amount." }}>
-          {payouts.data.length ? (
+          {payouts.loading ? <SkeletonBlock className="h-64" /> : payouts.data.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink/45"><tr><th className="py-2 pr-4">Payout</th><th className="pr-4">Arrival</th><th className="pr-4">Status</th><th className="pr-4 text-right">Net</th><th className="text-right">Explain</th></tr></thead>
@@ -330,7 +330,7 @@ export default function ReconciliationPage() {
 
       <div className="mt-4">
         <Card title="Recent processor payments" guide={{ number: 9, title: "Processor payments", body: "These payment rows are the source activity behind fees, refunds, payout items, and payout explanations." }}>
-          {payments.data.length ? (
+          {payments.loading ? <SkeletonBlock className="h-72" /> : payments.data.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink/45"><tr><th className="py-2 pr-4">Payment</th><th className="pr-4">Customer</th><th className="pr-4">Date</th><th className="pr-4">Status</th><th className="text-right">Gross</th></tr></thead>

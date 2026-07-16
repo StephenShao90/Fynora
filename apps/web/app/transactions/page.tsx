@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Card, Shell, money } from "@/components/layout";
+import { Card, Shell, SkeletonBlock, money } from "@/components/layout";
 import { Empty, Header } from "@/components/layout";
 import { GuideMarker } from "@/components/help";
 import { useToast } from "@/components/layout";
@@ -50,7 +50,7 @@ export default function Transactions() {
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
         <Card title="Ledger" guide={{ number: 2, title: "Transaction ledger", body: "Click any row to inspect it. This table is the normalized transaction record used by cash-flow insights." }}>
-          {filtered.length ? (
+          {rows.loading ? <TableSkeleton /> : filtered.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink/45">
@@ -73,7 +73,7 @@ export default function Transactions() {
         </Card>
 
         <Card title="Transaction detail" guide={{ number: 3, title: "Transaction detail", body: "Validate merchant normalization and change category here. Category edits feed future spending insights." }}>
-          {selected ? (
+          {rows.loading ? <SkeletonBlock className="h-80" /> : selected ? (
             <div className="grid gap-4">
               <div>
                 <p className="text-xl font-semibold">{selected.normalized_merchant || selected.merchant}</p>
@@ -105,4 +105,12 @@ export default function Transactions() {
 
 function Detail({ label, value }: { label: string; value?: string }) {
   return <div className="flex justify-between gap-3 border-b border-ink/10 py-2 last:border-0"><dt className="text-ink/45">{label}</dt><dd className="text-right font-medium text-ink/75">{value || "Not available"}</dd></div>;
+}
+
+function TableSkeleton() {
+  return (
+    <div className="grid gap-3">
+      {Array.from({ length: 7 }).map((_, index) => <SkeletonBlock key={index} className="h-12" />)}
+    </div>
+  );
 }

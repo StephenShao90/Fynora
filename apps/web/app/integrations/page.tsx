@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Empty, Header } from "@/components/layout";
+import { Empty, Header, SkeletonBlock } from "@/components/layout";
 import { Card, Shell } from "@/components/layout";
 import { useToast } from "@/components/layout";
 import { api, disconnectStripe, getStripeConnectUrl, getStripeStatus, type StripeIntegrationStatus } from "@/lib/api";
@@ -118,7 +118,7 @@ export default function IntegrationsPage() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Stripe" guide={{ number: 1, title: "Stripe connection", body: "Connect Stripe to authorize processor payout/payment access. In local mode, the app can still run mock Stripe syncs for testing." }}>
-          {stripe.loading ? <div className="h-36 animate-pulse rounded-md bg-ink/[0.04]" /> : stripe.error ? <Empty text={`Could not load Stripe status: ${stripe.error}`} /> : (
+          {stripe.loading ? <SkeletonBlock className="h-36" /> : stripe.error ? <Empty text={`Could not load Stripe status: ${stripe.error}`} /> : (
             <div>
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -143,7 +143,7 @@ export default function IntegrationsPage() {
         </Card>
 
         <Card title="Plaid" guide={{ number: 2, title: "Plaid connection", body: "Plaid represents authorized bank access. Use it to pull bank transactions without storing user bank credentials." }}>
-          {plaid.loading ? <div className="h-36 animate-pulse rounded-md bg-ink/[0.04]" /> : plaid.error ? <Empty text={`Could not load Plaid connections: ${plaid.error}`} /> : plaid.data.length ? (
+          {plaid.loading ? <SkeletonBlock className="h-36" /> : plaid.error ? <Empty text={`Could not load Plaid connections: ${plaid.error}`} /> : plaid.data.length ? (
             <div className="grid gap-3">
               {plaid.data.map((conn) => (
                 <div key={conn.id} className="rounded-md border border-ink/10 p-3">

@@ -1,13 +1,12 @@
 "use client";
 
-import { Card } from "@/components/layout";
-import { Empty } from "@/components/layout";
+import { Card, Empty, SkeletonBlock } from "@/components/layout";
 import type { PayoutExplanation } from "@/lib/api";
 
 export function PayoutExplanationPanel({ explanation, loading, error }: { explanation?: PayoutExplanation; loading: boolean; error: string }) {
   return (
     <Card title="Payout explanation">
-      {loading ? <div className="h-48 animate-pulse rounded-md bg-ink/[0.04]" /> : error ? <Empty text={`Could not load payout explanation: ${error}`} /> : explanation ? (
+      {loading ? <SkeletonBlock className="h-48" /> : error ? <Empty text={`Could not load payout explanation: ${error}`} /> : explanation ? (
         <div>
           <p className="text-sm leading-6 text-ink/62">{explanation.summary}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-4">
