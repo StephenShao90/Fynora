@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout";
 import { DemoPilot } from "@/components/demo";
 import { GuideMarker } from "@/components/help";
@@ -24,6 +25,7 @@ const businessTypes = [
 ];
 
 export default function OnboardingPage() {
+  const router = useRouter();
   const { pushToast } = useToast();
   const scenario = activeDemoScenario();
   const [name, setName] = useState(scenario.name);
@@ -68,7 +70,8 @@ export default function OnboardingPage() {
         })
       });
       pushToast({ tone: "success", title: "Workspace created", detail: created.name });
-      window.location.reload();
+      router.refresh();
+      router.push("/dashboard");
     } catch (err) {
       pushToast({ tone: "error", title: "Could not create workspace", detail: (err as Error).message });
     } finally {
@@ -83,7 +86,7 @@ export default function OnboardingPage() {
       body: JSON.stringify({ selected_scenario: id, business_type: activeDemoScenario().type, checklist: setup.data.checklist || {} })
     }).catch(() => undefined);
     pushToast({ tone: "success", title: "Scenario switched", detail: "Demo data will refresh around the selected company profile." });
-    window.location.reload();
+    router.refresh();
   }
 
   return (

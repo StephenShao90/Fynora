@@ -1,8 +1,12 @@
 "use client";
 
+import { invalidateApiCache } from "@/lib/api-cache";
+
 const CONFIGURED_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 const API_BASE = CONFIGURED_API_BASE || "http://localhost:8080";
 const DEMO_FALLBACK_ENABLED = !CONFIGURED_API_BASE;
+const READ_TIMEOUT_MS = DEMO_FALLBACK_ENABLED ? 1600 : 12000;
+const WRITE_TIMEOUT_MS = 20000;
 const DEMO_TOKEN = "clearflow-demo-token";
 const TOKEN_KEY = "clearflow_token";
 const LEGACY_TOKEN_KEY = "fynora_token";
@@ -67,15 +71,34 @@ export function logout() {
   window.location.href = "/";
 }
 
+function requestMethod(init: RequestInit) {
+  return (init.method || "GET").toUpperCase();
+}
+
+function requestTimeout(method: string) {
+  return method === "GET" ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS;
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: init.signal || controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const started = performance.now();
   const requestId = crypto.randomUUID();
+  const method = requestMethod(init);
   const jwt = token();
   const instantDemo = DEMO_FALLBACK_ENABLED && (path === "/auth/demo-token" || jwt === DEMO_TOKEN);
   if (instantDemo) {
     const fallback = demoResponse<T>(path, init);
     if (fallback !== undefined) {
-      console.info("[clearflow-api:instant-demo]", { path, method: init.method || "GET", requestId });
+      console.info("[clearflow-api:instant-demo]", { path, method, requestId });
       return fallback;
     }
   }
@@ -85,11 +108,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (jwt) headers.set("Authorization", `Bearer ${jwt}`);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+    res = await fetchWithTimeout(`${API_BASE}${path}`, { ...init, headers }, requestTimeout(method));
   } catch (err) {
     const fallback = DEMO_FALLBACK_ENABLED ? demoResponse<T>(path, init) : undefined;
     if (fallback !== undefined) {
-      console.info("[clearflow-api:demo-fallback]", { path, method: init.method || "GET", requestId, reason: (err as Error).message });
+      console.info("[clearflow-api:demo-fallback]", { path, method, requestId, reason: (err as Error).message });
       return fallback;
     }
     throw err;
@@ -100,13 +123,14 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     const body = await res.json().catch(() => ({}));
     const fallback = DEMO_FALLBACK_ENABLED ? demoResponse<T>(path, init) : undefined;
     if (fallback !== undefined && [404, 501, 503].includes(res.status)) {
-      console.info("[clearflow-api:demo-fallback]", { path, method: init.method || "GET", requestId: responseRequestId, status: res.status, reason: body?.error?.message || "endpoint unavailable" });
+      console.info("[clearflow-api:demo-fallback]", { path, method, requestId: responseRequestId, status: res.status, reason: body?.error?.message || "endpoint unavailable" });
       return fallback;
     }
     console.warn("[clearflow-api:error]", { path, status: res.status, durationMs, requestId: responseRequestId, message: body?.error?.message });
     throw new Error(body?.error?.message || `Request failed: ${res.status}`);
   }
-  console.info("[clearflow-api]", { path, method: init.method || "GET", status: res.status, durationMs, requestId: responseRequestId });
+  console.info("[clearflow-api]", { path, method, status: res.status, durationMs, requestId: responseRequestId });
+  if (method !== "GET") invalidateApiCache();
   if (res.status === 204) return undefined as T;
   return res.json();
 }
@@ -116,11 +140,11 @@ export async function upload<T>(path: string, file: File): Promise<T> {
   const requestId = crypto.randomUUID();
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithTimeout(`${API_BASE}${path}`, {
     method: "POST",
     headers: token() ? { Authorization: `Bearer ${token()}`, "X-Request-ID": requestId } : { "X-Request-ID": requestId },
     body: form
-  });
+  }, WRITE_TIMEOUT_MS);
   const durationMs = Math.round(performance.now() - started);
   const responseRequestId = res.headers.get("X-Request-ID") || requestId;
   if (!res.ok) {
@@ -128,6 +152,7 @@ export async function upload<T>(path: string, file: File): Promise<T> {
     throw new Error("Upload failed");
   }
   console.info("[clearflow-api]", { path, method: "POST", status: res.status, durationMs, requestId: responseRequestId });
+  invalidateApiCache();
   return res.json();
 }
 
