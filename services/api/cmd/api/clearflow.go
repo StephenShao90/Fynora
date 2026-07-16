@@ -238,6 +238,226 @@ func (a *app) listBankTransactionsV1(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (a *app) dashboardSummaryV1(w http.ResponseWriter, r *http.Request) {
+	r, ok := a.withV1Organization(w, r, false, authz.CanRead)
+	if !ok {
+		return
+	}
+	org := r.Context().Value(clearflowOrgContextKey{}).(models.Organization)
+
+	cash, err := a.dashboardCashSummary(r, org.ID)
+	if err != nil {
+		errorJSON(w, r, 500, "DATABASE_ERROR", "could not build dashboard cash summary")
+		return
+	}
+	forecast, err := a.dashboardCashForecast(r, org.ID)
+	if err != nil {
+		errorJSON(w, r, 500, "DATABASE_ERROR", "could not build dashboard cash forecast")
+		return
+	}
+	payments, err := a.dashboardPayments(r, org.ID)
+	if err != nil {
+		errorJSON(w, r, 500, "DATABASE_ERROR", "could not load dashboard payments")
+		return
+	}
+	payouts, err := a.dashboardPayouts(r, org.ID)
+	if err != nil {
+		errorJSON(w, r, 500, "DATABASE_ERROR", "could not load dashboard payouts")
+		return
+	}
+	bank, err := a.dashboardBankTransactions(r, org.ID)
+	if err != nil {
+		errorJSON(w, r, 500, "DATABASE_ERROR", "could not load dashboard bank transactions")
+		return
+	}
+	exceptions, err := a.dashboardExceptions(r, org.ID)
+	if err != nil {
+		errorJSON(w, r, 500, "DATABASE_ERROR", "could not load dashboard exceptions")
+		return
+	}
+	metrics, err := a.dashboardMetrics(r)
+	if err != nil {
+		errorJSON(w, r, 500, "DATABASE_ERROR", "could not load dashboard metrics")
+		return
+	}
+
+	writeJSON(w, 200, map[string]interface{}{
+		"cash":              cash,
+		"forecast":          forecast,
+		"exceptions":        firstN(exceptions, 8),
+		"payouts":           firstN(payouts, 8),
+		"payments":          firstN(payments, 8),
+		"bank_transactions": firstN(bank, 8),
+		"connections":       a.userPlaidConnections(userID(r)),
+		"metrics":           metrics,
+	})
+}
+
+func (a *app) dashboardCashSummary(r *http.Request, orgID string) (map[string]float64, error) {
+	if a.cfRepo != nil {
+		return a.cfRepo.CashSummary(r.Context(), orgID)
+	}
+	a.store.mu.RLock()
+	defer a.store.mu.RUnlock()
+	var cash, income, expenses, pendingPayouts, fees, refunds float64
+	for _, row := range a.store.bankTransactions {
+		if row.OrganizationID != orgID {
+			continue
+		}
+		if row.Direction == "credit" {
+			cash += row.Amount
+			income += row.Amount
+		} else {
+			cash -= row.Amount
+			expenses += row.Amount
+		}
+	}
+	for _, payout := range a.store.payouts {
+		if payout.OrganizationID == orgID && payout.Status != "paid" {
+			pendingPayouts += payout.Amount
+		}
+	}
+	for _, fee := range a.store.fees {
+		if fee.OrganizationID == orgID {
+			fees += fee.Amount
+		}
+	}
+	for _, refund := range a.store.refunds {
+		if refund.OrganizationID == orgID {
+			refunds += refund.Amount
+		}
+	}
+	return map[string]float64{"cash_balance": round2(cash), "income": round2(income), "expenses": round2(expenses), "pending_payouts": round2(pendingPayouts), "fees": round2(fees), "refunds": round2(refunds), "net_cash_flow": round2(income - expenses - fees - refunds)}, nil
+}
+
+func (a *app) dashboardCashForecast(r *http.Request, orgID string) ([]map[string]interface{}, error) {
+	if a.cfRepo != nil {
+		return a.cfRepo.CashForecast(r.Context(), orgID)
+	}
+	summary := a.cashSnapshot(orgID)
+	points := []map[string]interface{}{}
+	for _, days := range []int{7, 30, 60} {
+		expectedPayouts := a.expectedPayouts(orgID, days)
+		expectedExpenses := 0.0
+		if days >= 30 {
+			expectedExpenses = 450
+		}
+		points = append(points, map[string]interface{}{"days": days, "projected_cash": round2(summary + expectedPayouts - expectedExpenses), "expected_payouts": round2(expectedPayouts), "expected_expenses": expectedExpenses})
+	}
+	return points, nil
+}
+
+func (a *app) dashboardPayments(r *http.Request, orgID string) ([]models.Payment, error) {
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListPayments(r.Context(), orgID)
+		if err != nil {
+			return nil, err
+		}
+		sort.Slice(rows, func(i, j int) bool { return rows[i].OccurredAt.After(rows[j].OccurredAt) })
+		return rows, nil
+	}
+	a.store.mu.RLock()
+	defer a.store.mu.RUnlock()
+	rows := []models.Payment{}
+	for _, row := range a.store.payments {
+		if row.OrganizationID == orgID {
+			rows = append(rows, row)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].OccurredAt.After(rows[j].OccurredAt) })
+	return rows, nil
+}
+
+func (a *app) dashboardPayouts(r *http.Request, orgID string) ([]models.Payout, error) {
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListPayouts(r.Context(), orgID)
+		if err != nil {
+			return nil, err
+		}
+		sort.Slice(rows, func(i, j int) bool { return rows[i].ExpectedArrivalAt.After(rows[j].ExpectedArrivalAt) })
+		return rows, nil
+	}
+	a.store.mu.RLock()
+	defer a.store.mu.RUnlock()
+	rows := []models.Payout{}
+	for _, row := range a.store.payouts {
+		if row.OrganizationID == orgID {
+			rows = append(rows, row)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].ExpectedArrivalAt.After(rows[j].ExpectedArrivalAt) })
+	return rows, nil
+}
+
+func (a *app) dashboardBankTransactions(r *http.Request, orgID string) ([]models.BankTransaction, error) {
+	if a.cfRepo != nil {
+		rows, err := a.cfRepo.ListBankTransactions(r.Context(), orgID)
+		if err != nil {
+			return nil, err
+		}
+		sort.Slice(rows, func(i, j int) bool { return rows[i].PostedAt.After(rows[j].PostedAt) })
+		return rows, nil
+	}
+	a.store.mu.RLock()
+	defer a.store.mu.RUnlock()
+	rows := []models.BankTransaction{}
+	for _, row := range a.store.bankTransactions {
+		if row.OrganizationID == orgID {
+			rows = append(rows, row)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].PostedAt.After(rows[j].PostedAt) })
+	return rows, nil
+}
+
+func (a *app) dashboardExceptions(r *http.Request, orgID string) ([]models.ReconciliationException, error) {
+	if a.cfRepo != nil {
+		return a.cfRepo.ListExceptions(r.Context(), orgID)
+	}
+	a.store.mu.RLock()
+	defer a.store.mu.RUnlock()
+	rows := []models.ReconciliationException{}
+	for _, row := range a.store.reconciliationExceptions {
+		if row.OrganizationID == orgID {
+			rows = append(rows, row)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].CreatedAt.After(rows[j].CreatedAt) })
+	return rows, nil
+}
+
+func (a *app) dashboardMetrics(r *http.Request) (opsMetrics, error) {
+	a.store.mu.RLock()
+	metrics := a.store.metrics
+	for _, job := range a.store.jobs {
+		applyJobStatusToMetrics(&metrics, job.Status)
+	}
+	a.store.mu.RUnlock()
+	if a.cfRepo != nil {
+		counts, err := a.cfRepo.JobStatusCounts(r.Context())
+		if err != nil {
+			return metrics, err
+		}
+		metrics.JobQueueDepth = 0
+		metrics.JobsCompletedTotal = counts["completed"]
+		metrics.JobsFailedTotal = counts["failed"]
+		metrics.JobsDeadTotal = counts["dead"]
+		for status, count := range counts {
+			if status == "queued" || status == "running" {
+				metrics.JobQueueDepth += count
+			}
+		}
+	}
+	return metrics, nil
+}
+
+func firstN[T any](rows []T, n int) []T {
+	if len(rows) <= n {
+		return rows
+	}
+	return rows[:n]
+}
+
 func (a *app) listBankTransactionsV1Response(w http.ResponseWriter, r *http.Request) {
 	rows, query, ok := a.bankTransactionsForRequest(w, r)
 	if !ok {

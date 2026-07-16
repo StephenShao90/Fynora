@@ -6,14 +6,8 @@ import { Card, Shell, SkeletonBlock, money } from "@/components/layout";
 import { Header, Empty } from "@/components/layout";
 import { DemoPilot } from "@/components/demo";
 import { GuideMarker } from "@/components/help";
-import { activeDemoScenario } from "@/lib/api";
+import { dashboardFallback, type DashboardSummary } from "@/components/dashboard/data";
 import { useApi } from "@/hooks/useApi";
-
-type Payout = { id: string; processor_payout_id: string; amount: number; status: string; expected_arrival_at: string };
-type Payment = { id: string; amount: number; status: string; description: string; occurred_at: string };
-type BankTransaction = { id: string; amount: number; direction: string; description: string; posted_at: string };
-type Exception = { id: string; title: string; explanation: string; status: string; severity: string };
-type Connection = { id: string; institution_name: string };
 
 const CashForecastMiniChart = dynamic(() => import("@/components/charts/DashboardCharts").then((mod) => mod.CashForecastMiniChart), {
   ssr: false,
@@ -26,20 +20,13 @@ const PayoutVolumeChart = dynamic(() => import("@/components/charts/DashboardCha
 
 export default function Dashboard() {
   const fallback = dashboardFallback();
-  const cash = useApi<Record<string, number>>("/cash-flow/summary", fallback.cash, { instant: true });
-  const forecast = useApi<Array<Record<string, number>>>("/cash-flow/forecast", fallback.forecast, { instant: true });
-  const exceptions = useApi<Exception[]>("/reconciliation/exceptions", fallback.exceptions, { instant: true });
-  const payouts = useApi<Payout[]>("/payouts", fallback.payouts, { instant: true });
-  const payments = useApi<Payment[]>("/payments", fallback.payments, { instant: true });
-  const bank = useApi<BankTransaction[]>("/bank-transactions", fallback.bank, { instant: true });
-  const connections = useApi<Connection[]>("/connections", fallback.connections, { instant: true });
-  const metrics = useApi<Record<string, number>>("/api/v1/ops/metrics", fallback.metrics, { instant: true });
-  const openBreaks = exceptions.data.filter((item) => item.status === "open");
-  const completedJobs = metrics.data.jobs_completed_total || 0;
-  const metricsLoading = cash.loading || exceptions.loading;
+  const summary = useApi<DashboardSummary>("/api/v1/dashboard/summary", fallback, { instant: true });
+  const { cash, forecast, exceptions, payouts, payments, bank_transactions: bank, connections, metrics } = summary.data;
+  const openBreaks = exceptions.filter((item) => item.status === "open");
+  const completedJobs = metrics.jobs_completed_total || 0;
   const nextAction = openBreaks.length
     ? { label: "Review open breaks", href: "/reconciliation", detail: `${openBreaks.length} payout/deposit issue(s) need operator review.` }
-    : payouts.data.length === 0 || bank.data.length === 0
+    : payouts.length === 0 || bank.length === 0
       ? { label: "Load settlement data", href: "/reconciliation", detail: "Run processor and bank sync before trusting the dashboard." }
       : { label: "Open control evidence", href: "/ops", detail: "Reconciliation is clear. Verify jobs, audit logs, webhooks, and idempotency." };
 
@@ -78,20 +65,20 @@ export default function Dashboard() {
 
       <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Key operating metrics</p><GuideMarker guide={{ number: 2, title: "Operating metrics", body: "Read these cards left to right: available cash, net operating movement after costs/refunds, processor cost, refunds, then open reconciliation breaks." }} /></div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <Kpi label="Operating cash" value={money(cash.data.cash_balance)} detail="posted bank cash" loading={cash.loading} />
-        <Kpi label="Net flow" value={money(cash.data.net_cash_flow)} detail="cash credits minus debits, fees, refunds" tone={(cash.data.net_cash_flow || 0) >= 0 ? "good" : "warn"} loading={cash.loading} />
-        <Kpi label="Processor cost" value={money(cash.data.fees)} detail="fees this period" tone="warn" loading={cash.loading} />
-        <Kpi label="Refunds" value={money(cash.data.refunds)} detail="returned volume" tone="warn" loading={cash.loading} />
-        <Kpi label="Open breaks" value={`${openBreaks.length}`} detail="requires review" tone={openBreaks.length ? "warn" : "good"} loading={metricsLoading} />
+        <Kpi label="Operating cash" value={money(cash.cash_balance)} detail="posted bank cash" />
+        <Kpi label="Net flow" value={money(cash.net_cash_flow)} detail="cash credits minus debits, fees, refunds" tone={(cash.net_cash_flow || 0) >= 0 ? "good" : "warn"} />
+        <Kpi label="Processor cost" value={money(cash.fees)} detail="fees this period" tone="warn" />
+        <Kpi label="Refunds" value={money(cash.refunds)} detail="returned volume" tone="warn" />
+        <Kpi label="Open breaks" value={`${openBreaks.length}`} detail="requires review" tone={openBreaks.length ? "warn" : "good"} />
       </div>
 
       <div className="mt-4">
         <Card title="Operator checklist" guide={{ number: 3, title: "Operator checklist", body: "Use this as the daily workflow map. Any card marked next tells you which page to open to finish setup or fix active issues." }}>
           <div className="grid gap-3 md:grid-cols-4">
-            <ChecklistItem label="Bank connection" done={connections.data.length > 0} detail={connections.data.length ? "Plaid connection available" : "Connect Plaid or create sandbox bank"} href="/imports" loading={connections.loading} />
-            <ChecklistItem label="Processor data" done={payouts.data.length > 0 && payments.data.length > 0} detail={payouts.data.length ? "Payouts and payments loaded" : "Run processor sync"} href="/reconciliation" loading={payouts.loading || payments.loading} />
-            <ChecklistItem label="Worker jobs" done={completedJobs > 0} detail={completedJobs ? `${completedJobs} completed job(s)` : "Run full reconciliation with worker on"} href="/ops" loading={metrics.loading} />
-            <ChecklistItem label="Open breaks" done={openBreaks.length === 0} detail={openBreaks.length ? `${openBreaks.length} break(s) need review` : "No active breaks"} href="/reconciliation" loading={exceptions.loading} />
+            <ChecklistItem label="Bank connection" done={connections.length > 0} detail={connections.length ? "Plaid connection available" : "Connect Plaid or create sandbox bank"} href="/imports" />
+            <ChecklistItem label="Processor data" done={payouts.length > 0 && payments.length > 0} detail={payouts.length ? "Payouts and payments loaded" : "Run processor sync"} href="/reconciliation" />
+            <ChecklistItem label="Worker jobs" done={completedJobs > 0} detail={completedJobs ? `${completedJobs} completed job(s)` : "Run full reconciliation with worker on"} href="/ops" />
+            <ChecklistItem label="Open breaks" done={openBreaks.length === 0} detail={openBreaks.length ? `${openBreaks.length} break(s) need review` : "No active breaks"} href="/reconciliation" />
           </div>
         </Card>
       </div>
@@ -103,16 +90,16 @@ export default function Dashboard() {
             <span>Y-axis: projected cash amount</span>
           </div>
           <div className="h-72">
-            <CashForecastMiniChart data={forecast.data} />
+            <CashForecastMiniChart data={forecast} />
           </div>
         </Card>
 
         <Card title="Settlement health" guide={{ number: 5, title: "Settlement health", body: "This summarizes whether enough processor and bank data exists to trust reconciliation. If open exceptions are nonzero, review breaks next." }}>
           <div className="grid gap-3">
-            <HealthRow label="Payouts imported" value={payouts.data.length} loading={payouts.loading} />
-            <HealthRow label="Bank transactions" value={bank.data.length} loading={bank.loading} />
-            <HealthRow label="Processor payments" value={payments.data.length} loading={payments.loading} />
-            <HealthRow label="Open exceptions" value={openBreaks.length} tone={openBreaks.length ? "warn" : "good"} loading={exceptions.loading} />
+            <HealthRow label="Payouts imported" value={payouts.length} />
+            <HealthRow label="Bank transactions" value={bank.length} />
+            <HealthRow label="Processor payments" value={payments.length} />
+            <HealthRow label="Open exceptions" value={openBreaks.length} tone={openBreaks.length ? "warn" : "good"} />
           </div>
           <div className="mt-5 rounded-md bg-ink/[0.03] p-4">
             <p className="text-sm font-medium">Next operator action</p>
@@ -126,14 +113,14 @@ export default function Dashboard() {
       <div className="mt-4 grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
         <Card title="Payout volume" guide={{ number: 6, title: "Payout volume", body: "Shows recent processor payouts by amount so you can quickly spot unusually large or small settlement batches." }}>
           <div className="h-72">
-            <PayoutVolumeChart data={payouts.data.slice(0, 8)} />
+            <PayoutVolumeChart data={payouts.slice(0, 8)} />
           </div>
         </Card>
 
         <Card title="Exception queue" guide={{ number: 7, title: "Exception queue", body: "These are reconciliation breaks. Open items need operator review before you trust cash reporting or month-end close." }}>
-          {exceptions.loading ? <SkeletonBlock className="h-56" /> : exceptions.data.length ? (
+          {exceptions.length ? (
             <div className="grid gap-2">
-              {exceptions.data.slice(0, 5).map((item) => (
+              {exceptions.slice(0, 5).map((item) => (
                 <div key={item.id} className="rounded-md border border-ink/10 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -150,8 +137,8 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <Ledger title="Recent processor payments" guide={{ number: 8, title: "Processor payments", body: "These are the gross payment records that roll up into Stripe-style payouts, fees, and refunds." }} rows={payments.data.map((row) => ({ id: row.id, label: row.description, detail: row.status, date: row.occurred_at, amount: row.amount }))} />
-        <Ledger title="Recent bank activity" guide={{ number: 9, title: "Bank activity", body: "These are posted bank credits and debits. Reconciliation compares processor payouts against these deposits." }} rows={bank.data.map((row) => ({ id: row.id, label: row.description, detail: row.direction, date: row.posted_at, amount: row.direction === "credit" ? row.amount : -row.amount }))} />
+        <Ledger title="Recent processor payments" guide={{ number: 8, title: "Processor payments", body: "These are the gross payment records that roll up into Stripe-style payouts, fees, and refunds." }} rows={payments.map((row) => ({ id: row.id, label: row.description, detail: row.status, date: row.occurred_at, amount: row.amount }))} />
+        <Ledger title="Recent bank activity" guide={{ number: 9, title: "Bank activity", body: "These are posted bank credits and debits. Reconciliation compares processor payouts against these deposits." }} rows={bank.map((row) => ({ id: row.id, label: row.description, detail: row.direction, date: row.posted_at, amount: row.direction === "credit" ? row.amount : -row.amount }))} />
       </div>
     </Shell>
   );
@@ -204,41 +191,4 @@ function Ledger({ title, rows, guide }: { title: string; rows: Array<{ id: strin
 function formatDate(value?: string) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(value));
-}
-
-function dashboardFallback() {
-  const scenario = activeDemoScenario();
-  const cash = {
-    cash_balance: scenario.cashBalance,
-    income: scenario.income,
-    expenses: scenario.expenses,
-    pending_payouts: 0,
-    fees: scenario.fees,
-    refunds: scenario.refunds,
-    net_cash_flow: scenario.income - scenario.expenses - scenario.fees - scenario.refunds
-  };
-  return {
-    cash,
-    forecast: [
-      { days: 7, projected_cash: scenario.cashBalance, expected_payouts: 0, expected_expenses: 0 },
-      { days: 30, projected_cash: scenario.cashBalance - scenario.expenses * 0.9, expected_payouts: 0, expected_expenses: scenario.expenses * 0.9 },
-      { days: 60, projected_cash: scenario.cashBalance - scenario.expenses * 1.7, expected_payouts: 0, expected_expenses: scenario.expenses * 1.7 }
-    ],
-    exceptions: [
-      { id: "fallback-ex-1", title: "Likely payout amount mismatch", explanation: "Processor payout is close to a bank deposit but differs by expected fees or reserves.", status: "open", severity: "medium" }
-    ],
-    payouts: [
-      { id: "fallback-po-1", processor_payout_id: "po_demo_001", amount: Math.max(0, scenario.income - scenario.fees - scenario.refunds), status: "paid", expected_arrival_at: new Date().toISOString() }
-    ],
-    payments: [
-      { id: "fallback-pay-1", amount: Math.round(scenario.income * 0.55), status: "succeeded", description: "Customer payments batch", occurred_at: new Date().toISOString() },
-      { id: "fallback-pay-2", amount: Math.round(scenario.income * 0.45), status: "succeeded", description: "Sponsor or subscription payments", occurred_at: new Date().toISOString() }
-    ],
-    bank: [
-      { id: "fallback-bank-1", amount: scenario.cashBalance, direction: "credit", description: "Stripe payout deposit", posted_at: new Date().toISOString() },
-      { id: "fallback-bank-2", amount: scenario.expenses, direction: "debit", description: "Operating expenses", posted_at: new Date().toISOString() }
-    ],
-    connections: [{ id: "fallback-conn-1", institution_name: "Connected bank" }],
-    metrics: { jobs_completed_total: 3, job_queue_depth: 0, http_requests_total: 0 }
-  };
 }

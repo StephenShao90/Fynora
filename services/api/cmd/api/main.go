@@ -284,6 +284,7 @@ func (a *app) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /payouts/{id}/breakdown", a.authed(a.getPayoutBreakdown))
 	mux.HandleFunc("GET /bank-transactions", a.authed(a.listBankTransactions))
 	mux.HandleFunc("GET /api/v1/bank-transactions", a.authed(a.listBankTransactionsV1))
+	mux.HandleFunc("GET /api/v1/dashboard/summary", a.authed(a.dashboardSummaryV1))
 	mux.HandleFunc("POST /sync/stripe", a.authed(a.syncStripeMock))
 	mux.HandleFunc("POST /api/v1/sync/stripe", a.authed(a.heavyRateLimited(a.syncStripeMockV1)))
 	mux.HandleFunc("POST /sync/bank", a.authed(a.syncBankMock))

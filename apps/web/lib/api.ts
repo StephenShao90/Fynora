@@ -70,10 +70,18 @@ export function logout() {
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const started = performance.now();
   const requestId = crypto.randomUUID();
+  const jwt = token();
+  const instantDemo = DEMO_FALLBACK_ENABLED && (path === "/auth/demo-token" || jwt === DEMO_TOKEN);
+  if (instantDemo) {
+    const fallback = demoResponse<T>(path, init);
+    if (fallback !== undefined) {
+      console.info("[clearflow-api:instant-demo]", { path, method: init.method || "GET", requestId });
+      return fallback;
+    }
+  }
   const headers = new Headers(init.headers);
   headers.set("Content-Type", headers.get("Content-Type") || "application/json");
   headers.set("X-Request-ID", requestId);
-  const jwt = token();
   if (jwt) headers.set("Authorization", `Bearer ${jwt}`);
   let res: Response;
   try {
@@ -288,6 +296,7 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.includes("/members/") && method === "PATCH") return { id: "member-demo-2", organization_id: "demo-org", user_id: "member-demo-2", user_email: "analyst@clearflow.local", user_name: "Analyst", role: "admin", created_at: "2026-07-06T18:00:00Z" } as T;
   if (path.includes("/members/") && method === "DELETE") return undefined as T;
   if (path === "/organizations" || path === "/api/v1/organizations") return [{ id: "demo-org", name: scenario.name, type: scenario.type, currency: scenario.currency, role: "owner" }] as T;
+  if (path.startsWith("/api/v1/dashboard/summary")) return demoDashboardSummary(scenario) as T;
   if (path.startsWith("/cash-flow/summary")) return { cash_balance: scenario.cashBalance, income: scenario.income, expenses: scenario.expenses, pending_payouts: 0, fees: scenario.fees, refunds: scenario.refunds, net_cash_flow: scenario.income - scenario.expenses - scenario.fees - scenario.refunds } as T;
   if (path.startsWith("/cash-flow/forecast")) return [{ days: 7, projected_cash: scenario.cashBalance, expected_payouts: 0, expected_expenses: 0 }, { days: 30, projected_cash: scenario.cashBalance - scenario.expenses * 0.9, expected_payouts: 0, expected_expenses: scenario.expenses * 0.9 }, { days: 60, projected_cash: scenario.cashBalance - scenario.expenses * 1.7, expected_payouts: 0, expected_expenses: scenario.expenses * 1.7 }] as T;
   if (path.startsWith("/payments")) return demoPayments as T;
@@ -330,6 +339,19 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.startsWith("/transactions")) return [] as T;
   if (path.startsWith("/insights")) return [] as T;
   return undefined;
+}
+
+function demoDashboardSummary(scenario: DemoScenario) {
+  return {
+    cash: { cash_balance: scenario.cashBalance, income: scenario.income, expenses: scenario.expenses, pending_payouts: 0, fees: scenario.fees, refunds: scenario.refunds, net_cash_flow: scenario.income - scenario.expenses - scenario.fees - scenario.refunds },
+    forecast: [{ days: 7, projected_cash: scenario.cashBalance, expected_payouts: 0, expected_expenses: 0 }, { days: 30, projected_cash: scenario.cashBalance - scenario.expenses * 0.9, expected_payouts: 0, expected_expenses: scenario.expenses * 0.9 }, { days: 60, projected_cash: scenario.cashBalance - scenario.expenses * 1.7, expected_payouts: 0, expected_expenses: scenario.expenses * 1.7 }],
+    exceptions: demoExceptions,
+    payouts: demoPayouts,
+    payments: demoPayments,
+    bank_transactions: demoBankTransactions,
+    connections: demoPlaidConnections,
+    metrics: demoMetrics
+  };
 }
 
 const demoMembers = [
