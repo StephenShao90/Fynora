@@ -139,6 +139,45 @@ func TestPlaidInvestmentsMockSyncPopulatesPortfolio(t *testing.T) {
 	}
 }
 
+func TestPlaidTransactionSyncRemovesUndecryptableLocalConnection(t *testing.T) {
+	a := newAPITestApp(t)
+	uid := "user-1"
+	a.cfg.LocalStorageDir = t.TempDir() + "/raw"
+	a.store.plaidConnections["stale"] = models.PlaidConnection{
+		ID:                    "stale",
+		UserID:                uid,
+		ItemID:                "item_stale",
+		InstitutionName:       "Old Sandbox Bank",
+		AccessTokenCiphertext: "not-valid-ciphertext",
+		CreatedAt:             time.Now().UTC(),
+		UpdatedAt:             time.Now().UTC(),
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/connections/plaid/sync-transactions", strings.NewReader(`{}`))
+	req = req.WithContext(context.WithValue(req.Context(), "user_id", uid))
+	rec := httptest.NewRecorder()
+	a.syncPlaidTransactions(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected stale Plaid connection to be handled as recoverable, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		ImportedCount          int    `json:"imported_count"`
+		ConnectionCount        int    `json:"connection_count"`
+		InvalidConnectionCount int    `json:"invalid_connection_count"`
+		Message                string `json:"message"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.InvalidConnectionCount != 1 || payload.ConnectionCount != 0 || payload.Message == "" {
+		t.Fatalf("unexpected stale connection payload: %#v", payload)
+	}
+	if _, ok := a.store.plaidConnections["stale"]; ok {
+		t.Fatal("expected stale Plaid connection to be removed")
+	}
+}
+
 func TestReconcileOrganizationFlagsUnmatchedDeposit(t *testing.T) {
 	a := &app{store: newStore()}
 	uid := "user-1"

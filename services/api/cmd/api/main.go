@@ -56,6 +56,8 @@ type app struct {
 	tracer           observability.Tracer
 }
 
+var errPlaidAccessTokenDecrypt = errors.New("could not decrypt Plaid access token")
+
 type memoryStore struct {
 	mu                       sync.RWMutex
 	users                    map[string]models.User
@@ -937,15 +939,26 @@ func (a *app) syncPlaidTransactions(w http.ResponseWriter, r *http.Request) {
 		connections = []models.PlaidConnection{c}
 	}
 	imported := 0
+	invalidConnections := 0
 	for _, conn := range connections {
 		n, err := a.syncOnePlaidConnection(r.Context(), conn)
 		if err != nil {
+			if errors.Is(err, errPlaidAccessTokenDecrypt) {
+				invalidConnections++
+				a.removePlaidConnection(conn.ID)
+				a.log.Info("plaid.connection_removed_invalid_token", map[string]interface{}{"connection_id": conn.ID, "item_id": conn.ItemID, "user_id": uid})
+				continue
+			}
 			errorJSON(w, r, 502, "PLAID_ERROR", err.Error())
 			return
 		}
 		imported += n
 	}
-	writeJSON(w, 200, map[string]interface{}{"imported_count": imported, "connection_count": len(connections)})
+	payload := map[string]interface{}{"imported_count": imported, "connection_count": len(connections) - invalidConnections, "invalid_connection_count": invalidConnections}
+	if invalidConnections > 0 {
+		payload["message"] = "Removed stale Plaid connection data that could not be decrypted. Create a new sandbox or Plaid Link connection, then sync again."
+	}
+	writeJSON(w, 200, payload)
 }
 
 func (a *app) syncPlaidInvestments(w http.ResponseWriter, r *http.Request) {
@@ -1424,10 +1437,18 @@ func (a *app) userPlaidConnections(uid string) []models.PlaidConnection {
 	}
 	return out
 }
+func (a *app) removePlaidConnection(id string) {
+	a.store.mu.Lock()
+	delete(a.store.plaidConnections, id)
+	a.store.mu.Unlock()
+	if err := a.persistPlaidConnections(); err != nil {
+		a.log.Error("plaid.connection_remove_persist_failed", map[string]interface{}{"connection_id": id, "error": err.Error()})
+	}
+}
 func (a *app) syncOnePlaidConnection(ctx context.Context, conn models.PlaidConnection) (int, error) {
 	accessToken, err := a.decryptToken(conn.AccessTokenCiphertext)
 	if err != nil {
-		return 0, fmt.Errorf("could not decrypt Plaid access token")
+		return 0, fmt.Errorf("%w", errPlaidAccessTokenDecrypt)
 	}
 	imported := 0
 	cursor := conn.Cursor
