@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import IntegrationsPage from "@/app/integrations/page";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/integrations" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/integrations", useRouter: () => ({ prefetch: vi.fn(), push: vi.fn(), replace: vi.fn() }) }));
 vi.mock("@/hooks/useApi", () => ({
   useApi: () => ({ data: [{ id: "plaid_1", institution_name: "Plaid Test Bank", products: ["transactions"], last_synced_at: "2026-07-06T12:00:00Z" }], loading: false, error: "" })
 }));

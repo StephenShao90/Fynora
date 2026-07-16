@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { GuideMarker, type Guide } from "@/components/help";
-import { activeDemoScenario, isDemoFallbackMode, logout, setDemoScenario } from "@/lib/api";
+import { activeDemoScenario, isDemoFallbackMode, setDemoScenario } from "@/lib/api";
 
 const nav = [
   ["/dashboard", "Today"],
@@ -18,7 +19,16 @@ const nav = [
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
   const scenario = activeDemoScenario();
+  useEffect(() => {
+    nav.forEach(([href]) => router.prefetch(href));
+  }, [router]);
+  function signOut() {
+    localStorage.removeItem("clearflow_token");
+    localStorage.removeItem("fynora_token");
+    router.replace("/");
+  }
   return (
     <div className="min-h-screen bg-[#f4f6f2]">
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-ink/10 bg-[#fbfcf8] p-6 lg:block">
@@ -48,13 +58,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        <button onClick={logout} className="absolute bottom-6 left-6 rounded-md border border-ink/15 bg-white px-3 py-2 text-sm text-ink/65 hover:bg-ink/[0.03]">Log out</button>
+        <button onClick={signOut} className="absolute bottom-6 left-6 rounded-md border border-ink/15 bg-white px-3 py-2 text-sm text-ink/65 hover:bg-ink/[0.03]">Log out</button>
       </aside>
       <main className="lg:pl-72">
         <header className="sticky top-0 z-30 border-b border-ink/10 bg-[#fbfcf8]/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between gap-3">
             <Link href="/dashboard" className="text-lg font-semibold text-ink">Clearflow</Link>
-            <button onClick={logout} className="rounded-md border border-ink/15 bg-white px-3 py-2 text-xs text-ink/65">Log out</button>
+            <button onClick={signOut} className="rounded-md border border-ink/15 bg-white px-3 py-2 text-xs text-ink/65">Log out</button>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-ink/45" htmlFor="mobile-nav">
@@ -62,7 +72,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <select
                 id="mobile-nav"
                 value={path}
-                onChange={(event) => { window.location.href = event.target.value; }}
+                onChange={(event) => router.push(event.target.value)}
                 className="rounded-md border border-ink/15 bg-white px-2 py-2 text-sm normal-case tracking-normal text-ink"
               >
                 {nav.map(([href, label]) => <option key={href} value={href}>{label}</option>)}
@@ -84,7 +94,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </label>
           </div>
         </header>
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10">{children}</div>
+        <div key={path} className="app-page-surface mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10">{children}</div>
       </main>
     </div>
   );

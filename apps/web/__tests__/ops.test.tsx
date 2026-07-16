@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import OpsPage from "@/app/ops/page";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/ops" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/ops", useRouter: () => ({ prefetch: vi.fn(), push: vi.fn(), replace: vi.fn() }) }));
 vi.mock("@/lib/api", () => ({
   activeDemoScenario: () => ({ id: "student_org", name: "Demo Organization", type: "student_organization", currency: "USD" }),
   setDemoScenario: () => {},

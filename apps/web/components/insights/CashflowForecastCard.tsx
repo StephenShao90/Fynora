@@ -1,10 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Card, Empty, SkeletonBlock } from "@/components/layout";
 import type { CashflowForecast } from "@/lib/api";
-import { ForecastChart } from "./ForecastChart";
 
 const horizons = [7, 30, 60, 90];
+const ForecastChart = dynamic(() => import("./ForecastChart").then((mod) => mod.ForecastChart), {
+  ssr: false,
+  loading: () => <SkeletonBlock className="h-72" />
+});
 
 export function CashflowForecastCard({
   forecast,

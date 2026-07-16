@@ -10,6 +10,7 @@ body {
   margin: 0;
   background: #f4f6f2;
   color: #17211b;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -38,6 +39,27 @@ textarea {
 
 @media (prefers-reduced-motion: reduce) {
   .skeleton-shimmer {
+    animation: none;
+  }
+}
+
+.app-page-surface {
+  animation: page-enter 180ms ease-out both;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-page-surface {
     animation: none;
   }
 }

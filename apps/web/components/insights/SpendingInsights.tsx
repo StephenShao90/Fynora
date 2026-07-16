@@ -1,8 +1,13 @@
 "use client";
 
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import dynamic from "next/dynamic";
 import { Card, Empty, SkeletonBlock } from "@/components/layout";
 import type { SpendingInsights as SpendingInsightsType } from "@/lib/api";
+
+const SpendingChart = dynamic(() => import("@/components/charts/SpendingChart").then((mod) => mod.SpendingChart), {
+  ssr: false,
+  loading: () => <SkeletonBlock className="h-full" />
+});
 
 export function SpendingInsights({ spending, loading, error }: { spending?: SpendingInsightsType; loading: boolean; error: string }) {
   const chart = spending?.categories.map((item) => ({ ...item, amount: item.amountMinor / 100 })) || [];
@@ -14,14 +19,7 @@ export function SpendingInsights({ spending, loading, error }: { spending?: Spen
             <p className="text-sm text-ink/55">Total spend</p>
             <p className="mt-1 text-3xl font-semibold">{moneyMinor(spending.totalSpendMinor, spending.currency)}</p>
             <div className="mt-4 h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chart}>
-                  <XAxis dataKey="category" tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => money(Number(value), spending.currency)} width={64} />
-                  <Tooltip formatter={(value) => money(Number(value), spending.currency)} />
-                  <Bar dataKey="amount" fill="#315846" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <SpendingChart data={chart} currency={spending.currency} />
             </div>
           </div>
           <div className="grid content-start gap-4">
