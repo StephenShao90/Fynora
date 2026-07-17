@@ -119,7 +119,10 @@ export default function Imports() {
         },
         onExit: (error) => {
           setBusy("");
-          if (error) setResult(JSON.stringify(error, null, 2));
+          if (error) {
+            console.warn("[clearflow-plaid:exit]", error);
+            setResult("Plaid connection was not completed. Try again or use the sandbox connection for local testing.");
+          }
         }
       });
       handler.open();

@@ -17,7 +17,7 @@ describe("DemoPilot", () => {
   it("runs the guided demo workflow in order", async () => {
     render(<DemoPilot />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Run full demo setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare sample close" }));
 
     await waitFor(() => expect(screen.getByText(/Ready at/)).toBeInTheDocument());
     expect(apiMock).toHaveBeenCalledTimes(4);
@@ -34,7 +34,7 @@ describe("DemoPilot", () => {
     apiMock.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("stripe unavailable"));
     render(<DemoPilot />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Run full demo setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare sample close" }));
 
     await waitFor(() => expect(screen.getByText("stripe unavailable")).toBeInTheDocument());
     expect(screen.getByText("failed")).toBeInTheDocument();

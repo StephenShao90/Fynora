@@ -29,16 +29,16 @@ export default function Register() {
         <section>
           <Link href="/" className="text-xl font-semibold">Clearflow</Link>
           <p className="mt-4 text-sm font-semibold uppercase tracking-wide text-moss">Create a reconciliation workspace</p>
-          <h1 className="mt-3 max-w-xl text-4xl font-semibold leading-tight">Start with secure login, then connect provider data</h1>
+          <h1 className="mt-3 max-w-xl text-4xl font-semibold leading-tight">Create a workspace for weekly payout close</h1>
           <p className="mt-4 max-w-xl text-sm leading-6 text-ink/60">
-            A new account creates local authenticated access so you can set up an organization, sync Stripe-style payouts, connect bank data, and resolve settlement breaks.
+            Start with a team workspace, then connect processor payouts and bank activity so every deposit has an explanation.
           </p>
           <div className="mt-6 rounded-md border border-ink/10 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">After signup</p>
             <div className="mt-3 grid gap-2 text-sm text-ink/65">
-              <p>1. Save the workspace profile.</p>
-              <p>2. Connect Stripe/Plaid or run the local demo sync.</p>
-              <p>3. Run payout reconciliation and review exceptions.</p>
+              <p>1. Name the team or organization.</p>
+              <p>2. Connect data sources or use the sample workspace.</p>
+              <p>3. Run the close checklist and resolve open breaks.</p>
             </div>
           </div>
         </section>
@@ -47,9 +47,9 @@ export default function Register() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-2xl font-semibold">Create account</h2>
-              <p className="mt-1 text-sm text-ink/50">Register a local Clearflow user.</p>
+              <p className="mt-1 text-sm text-ink/50">Set up secure access for your workspace.</p>
             </div>
-            <GuideMarker guide={{ number: 1, title: "Create account", body: "Register a local user, receive a JWT, and continue to onboarding so the workspace can be configured." }} />
+            <GuideMarker guide={{ number: 1, title: "Create account", body: "Create secure access, then continue to setup so the workspace can be configured." }} />
           </div>
           <label className="mt-6 grid gap-1 text-sm font-medium">
             Email

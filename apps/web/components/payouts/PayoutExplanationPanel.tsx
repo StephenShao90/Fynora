@@ -21,6 +21,15 @@ export function PayoutExplanationPanel({ explanation, loading, error }: { explan
               <p className="mt-1 text-ink/60">{moneyMinor(explanation.bankDeposit.amountMinor, explanation.currency)} posted {formatDate(explanation.bankDeposit.postedAt)} · {explanation.bankDeposit.id.slice(0, 8)}</p>
             ) : <p className="mt-1 text-coral">No matching bank deposit found.</p>}
           </div>
+          <div className="mt-4 rounded-md border border-ink/10 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Payout math</p>
+            <div className="mt-3 grid gap-2 text-sm">
+              <ProofRow label="Gross customer payments" value={explanation.grossAmountMinor} currency={explanation.currency} />
+              <ProofRow label="Minus processor fees" value={-explanation.feesMinor} currency={explanation.currency} tone="warn" />
+              <ProofRow label="Minus customer refunds" value={-explanation.refundsMinor} currency={explanation.currency} tone="warn" />
+              <ProofRow label="Expected bank deposit" value={explanation.netAmountMinor} currency={explanation.currency} tone="good" strong />
+            </div>
+          </div>
           {explanation.warnings.length ? (
             <div className="mt-4 rounded-md border border-coral/20 bg-coral/5 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-coral">Warnings</p>
@@ -29,7 +38,6 @@ export function PayoutExplanationPanel({ explanation, loading, error }: { explan
               </ul>
             </div>
           ) : null}
-          {explanation.lineItems.length ? <pre className="mt-4 overflow-auto rounded-md bg-ink p-3 text-xs text-white">{JSON.stringify(explanation.lineItems, null, 2)}</pre> : null}
         </div>
       ) : <Empty text="Select a payout to view its explanation." />}
     </Card>
@@ -42,6 +50,16 @@ function Amount({ label, value, currency, tone = "neutral" }: { label: string; v
     <div className="rounded-md border border-ink/10 p-3">
       <p className="text-xs font-medium uppercase tracking-wide text-ink/40">{label}</p>
       <p className={`mt-1 text-xl font-semibold ${color}`}>{moneyMinor(value, currency)}</p>
+    </div>
+  );
+}
+
+function ProofRow({ label, value, currency, tone = "neutral", strong = false }: { label: string; value: number; currency: string; tone?: "neutral" | "good" | "warn"; strong?: boolean }) {
+  const color = tone === "good" ? "text-moss" : tone === "warn" ? "text-coral" : "text-ink/70";
+  return (
+    <div className={`flex items-center justify-between gap-3 border-b border-ink/10 py-2 last:border-0 ${strong ? "font-semibold" : ""}`}>
+      <span className="text-ink/55">{label}</span>
+      <span className={color}>{moneyMinor(value, currency)}</span>
     </div>
   );
 }

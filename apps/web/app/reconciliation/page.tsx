@@ -90,7 +90,7 @@ export default function ReconciliationPage() {
       return false;
     }
     const id = crypto.randomUUID();
-    setActivity((items) => [{ id, label, detail: "Queued for worker", status: "running" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
+    setActivity((items) => [{ id, label, detail: "Queued in the background", status: "running" as const, at: new Date().toISOString() }, ...items].slice(0, 8));
     try {
       const result = await api<{ jobId?: string; status?: string }>(`${jobPath}?organizationId=${encodeURIComponent(orgId)}`, {
         method: "POST",
@@ -146,7 +146,7 @@ export default function ReconciliationPage() {
       }
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
-    throw new Error(`${label} job did not complete. Make sure make worker is running.`);
+    throw new Error(`${label} did not complete. Make sure the background process is running.`);
   }
 
   async function resolveException(item: Exception) {
@@ -200,7 +200,7 @@ export default function ReconciliationPage() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
-        <Card title="Close checklist" guide={{ number: 2, title: "Close checklist", body: "Use Run full reconciliation for the normal path. It queues processor sync, bank sync, then matching through the worker." }}>
+        <Card title="Close checklist" guide={{ number: 2, title: "Close checklist", body: "Use Run close checklist for the normal path. It refreshes processor data, bank data, then payout matching in the background." }}>
           <button onClick={runFullWorkflow} disabled={workflowRunning || !orgId} className="mb-3 w-full rounded-md bg-ink px-3 py-3 text-left text-sm font-semibold text-white hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-ink/40">
             Run close checklist
             <span className="mt-1 block text-xs font-normal text-white/70">Loads data, matches payouts, and refreshes breaks.</span>

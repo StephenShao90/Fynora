@@ -91,7 +91,14 @@ export default function OnboardingPage() {
 
   return (
     <Shell>
-      <Header title="Onboarding" subtitle="Set up the workspace, connect provider data, and reach a reliable reconciliation-ready state." />
+      <Header title="Start close setup" subtitle="Choose the kind of team you run, then prepare the data Clearflow needs to explain every payout." />
+
+      <section className="mb-4 grid gap-3 rounded-md border border-ink/10 bg-white p-4 shadow-sm md:grid-cols-4">
+        <SetupStep number="1" title="Name workspace" body="Set the team context for cash and payouts." />
+        <SetupStep number="2" title="Connect data" body="Bring in bank activity and processor payouts." />
+        <SetupStep number="3" title="Run close" body="Match payouts against posted deposits." />
+        <SetupStep number="4" title="Resolve breaks" body="Explain anything that does not match." />
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
         <Card title="Workspace profile" guide={{ number: 1, title: "Workspace profile", body: "Set the organization name, business type, and currency. This is the customer/account context for all cash and reconciliation data." }}>
@@ -117,10 +124,10 @@ export default function OnboardingPage() {
           <button onClick={createWorkspace} disabled={Boolean(busy)} className="mt-4 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
             {busy || "Save workspace"}
           </button>
-          <p className="mt-3 text-sm leading-6 text-ink/55">This creates a real organization when the API is running. In demo fallback mode it switches the sample company profile locally.</p>
+          <p className="mt-3 text-sm leading-6 text-ink/55">This workspace name appears across the close checklist, data connections, and cash forecast.</p>
         </Card>
 
-        <Card title="Setup checklist" guide={{ number: 2, title: "Setup checklist", body: "Use this to see what is missing before Clearflow can reconcile reliably: workspace, processor data, bank data, and a first reconciliation run." }}>
+        <Card title="Close readiness" guide={{ number: 2, title: "Close readiness", body: "Use this to see what is missing before Clearflow can reconcile reliably: workspace, processor data, bank data, and a first reconciliation run." }}>
           {setup.loading ? <p className="mb-3 text-sm text-ink/45">Loading saved setup status...</p> : null}
           <div className="grid gap-2">
             {checklist.map((item) => (
@@ -134,20 +141,20 @@ export default function OnboardingPage() {
             ))}
           </div>
           <div className="mt-4 rounded-md bg-ink/[0.03] p-3 text-sm leading-6 text-ink/60">
-            Setup status is persisted through the API when the local backend is running. Provider readiness is derived from actual Stripe/Plaid connections, imported processor data, bank records, and team membership.
+            When these items are complete, the Home base can tell you whether payouts are explained and whether cash is trustworthy.
           </div>
         </Card>
       </div>
 
       <div className="mt-4">
         <div className="mb-2 flex justify-end">
-          <GuideMarker guide={{ number: 3, title: "Guided demo setup", body: "Click Run full demo setup to prepare the whole walkthrough: onboarding state, processor data, bank data, and reconciliation." }} />
+          <GuideMarker guide={{ number: 3, title: "Sample close setup", body: "Click Prepare sample close to load workspace state, processor payouts, bank data, and reconciliation results in order." }} />
         </div>
         <DemoPilot compact />
       </div>
 
       <div className="mt-4">
-        <Card title="Demo company switcher" guide={{ number: 4, title: "Demo company switcher", body: "Switch the sample company profile so you can show Clearflow for student orgs, creators, SaaS teams, or nonprofits." }}>
+        <Card title="Sample workspace profiles" guide={{ number: 4, title: "Sample workspace profiles", body: "Switch the sample company profile so you can show Clearflow for student orgs, creators, SaaS teams, or nonprofits." }}>
           <div className="grid gap-3 md:grid-cols-4">
             <ScenarioButton active={scenario.id === "student_org"} title="Student org" detail="Dues, event tickets, sponsor payments, venue deposits." onClick={() => switchScenario("student_org")} />
             <ScenarioButton active={scenario.id === "creator"} title="Creator shop" detail="Stripe storefront payouts, refunds, platform tools." onClick={() => switchScenario("creator")} />
@@ -157,6 +164,18 @@ export default function OnboardingPage() {
         </Card>
       </div>
     </Shell>
+  );
+}
+
+function SetupStep({ number, title, body }: { number: string; title: string; body: string }) {
+  return (
+    <div className="flex gap-3 rounded-md bg-ink/[0.025] p-3">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#83c5ff] text-xs font-bold text-ink">{number}</span>
+      <div>
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-ink/55">{body}</p>
+      </div>
+    </div>
   );
 }
 

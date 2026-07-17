@@ -47,11 +47,11 @@ function AuthForm({ title, error, busy, onSubmit, onDemo, button }: { title: str
           <p className="mt-4 text-sm font-semibold uppercase tracking-wide text-moss">Secure workspace access</p>
           <h1 className="mt-3 max-w-xl text-4xl font-semibold leading-tight">{title} to reconcile payouts</h1>
           <p className="mt-4 max-w-xl text-sm leading-6 text-ink/60">
-            Access the operator dashboard for Stripe payout matching, bank deposit review, cash forecasting, and audit-ready controls.
+            Open your close workspace to review payouts, confirm bank deposits, resolve breaks, and decide what cash is safe to use.
           </p>
-          <div className="mt-6 grid gap-3 text-sm text-ink/65">
-            <p><span className="font-semibold text-ink">JWT auth:</span> local users receive bearer tokens for API requests.</p>
-            <p><span className="font-semibold text-ink">Demo path:</span> use sample data when you want to review the workflow without creating a user.</p>
+          <div className="mt-6 grid gap-3 rounded-md border border-ink/10 bg-white p-4 text-sm text-ink/65">
+            <p><span className="font-semibold text-ink">Returning operator:</span> log in and continue the latest close checklist.</p>
+            <p><span className="font-semibold text-ink">Just exploring:</span> use the demo path to see a complete payout-to-bank story with sample data.</p>
           </div>
         </section>
 
@@ -59,9 +59,9 @@ function AuthForm({ title, error, busy, onSubmit, onDemo, button }: { title: str
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-2xl font-semibold">{title}</h2>
-              <p className="mt-1 text-sm text-ink/50">Use an existing Clearflow account.</p>
+              <p className="mt-1 text-sm text-ink/50">Continue to your cash close workspace.</p>
             </div>
-            <GuideMarker guide={{ number: 1, title: "Authentication", body: "Enter an existing email and password to receive a JWT and open the dashboard. Use Try Demo when you only want sample data." }} />
+            <GuideMarker guide={{ number: 1, title: "Authentication", body: "Enter an existing email and password to open the workspace. Use the sample workspace when you only want to explore the flow." }} />
           </div>
           <label className="mt-6 grid gap-1 text-sm font-medium">
             Email
@@ -73,7 +73,7 @@ function AuthForm({ title, error, busy, onSubmit, onDemo, button }: { title: str
           </label>
           {error ? <p className="mt-3 rounded-md border border-coral/25 bg-coral/5 p-3 text-sm text-coral">{error}</p> : null}
           <button disabled={Boolean(busy)} className="mt-5 w-full rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy || button}</button>
-          <button type="button" onClick={onDemo} disabled={Boolean(busy)} className="mt-3 w-full rounded-md border border-ink/15 px-4 py-2.5 text-sm font-semibold text-ink disabled:opacity-50">Try demo instead</button>
+          <button type="button" onClick={onDemo} disabled={Boolean(busy)} className="mt-3 w-full rounded-md border border-ink/15 px-4 py-2.5 text-sm font-semibold text-ink disabled:opacity-50">Open sample workspace</button>
           <p className="mt-5 text-center text-sm text-ink/55">
             New to Clearflow? <Link href="/register" className="font-semibold text-moss">Create an account</Link>
           </p>

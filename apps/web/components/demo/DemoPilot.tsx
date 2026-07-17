@@ -87,7 +87,7 @@ export function DemoPilot({ compact = false }: { compact?: boolean }) {
       const completedAt = new Date().toISOString();
       setLastRun(completedAt);
       console.info("[clearflow-demo-pilot:complete]", { completedAt });
-      pushToast({ tone: "success", title: "Demo workflow ready", detail: "Dashboard, reconciliation, cash forecast, and ops now have fresh data." });
+      pushToast({ tone: "success", title: "Sample close ready", detail: "Home base, reconciliation, and cash forecast now have fresh data." });
     } catch (err) {
       const message = (err as Error).message;
       setError(message);
@@ -108,10 +108,10 @@ export function DemoPilot({ compact = false }: { compact?: boolean }) {
     <section className="rounded-md border border-ink/10 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Settlement demo runner</p>
-          <h2 className="mt-1 text-lg font-semibold text-ink">Prepare the payout reconciliation story</h2>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Sample close runner</p>
+          <h2 className="mt-1 text-lg font-semibold text-ink">Prepare a complete payout close</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-ink/55">
-            Runs the local workflow in the same order an operator would use it: setup, processor data, bank data, then payout-to-deposit reconciliation.
+            Loads the sample workspace in the same order an operator would close cash: team setup, processor payouts, bank deposits, then payout matching.
           </p>
         </div>
         <button
@@ -120,7 +120,7 @@ export function DemoPilot({ compact = false }: { compact?: boolean }) {
           disabled={running}
           className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {running ? "Running..." : "Run full demo setup"}
+          {running ? "Running..." : "Prepare sample close"}
         </button>
       </div>
 
@@ -140,8 +140,8 @@ export function DemoPilot({ compact = false }: { compact?: boolean }) {
       {lastRun ? (
         <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md bg-mint/60 p-3 text-sm text-moss">
           <span className="font-semibold">Ready at {new Date(lastRun).toLocaleTimeString()}</span>
+          <Link href="/dashboard" className="underline">Open home base</Link>
           <Link href="/reconciliation" className="underline">Review breaks</Link>
-          <Link href="/ops" className="underline">Check jobs/audit</Link>
         </div>
       ) : null}
     </section>
