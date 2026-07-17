@@ -6,16 +6,21 @@ import { usePathname, useRouter } from "next/navigation";
 import { GuideMarker, type Guide } from "@/components/help";
 import { activeDemoScenario, isDemoFallbackMode, setDemoScenario } from "@/lib/api";
 
-const nav = [
-  ["/dashboard", "Today"],
-  ["/reconciliation", "Reconcile"],
-  ["/imports", "Data connections"],
-  ["/integrations", "Provider health"],
+const primaryNav = [
+  ["/dashboard", "Home base"],
+  ["/imports", "Connect data"],
+  ["/reconciliation", "Reconcile payouts"],
   ["/insights", "Cash forecast"],
-  ["/transactions", "Transactions"],
-  ["/ops", "Controls"],
-  ["/settings", "Settings"]
+  ["/transactions", "Transaction ledger"]
 ];
+
+const advancedNav = [
+  ["/integrations", "Provider health"],
+  ["/ops", "Control center"],
+  ["/settings", "Team settings"]
+];
+
+const nav = [...primaryNav, ...advancedNav];
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
@@ -33,7 +38,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[#f4f6f2]">
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-ink/10 bg-[#fbfcf8] p-6 lg:block">
         <Link href="/dashboard" className="text-2xl font-semibold text-ink">Clearflow</Link>
-        <p className="mt-2 max-w-52 text-sm leading-6 text-ink/55">Stripe payouts matched to bank deposits, with cash visibility and audit proof.</p>
+        <p className="mt-2 max-w-52 text-sm leading-6 text-ink/55">A simple close checklist for Stripe payouts, bank deposits, cash breaks, and proof.</p>
         <div className="mt-6 rounded-md border border-ink/10 bg-white p-3">
           <p className="text-xs uppercase tracking-wide text-ink/40">Workspace</p>
           <p className="mt-1 truncate text-sm font-medium text-ink">{scenario.name}</p>
@@ -52,8 +57,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </select>
         </div>
         <nav className="mt-6 grid max-h-[calc(100vh-17rem)] gap-1 overflow-y-auto pr-1">
-          {nav.map(([href, label]) => (
+          <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-ink/35">Daily workflow</p>
+          {primaryNav.map(([href, label]) => (
             <Link key={href} href={href} className={`rounded-md px-3 py-2.5 text-sm font-medium ${path === href ? "bg-ink text-white" : "text-ink/65 hover:bg-ink/5 hover:text-ink"}`}>
+              {label}
+            </Link>
+          ))}
+          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-ink/35">Advanced</p>
+          {advancedNav.map(([href, label]) => (
+            <Link key={href} href={href} className={`rounded-md px-3 py-2.5 text-sm font-medium ${path === href ? "bg-ink text-white" : "text-ink/55 hover:bg-ink/5 hover:text-ink"}`}>
               {label}
             </Link>
           ))}
@@ -75,7 +87,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 onChange={(event) => router.push(event.target.value)}
                 className="rounded-md border border-ink/15 bg-white px-2 py-2 text-sm normal-case tracking-normal text-ink"
               >
-                {nav.map(([href, label]) => <option key={href} value={href}>{label}</option>)}
+                <optgroup label="Daily workflow">
+                  {primaryNav.map(([href, label]) => <option key={href} value={href}>{label}</option>)}
+                </optgroup>
+                <optgroup label="Advanced">
+                  {advancedNav.map(([href, label]) => <option key={href} value={href}>{label}</option>)}
+                </optgroup>
               </select>
             </label>
             <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-ink/45" htmlFor="mobile-scenario">

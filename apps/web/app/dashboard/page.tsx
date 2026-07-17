@@ -27,26 +27,26 @@ export default function Dashboard() {
   const nextAction = openBreaks.length
     ? { label: "Review open breaks", href: "/reconciliation", detail: `${openBreaks.length} payout/deposit issue(s) need operator review.` }
     : payouts.length === 0 || bank.length === 0
-      ? { label: "Load settlement data", href: "/reconciliation", detail: "Run processor and bank sync before trusting the dashboard." }
-      : { label: "Open control evidence", href: "/ops", detail: "Reconciliation is clear. Verify jobs, audit logs, webhooks, and idempotency." };
+      ? { label: "Connect settlement data", href: "/imports", detail: "Load processor payouts and bank deposits before trusting the dashboard." }
+      : { label: "Review cash forecast", href: "/insights", detail: "Payouts are explained. Check whether the next 30 days of cash still look healthy." };
 
   return (
     <Shell>
-      <Header title="Today's close" subtitle="One workflow for small-business payment ops: load Stripe payouts, match deposits, resolve breaks, and prove cash is reliable." />
+      <Header title="Home base" subtitle="A daily close view for small teams: explain payouts, fix breaks, and know what cash is safe to use." />
 
       <section className="mb-5 rounded-md border border-ink/10 bg-[#17211b] p-5 text-white shadow-sm">
         <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Current operating question</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Customer question</p>
             <h2 className="mt-2 max-w-3xl text-2xl font-semibold">Can we explain every Stripe payout that hit the bank?</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/65">
-              Clearflow is focused on payout reconciliation: processor payments, refunds, and fees roll into payouts; bank deposits prove settlement; exceptions become an operator queue with audit history.
+              Clearflow turns processor payouts and bank deposits into a simple close checklist: connected data, matched payouts, resolved breaks, and a cash forecast you can act on.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <StepLink number="1" label="Load data" href="/imports" />
               <StepLink number="2" label="Run reconciliation" href="/reconciliation" />
               <StepLink number="3" label="Resolve breaks" href="/reconciliation" />
-              <StepLink number="4" label="Prove controls" href="/ops" />
+              <StepLink number="4" label="Forecast cash" href="/insights" />
             </div>
           </div>
           <div className="rounded-md border border-white/10 bg-white/[0.06] p-4">
@@ -77,7 +77,7 @@ export default function Dashboard() {
           <div className="grid gap-3 md:grid-cols-4">
             <ChecklistItem label="Bank connection" done={connections.length > 0} detail={connections.length ? "Plaid connection available" : "Connect Plaid or create sandbox bank"} href="/imports" />
             <ChecklistItem label="Processor data" done={payouts.length > 0 && payments.length > 0} detail={payouts.length ? "Payouts and payments loaded" : "Run processor sync"} href="/reconciliation" />
-            <ChecklistItem label="Worker jobs" done={completedJobs > 0} detail={completedJobs ? `${completedJobs} completed job(s)` : "Run full reconciliation with worker on"} href="/ops" />
+            <ChecklistItem label="Close run completed" done={completedJobs > 0} detail={completedJobs ? `${completedJobs} completed background step(s)` : "Run the close checklist"} href="/reconciliation" />
             <ChecklistItem label="Open breaks" done={openBreaks.length === 0} detail={openBreaks.length ? `${openBreaks.length} break(s) need review` : "No active breaks"} href="/reconciliation" />
           </div>
         </Card>

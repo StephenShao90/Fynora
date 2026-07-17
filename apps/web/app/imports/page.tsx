@@ -64,7 +64,8 @@ export default function Imports() {
     if (!file) return;
     try {
       const res = await upload(path, file);
-      setResult(JSON.stringify(res, null, 2));
+      console.info("[clearflow-import]", res);
+      setResult(`${file.name} imported. Reconciliation can now use these bank transactions.`);
       pushToast({ tone: "success", title: "CSV imported", detail: file.name });
     } catch (err) {
       pushToast({ tone: "error", title: "CSV import failed", detail: (err as Error).message });
@@ -110,7 +111,8 @@ export default function Imports() {
             body: JSON.stringify({ public_token: publicToken })
           });
           const sync = await api("/connections/plaid/sync-transactions", { method: "POST", body: "{}" });
-          setResult(JSON.stringify({ exchange, sync }, null, 2));
+          console.info("[clearflow-plaid:connected]", { exchange, sync });
+          setResult("Bank connected and transaction sync completed. Open Reconcile payouts to match deposits against processor payouts.");
           await refreshConnections();
           setBusy("");
           pushToast({ tone: "success", title: "Bank connected", detail: "Plaid token exchanged and transaction sync completed." });
@@ -132,8 +134,9 @@ export default function Imports() {
   async function syncPlaid() {
     setBusy("Syncing Plaid transactions...");
     try {
-      const sync = await api("/connections/plaid/sync-transactions", { method: "POST", body: "{}" });
-      setResult(JSON.stringify(sync, null, 2));
+      const sync = await api<Record<string, unknown>>("/connections/plaid/sync-transactions", { method: "POST", body: "{}" });
+      console.info("[clearflow-plaid:sync]", sync);
+      setResult(sync.message ? String(sync.message) : `Bank sync complete. Imported ${Number(sync.imported_count || 0).toLocaleString()} new transaction(s).`);
       await refreshConnections();
       pushToast({ tone: "success", title: "Bank sync complete", detail: "Connected bank transactions were refreshed." });
     } catch (err) {
@@ -147,7 +150,7 @@ export default function Imports() {
   async function createSandboxConnection() {
     setBusy("Creating Plaid Sandbox test connection...");
     try {
-      const sandbox = await api("/connections/plaid/sandbox-connect", {
+      const sandbox = await api<Record<string, unknown>>("/connections/plaid/sandbox-connect", {
         method: "POST",
         body: JSON.stringify({
           institution_id: "ins_109508",
@@ -155,7 +158,8 @@ export default function Imports() {
           password: "pass_good"
         })
       });
-      setResult(JSON.stringify(sandbox, null, 2));
+      console.info("[clearflow-plaid:sandbox]", sandbox);
+      setResult(`Sandbox bank connected. Imported ${Number(sandbox.imported_count || 0).toLocaleString()} transaction(s) for the demo workflow.`);
       await refreshConnections();
       pushToast({ tone: "success", title: "Sandbox bank connected", detail: "A Plaid Sandbox connection was created for local testing." });
     } catch (err) {
@@ -168,9 +172,9 @@ export default function Imports() {
 
   return (
     <Shell>
-      <Header title="Data connections" subtitle="Connect bank data through Plaid or import bank activity CSVs so deposits can be matched against processor payouts." />
+      <Header title="Connect data" subtitle="Bring in the two sources Clearflow needs: processor payouts and posted bank activity." />
       <div className="mb-5 grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
-        <Card title="Bank connection" guide={{ number: 1, title: "Bank connection", body: "Start here to connect Plaid or create a sandbox bank. This supplies bank deposits and debits for reconciliation." }}>
+        <Card title="Step 1: Bank activity" guide={{ number: 1, title: "Bank activity", body: "Start here to connect Plaid or create a sandbox bank. This supplies bank deposits and debits for reconciliation." }}>
           <p className="text-sm leading-6 text-ink/65">
             Plaid handles bank login and MFA. Clearflow receives authorized transaction data and stores Plaid tokens on the backend only.
           </p>
@@ -221,14 +225,19 @@ export default function Imports() {
             <a className="mt-4 block text-sm text-moss" href={`/sample-data/${sample}`}>Download {sample}</a>
           </Card>
         ))}
-        <Card title="Processor data source" guide={{ number: 4, title: "Processor data source", body: "Processor payouts currently come from Stripe Connect or the mock Stripe sync. Use Reconciliation or Provider Health to run that sync." }}>
+        <Card title="Step 2: Processor payouts" guide={{ number: 4, title: "Processor payouts", body: "Processor payouts currently come from Stripe Connect or the mock Stripe sync. Use Reconciliation or Provider Health to run that sync." }}>
           <p className="text-sm leading-6 text-ink/60">
             Stripe-style payments, refunds, fees, and payouts are loaded from the provider sync path instead of CSV upload. That keeps the main workflow close to how a payment operations team would work.
           </p>
           <a className="mt-4 inline-flex rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white" href="/reconciliation">Run reconciliation workflow</a>
         </Card>
       </div>
-      {result ? <pre className="mt-5 overflow-auto rounded-lg bg-ink p-4 text-xs text-white">{result}</pre> : null}
+      {result ? (
+        <div className="mt-5 rounded-md border border-moss/25 bg-mint/60 p-4 text-sm leading-6 text-moss">
+          <p className="font-semibold">Latest data action</p>
+          <p className="mt-1 text-ink/70">{result}</p>
+        </div>
+      ) : null}
     </Shell>
   );
 }

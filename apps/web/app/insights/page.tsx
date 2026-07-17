@@ -83,7 +83,7 @@ export default function Insights() {
 
   return (
     <Shell>
-      <Header title="Financial intelligence" subtitle="Forecast cash, explain reconciliation outcomes, and surface payment operations issues before they become reporting problems." />
+      <Header title="Cash forecast" subtitle="See whether the cash left after payouts, fees, refunds, and operating spend is enough for the next few weeks." />
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
         <div className="relative"><div className="absolute right-4 top-4 z-10"><GuideMarker guide={{ number: 1, title: "Cash-flow forecast", body: "Change the horizon to project cash over time. Use the chart and assumptions to explain where cash may tighten." }} /></div><CashflowForecastCard forecast={forecast.data} horizon={horizon} onHorizonChange={setHorizon} loading={forecast.loading} error={forecast.error} /></div>

@@ -16,20 +16,25 @@ export default function Home() {
       <section className="mx-auto grid min-h-screen max-w-7xl items-center gap-10 px-6 py-10 lg:grid-cols-[.9fr_1.1fr]">
         <div>
           <div className="mb-3 flex justify-start"><GuideMarker guide={{ number: 1, title: "Product entry", body: "Read the product promise, then click Try Demo to enter the guided Clearflow workflow with demo auth." }} /></div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-moss">Stripe-to-bank reconciliation for small operators</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-moss">Payment close software for small teams</p>
           <h1 className="mt-4 max-w-4xl text-5xl font-semibold leading-tight tracking-normal text-ink sm:text-6xl">Clearflow</h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-ink/70">
-            Connect processor and bank data, explain every payout, resolve cash breaks with an audit trail, and forecast operating cash before month-end gets messy.
+            Clearflow helps operators answer one high-stakes question every week: did every processor payout actually land in the bank, and what cash can we trust now?
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <button onClick={tryDemo} className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white">Try Demo</button>
+            <button onClick={tryDemo} className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white">Open guided demo</button>
             <a href="/login" className="rounded-md border border-ink/15 bg-white px-5 py-3 text-sm font-semibold text-ink">Log in</a>
             <a href="/register" className="rounded-md border border-moss/25 bg-mint px-5 py-3 text-sm font-semibold text-moss">Create account</a>
           </div>
           <div className="mt-8 grid gap-3 text-sm leading-6 text-ink/65">
-            <p><span className="font-semibold text-ink">Built for:</span> student organizations, creator shops, nonprofits, and small SaaS teams that use Stripe and need bank-level cash confidence.</p>
-            <p><span className="font-semibold text-ink">Backend story:</span> Go API, Postgres, Redis-ready jobs, idempotent financial writes, provider webhooks, audit logs, and OpenAPI docs.</p>
-            <p><span className="font-semibold text-ink">Boundary:</span> Clearflow does not move money or store bank credentials. Plaid/Stripe handle authorization.</p>
+            <p><span className="font-semibold text-ink">For:</span> student organizations, creator shops, nonprofits, and small SaaS teams taking payments through Stripe.</p>
+            <p><span className="font-semibold text-ink">Outcome:</span> fewer mystery deposits, faster month-end close, cleaner handoff to a treasurer, accountant, or operator.</p>
+            <p><span className="font-semibold text-ink">Safety:</span> Clearflow does not move money or store bank credentials. Plaid and Stripe handle authorization.</p>
+          </div>
+          <div className="mt-8 grid gap-3 rounded-md border border-ink/10 bg-white p-4 text-sm shadow-sm sm:grid-cols-3">
+            <StoryStep number="1" title="Connect" body="Bring in Stripe-style payouts and bank activity." />
+            <StoryStep number="2" title="Reconcile" body="Match each payout to the bank deposit it created." />
+            <StoryStep number="3" title="Decide" body="Resolve breaks and forecast usable cash." />
           </div>
         </div>
 
@@ -38,8 +43,8 @@ export default function Home() {
           <div className="border-b border-ink/10 pb-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Operations dashboard</p>
-                <p className="mt-1 text-xl font-semibold">Payout settlement monitor</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Close checklist</p>
+                <p className="mt-1 text-xl font-semibold">Is cash trustworthy today?</p>
               </div>
               <span className="rounded bg-mint px-2 py-1 text-xs font-semibold text-moss">live demo</span>
             </div>
@@ -60,10 +65,10 @@ export default function Home() {
             <div className="rounded-md border border-ink/10 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Provider pipeline</p>
               <div className="mt-4 grid gap-2 text-sm">
-                <PipelineRow label="Stripe sync" status="completed" />
-                <PipelineRow label="Plaid bank sync" status="completed" />
-                <PipelineRow label="Reconciliation job" status="queued" />
-                <PipelineRow label="Audit log" status="written" />
+                <PipelineRow label="Processor data" status="loaded" />
+                <PipelineRow label="Bank data" status="loaded" />
+                <PipelineRow label="Payout matching" status="running" />
+                <PipelineRow label="Close evidence" status="saved" />
               </div>
             </div>
           </div>
@@ -79,6 +84,16 @@ export default function Home() {
         </div>
       </section>
     </main>
+  );
+}
+
+function StoryStep({ number, title, body }: { number: string; title: string; body: string }) {
+  return (
+    <div>
+      <span className="grid h-7 w-7 place-items-center rounded-full bg-[#83c5ff] text-xs font-bold text-ink">{number}</span>
+      <p className="mt-3 font-semibold text-ink">{title}</p>
+      <p className="mt-1 text-ink/55">{body}</p>
+    </div>
   );
 }
 

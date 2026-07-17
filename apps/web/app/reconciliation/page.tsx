@@ -181,13 +181,13 @@ export default function ReconciliationPage() {
 
   return (
     <Shell>
-      <Header title="Payout reconciliation" subtitle="The core Clearflow workflow: sync Stripe-style payouts, compare bank deposits, explain differences, and close exceptions." />
+      <Header title="Reconcile payouts" subtitle="Close the loop between processor payouts and bank deposits, then resolve anything that does not explain cleanly." />
 
       <section className="mb-5 grid gap-3 rounded-md border border-ink/10 bg-white p-4 shadow-sm md:grid-cols-4">
-        <WorkflowStep number="1" title="Processor activity" body="Payments, fees, refunds, and payouts are loaded from Stripe-style sync." />
-        <WorkflowStep number="2" title="Bank settlement" body="Plaid or CSV bank activity supplies posted deposits and operating debits." />
-        <WorkflowStep number="3" title="Match engine" body="The API scores amount, date, and memo evidence for payout-to-deposit matches." />
-        <WorkflowStep number="4" title="Exception close" body="Operators resolve breaks with notes, manual matches, and audit history." />
+        <WorkflowStep number="1" title="Load processor payouts" body="Pull payments, fees, refunds, and net payouts." />
+        <WorkflowStep number="2" title="Load bank deposits" body="Use Plaid or CSV bank activity as settlement proof." />
+        <WorkflowStep number="3" title="Match payouts" body="Compare amount, date, and memo evidence." />
+        <WorkflowStep number="4" title="Close breaks" body="Explain or resolve anything unmatched." />
       </section>
 
       <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Reconciliation summary</p><GuideMarker guide={{ number: 1, title: "Summary metrics", body: "Start here to understand whether cash and payouts are reconciled. Match rate and open breaks tell you if the workflow needs review." }} /></div>
@@ -200,10 +200,10 @@ export default function ReconciliationPage() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
-        <Card title="Reconciliation workflow" guide={{ number: 2, title: "Reconciliation workflow", body: "Use Run full reconciliation for the normal path. It queues processor sync, bank sync, then matching through the worker." }}>
+        <Card title="Close checklist" guide={{ number: 2, title: "Close checklist", body: "Use Run full reconciliation for the normal path. It queues processor sync, bank sync, then matching through the worker." }}>
           <button onClick={runFullWorkflow} disabled={workflowRunning || !orgId} className="mb-3 w-full rounded-md bg-ink px-3 py-3 text-left text-sm font-semibold text-white hover:bg-ink/90 disabled:cursor-not-allowed disabled:bg-ink/40">
-            Run full reconciliation
-            <span className="mt-1 block text-xs font-normal text-white/70">Queues processor sync, bank sync, then matching in order.</span>
+            Run close checklist
+            <span className="mt-1 block text-xs font-normal text-white/70">Loads data, matches payouts, and refreshes breaks.</span>
           </button>
           <div className="grid gap-2">
             <ActionButton label="1. Sync processor" detail="Queue Stripe-style charges, fees, refunds, payout" onClick={() => action("Processor sync", "/api/v1/sync/stripe")} disabled={workflowRunning} />
@@ -213,12 +213,12 @@ export default function ReconciliationPage() {
           <div className="mt-5 border-t border-ink/10 pt-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Activity</p>
             <div className="mt-3 grid gap-2">
-              {activity.length ? activity.map((item) => <ActivityRow key={item.id} item={item} />) : <p className="text-sm text-ink/50">Actions and API outcomes will appear here. Browser console also logs request IDs.</p>}
+              {activity.length ? activity.map((item) => <ActivityRow key={item.id} item={item} />) : <p className="text-sm text-ink/50">Run the checklist to see each step complete here.</p>}
             </div>
           </div>
         </Card>
 
-        <Card title="Latest reconciliation runs" guide={{ number: 3, title: "Latest runs", body: "Each run records matching results. Use this table to prove reconciliation executed and to compare matches versus breaks over time." }}>
+        <Card title="Close history" guide={{ number: 3, title: "Close history", body: "Each run records matching results. Use this table to prove reconciliation executed and to compare matches versus breaks over time." }}>
           {runs.loading ? <SkeletonBlock className="h-64" /> : runs.data.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
