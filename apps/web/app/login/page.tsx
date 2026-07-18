@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { GuideMarker } from "@/components/help";
-import { api, setToken } from "@/lib/api";
+import { api, clearAuth, clearDemoState, setToken } from "@/lib/api";
 
 export default function Login() {
   const router = useRouter();
@@ -16,6 +16,8 @@ export default function Login() {
     setError("");
     const form = new FormData(e.currentTarget);
     try {
+      clearAuth();
+      clearDemoState();
       const res = await api<{ token: string }>("/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) });
       setToken(res.token); router.push("/dashboard");
     } catch (err) {
@@ -27,6 +29,7 @@ export default function Login() {
     setBusy("Opening demo...");
     setError("");
     try {
+      clearAuth();
       const res = await api<{ token: string }>("/auth/demo-token", { method: "POST", body: "{}" });
       setToken(res.token);
       router.push("/dashboard");

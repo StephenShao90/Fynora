@@ -65,9 +65,22 @@ export function setToken(value: string) {
   localStorage.removeItem(LEGACY_TOKEN_KEY);
 }
 
-export function logout() {
+export function clearAuth() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(LEGACY_TOKEN_KEY);
+}
+
+export function clearDemoState() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(DEMO_SCENARIO_KEY);
+}
+
+export function isDemoSession() {
+  return token() === DEMO_TOKEN;
+}
+
+export function logout() {
+  clearAuth();
   window.location.href = "/";
 }
 

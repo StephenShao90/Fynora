@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout";
@@ -8,7 +8,7 @@ import { DemoPilot } from "@/components/demo";
 import { GuideMarker } from "@/components/help";
 import { Card, Shell } from "@/components/layout";
 import { useToast } from "@/components/layout";
-import { activeDemoScenario, api, setDemoScenario } from "@/lib/api";
+import { activeDemoScenario, api, isDemoSession, setDemoScenario } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 import type { OnboardingStatus } from "@/types";
 
@@ -28,6 +28,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { pushToast } = useToast();
   const scenario = activeDemoScenario();
+  const demoSession = isDemoSession();
   const [name, setName] = useState(scenario.name);
   const [type, setType] = useState(scenario.type);
   const [currency, setCurrency] = useState(scenario.currency);
@@ -38,6 +39,15 @@ export default function OnboardingPage() {
   const payouts = useApi<unknown[]>("/payouts", []);
   const bank = useApi<unknown[]>("/bank-transactions", []);
   const setup = useApi<OnboardingStatus>("/api/v1/onboarding/status", { organization_id: "", selected_scenario: scenario.id, business_type: scenario.type, checklist: {} });
+
+  useEffect(() => {
+    if (demoSession) return;
+    const org = orgs.data[0];
+    if (!org) return;
+    setName(org.name || "");
+    setType(org.type || "small_business");
+    setCurrency(org.currency || "USD");
+  }, [demoSession, orgs.data]);
 
   const checklist = useMemo(() => {
     const readiness = setup.data.provider_readiness || setup.data.checklist || {};
@@ -146,14 +156,16 @@ export default function OnboardingPage() {
         </Card>
       </div>
 
-      <div className="mt-4">
-        <div className="mb-2 flex justify-end">
-          <GuideMarker guide={{ number: 3, title: "Sample close setup", body: "Click Prepare sample close to load workspace state, processor payouts, bank data, and reconciliation results in order." }} />
+      {demoSession ? (
+        <div className="mt-4">
+          <div className="mb-2 flex justify-end">
+            <GuideMarker guide={{ number: 3, title: "Sample close setup", body: "Click Prepare sample close to load workspace state, processor payouts, bank data, and reconciliation results in order." }} />
+          </div>
+          <DemoPilot compact />
         </div>
-        <DemoPilot compact />
-      </div>
+      ) : null}
 
-      <div className="mt-4">
+      {demoSession ? <div className="mt-4">
         <Card title="Sample workspace profiles" guide={{ number: 4, title: "Sample workspace profiles", body: "Switch the sample company profile so you can show Clearflow for student orgs, creators, SaaS teams, or nonprofits." }}>
           <div className="grid gap-3 md:grid-cols-4">
             <ScenarioButton active={scenario.id === "student_org"} title="Student org" detail="Dues, event tickets, sponsor payments, venue deposits." onClick={() => switchScenario("student_org")} />
@@ -162,7 +174,7 @@ export default function OnboardingPage() {
             <ScenarioButton active={scenario.id === "nonprofit"} title="Nonprofit" detail="Donations, grant deposits, program spend." onClick={() => switchScenario("nonprofit")} />
           </div>
         </Card>
-      </div>
+      </div> : null}
     </Shell>
   );
 }

@@ -2,11 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { GuideMarker } from "@/components/help";
-import { api, setToken } from "@/lib/api";
+import { api, clearAuth, setToken } from "@/lib/api";
 
 export default function Home() {
   const router = useRouter();
   async function tryDemo() {
+    clearAuth();
     const res = await api<{ token: string }>("/auth/demo-token", { method: "POST", body: "{}" });
     setToken(res.token);
     router.push("/onboarding");
