@@ -6,7 +6,7 @@ import { Card, Shell, SkeletonBlock, money } from "@/components/layout";
 import { Header, Empty } from "@/components/layout";
 import { DemoPilot } from "@/components/demo";
 import { GuideMarker } from "@/components/help";
-import { dashboardFallback, type DashboardSummary } from "@/components/dashboard/data";
+import { dashboardFallback, normalizeDashboardSummary, type DashboardSummary } from "@/components/dashboard/data";
 import { useApi } from "@/hooks/useApi";
 
 const CashForecastMiniChart = dynamic(() => import("@/components/charts/DashboardCharts").then((mod) => mod.CashForecastMiniChart), {
@@ -21,7 +21,8 @@ const PayoutVolumeChart = dynamic(() => import("@/components/charts/DashboardCha
 export default function Dashboard() {
   const fallback = dashboardFallback();
   const summary = useApi<DashboardSummary>("/api/v1/dashboard/summary", fallback, { instant: true });
-  const { cash, forecast, exceptions, payouts, payments, bank_transactions: bank, connections, metrics } = summary.data;
+  const data = normalizeDashboardSummary(summary.data, fallback);
+  const { cash, forecast, exceptions, payouts, payments, bank_transactions: bank, connections, metrics } = data;
   const openBreaks = exceptions.filter((item) => item.status === "open");
   const completedJobs = metrics.jobs_completed_total || 0;
   const nextAction = openBreaks.length

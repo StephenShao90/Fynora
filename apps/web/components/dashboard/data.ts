@@ -19,6 +19,23 @@ export type DashboardSummary = {
   metrics: Record<string, number>;
 };
 
+export function normalizeDashboardSummary(
+  input: Partial<DashboardSummary> | null | undefined,
+  fallback = dashboardFallback()
+): DashboardSummary {
+  const data = input || {};
+  return {
+    cash: data.cash && typeof data.cash === "object" ? data.cash : fallback.cash,
+    forecast: Array.isArray(data.forecast) ? data.forecast : fallback.forecast,
+    exceptions: Array.isArray(data.exceptions) ? data.exceptions : [],
+    payouts: Array.isArray(data.payouts) ? data.payouts : [],
+    payments: Array.isArray(data.payments) ? data.payments : [],
+    bank_transactions: Array.isArray(data.bank_transactions) ? data.bank_transactions : [],
+    connections: Array.isArray(data.connections) ? data.connections : [],
+    metrics: data.metrics && typeof data.metrics === "object" ? data.metrics : {}
+  };
+}
+
 export function dashboardFallback(): DashboardSummary {
   const scenario = activeDemoScenario();
   const now = new Date().toISOString();

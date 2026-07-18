@@ -452,6 +452,9 @@ func (a *app) dashboardMetrics(r *http.Request) (opsMetrics, error) {
 }
 
 func firstN[T any](rows []T, n int) []T {
+	if len(rows) == 0 {
+		return []T{}
+	}
 	if len(rows) <= n {
 		return rows
 	}
