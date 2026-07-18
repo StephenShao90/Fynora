@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { getApiCache, invalidateApiCache, setApiCache } from "@/lib/api-cache";
 
@@ -10,9 +10,20 @@ type UseApiOptions = {
   instant?: boolean;
 };
 
+export function normalizeApiData<T>(result: T | null | undefined, fallback: T): T {
+  if (Array.isArray(fallback)) {
+    return (Array.isArray(result) ? result : fallback) as T;
+  }
+  if (result == null && fallback != null) {
+    return fallback;
+  }
+  return result as T;
+}
+
 export function useApi<T>(path: string, fallback: T, options: UseApiOptions = {}) {
+  const fallbackRef = useRef(fallback);
   const cached = getApiCache<T>(path);
-  const [data, setData] = useState<T>(cached?.data !== undefined ? cached.data as T : fallback);
+  const [data, setData] = useState<T>(cached?.data !== undefined ? normalizeApiData(cached.data as T, fallback) : fallback);
   const [loading, setLoading] = useState(options.instant ? false : cached?.data === undefined);
   const [error, setError] = useState(cached?.data !== undefined ? "" : cached?.error || "");
 
@@ -22,7 +33,7 @@ export function useApi<T>(path: string, fallback: T, options: UseApiOptions = {}
     const fresh = cached?.data !== undefined && Date.now() - cached.updatedAt < CACHE_TTL_MS;
 
     if (fresh) {
-      setData(cached.data as T);
+      setData(normalizeApiData(cached.data as T, fallbackRef.current));
       setError("");
       setLoading(false);
       return () => {
@@ -37,8 +48,9 @@ export function useApi<T>(path: string, fallback: T, options: UseApiOptions = {}
 
     request
       .then((result) => {
-        setApiCache(path, { data: result, updatedAt: Date.now() });
-        if (!cancelled) setData(result);
+        const next = normalizeApiData(result, fallbackRef.current);
+        setApiCache(path, { data: next, updatedAt: Date.now() });
+        if (!cancelled) setData(next);
       })
       .catch((err) => {
         const message = err instanceof Error ? err.message : "Request failed";
