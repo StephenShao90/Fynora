@@ -26,6 +26,7 @@ export type DemoScenario = {
 };
 
 const demoScenarios: Record<string, DemoScenario> = {
+  restaurant: { id: "restaurant", name: "Harbor & Pine Kitchen", type: "restaurant", currency: "USD", description: "POS sales, delivery app payouts, refunds, tips, processor fees, and daily bank deposits.", cashBalance: 18642.3, income: 28470.85, expenses: 9720.4, fees: 1098.32, refunds: 426.75 },
   student_org: { id: "student_org", name: "Northside Student Association", type: "student_organization", currency: "USD", description: "Dues, events, sponsor payments, and venue deposits.", cashBalance: 2967.27, income: 3179.72, expenses: 512.45, fees: 258.12, refunds: 175 },
   creator: { id: "creator", name: "Maple Street Studio", type: "creator", currency: "USD", description: "Digital products, merch drops, refunds, and creator tools.", cashBalance: 8420.44, income: 12180.9, expenses: 2488.2, fees: 612.45, refunds: 660 },
   saas: { id: "saas", name: "LedgerLoop SaaS", type: "saas", currency: "USD", description: "Subscription payouts, churn refunds, cloud software costs.", cashBalance: 18440.12, income: 32200, expenses: 11840.2, fees: 1188.52, refunds: 1430 },
@@ -37,19 +38,19 @@ export function isDemoFallbackMode() {
 }
 
 export function activeDemoScenario(): DemoScenario {
-  if (typeof window === "undefined") return demoScenarios.student_org;
-  const stored = localStorage.getItem(DEMO_SCENARIO_KEY) || "student_org";
+  if (typeof window === "undefined") return demoScenarios.restaurant;
+  const stored = localStorage.getItem(DEMO_SCENARIO_KEY) || "restaurant";
   try {
     const parsed = JSON.parse(stored) as Partial<DemoScenario>;
     if (parsed?.id && parsed.name) return { ...demoScenarios[parsed.id] || demoScenarios.student_org, ...parsed };
   } catch {
     // Stored value may be an old plain scenario id.
   }
-  return demoScenarios[stored] || demoScenarios.student_org;
+  return demoScenarios[stored] || demoScenarios.restaurant;
 }
 
 export function setDemoScenario(id: string, override?: Partial<DemoScenario>) {
-  const base = demoScenarios[id] || demoScenarios.student_org;
+  const base = demoScenarios[id] || demoScenarios.restaurant;
   if (typeof window !== "undefined") {
     localStorage.setItem(DEMO_SCENARIO_KEY, JSON.stringify({ ...base, ...override, id: base.id }));
   }
@@ -337,20 +338,20 @@ function demoResponse<T>(path: string, init: RequestInit = {}): T | undefined {
   if (path.startsWith("/api/v1/dashboard/summary")) return demoDashboardSummary(scenario) as T;
   if (path.startsWith("/cash-flow/summary")) return { cash_balance: scenario.cashBalance, income: scenario.income, expenses: scenario.expenses, pending_payouts: 0, fees: scenario.fees, refunds: scenario.refunds, net_cash_flow: scenario.income - scenario.expenses - scenario.fees - scenario.refunds } as T;
   if (path.startsWith("/cash-flow/forecast")) return [{ days: 7, projected_cash: scenario.cashBalance, expected_payouts: 0, expected_expenses: 0 }, { days: 30, projected_cash: scenario.cashBalance - scenario.expenses * 0.9, expected_payouts: 0, expected_expenses: scenario.expenses * 0.9 }, { days: 60, projected_cash: scenario.cashBalance - scenario.expenses * 1.7, expected_payouts: 0, expected_expenses: scenario.expenses * 1.7 }] as T;
-  if (path.startsWith("/payments")) return demoPayments as T;
-  if (path.startsWith("/payouts")) return demoPayouts as T;
-  if (path.startsWith("/bank-transactions")) return demoBankTransactions as T;
+  if (path.startsWith("/payments")) return demoPaymentsForScenario(scenario) as T;
+  if (path.startsWith("/payouts")) return demoPayoutsForScenario(scenario) as T;
+  if (path.startsWith("/bank-transactions")) return demoBankTransactionsForScenario(scenario) as T;
   if (path.startsWith("/reconciliation/runs") && method === "GET") return demoRuns as T;
   if (path.startsWith("/reconciliation/runs") && method === "POST") return demoRuns[0] as T;
-  if (path.startsWith("/reconciliation/exceptions") && method === "GET") return demoExceptions as T;
-  if (path.startsWith("/reconciliation/exceptions") && method === "PATCH") return { ...demoExceptions[0], status: "resolved" } as T;
-  if (path.startsWith("/sync/stripe")) return { payments: 5, refunds: 1, fees: 5, payout: demoPayouts[0] } as T;
+  if (path.startsWith("/reconciliation/exceptions") && method === "GET") return demoExceptionsForScenario(scenario) as T;
+  if (path.startsWith("/reconciliation/exceptions") && method === "PATCH") return { ...demoExceptionsForScenario(scenario)[0], status: "resolved" } as T;
+  if (path.startsWith("/sync/stripe")) return { payments: 5, refunds: 1, fees: 5, payout: demoPayoutsForScenario(scenario)[0] } as T;
   if (path.startsWith("/sync/bank")) return { bank_transactions: 3 } as T;
   if (path.startsWith("/api/v1/payouts/") && (path.includes("/explanation") || path.includes("/breakdown"))) return demoPayoutExplanation as T;
   if (path.startsWith("/api/v1/cashflow/forecast")) return demoIntelligenceForecast(scenario) as T;
-  if (path.startsWith("/api/v1/insights/anomalies")) return { data: demoAnomalies } as T;
-  if (path.startsWith("/api/v1/insights/spending")) return demoSpendingInsights as T;
-  if (path.startsWith("/api/v1/recommendations/cash")) return { data: demoCashRecommendations } as T;
+  if (path.startsWith("/api/v1/insights/anomalies")) return { data: demoAnomaliesForScenario(scenario) } as T;
+  if (path.startsWith("/api/v1/insights/spending")) return demoSpendingInsightsForScenario(scenario) as T;
+  if (path.startsWith("/api/v1/recommendations/cash")) return { data: demoCashRecommendationsForScenario(scenario) } as T;
   if (path.startsWith("/api/v1/reconciliation-runs/") && path.includes("/matches")) return { data: demoReconciliationMatches } as T;
   if (path.startsWith("/api/v1/integrations/stripe/connect-url")) return { url: "https://connect.stripe.com/oauth/authorize?response_type=code&client_id=ca_mock_clearflow&state=demo-state", state: "demo-state" } as T;
   if (path.startsWith("/api/v1/integrations/stripe/status")) return demoStripeStatus as T;
@@ -383,10 +384,10 @@ function demoDashboardSummary(scenario: DemoScenario) {
   return {
     cash: { cash_balance: scenario.cashBalance, income: scenario.income, expenses: scenario.expenses, pending_payouts: 0, fees: scenario.fees, refunds: scenario.refunds, net_cash_flow: scenario.income - scenario.expenses - scenario.fees - scenario.refunds },
     forecast: [{ days: 7, projected_cash: scenario.cashBalance, expected_payouts: 0, expected_expenses: 0 }, { days: 30, projected_cash: scenario.cashBalance - scenario.expenses * 0.9, expected_payouts: 0, expected_expenses: scenario.expenses * 0.9 }, { days: 60, projected_cash: scenario.cashBalance - scenario.expenses * 1.7, expected_payouts: 0, expected_expenses: scenario.expenses * 1.7 }],
-    exceptions: demoExceptions,
-    payouts: demoPayouts,
-    payments: demoPayments,
-    bank_transactions: demoBankTransactions,
+    exceptions: demoExceptionsForScenario(scenario),
+    payouts: demoPayoutsForScenario(scenario),
+    payments: demoPaymentsForScenario(scenario),
+    bank_transactions: demoBankTransactionsForScenario(scenario),
     connections: demoPlaidConnections,
     metrics: demoMetrics
   };
@@ -459,6 +460,50 @@ const demoExceptions = [
   { id: "ex-2", severity: "high", title: "Missing payout deposit", explanation: "Stripe payout po_demo_003 was expected on Jul 6 and has no matching bank deposit.", status: "open", created_at: "2026-07-06T15:30:00Z" },
   { id: "ex-3", severity: "medium", title: "Unmatched bank deposit", explanation: "Bank deposit Unknown deposit for $212.45 is not tied to a known payout.", status: "open", created_at: "2026-07-06T15:32:00Z" }
 ];
+
+function isRestaurantScenario(scenario: DemoScenario) {
+  return scenario.id === "restaurant" || scenario.type === "restaurant";
+}
+
+function demoPaymentsForScenario(scenario: DemoScenario) {
+  if (!isRestaurantScenario(scenario)) return demoPayments;
+  return [
+    { id: "pay-pos-1", processor_payment_id: "ch_pos_dinner_001", customer_email: "pos@harborpine.local", amount: 8420.35, status: "succeeded", description: "Toast POS card batch - dinner service", occurred_at: "2026-07-15T04:10:00Z" },
+    { id: "pay-pos-2", processor_payment_id: "ch_pos_lunch_001", customer_email: "pos@harborpine.local", amount: 3890.2, status: "succeeded", description: "Toast POS card batch - lunch service", occurred_at: "2026-07-15T18:40:00Z" },
+    { id: "pay-delivery-1", processor_payment_id: "ch_doordash_001", customer_email: "settlement@doordash.local", amount: 2140.8, status: "succeeded", description: "DoorDash marketplace settlement", occurred_at: "2026-07-15T21:20:00Z" },
+    { id: "pay-delivery-2", processor_payment_id: "ch_ubereats_001", customer_email: "settlement@ubereats.local", amount: 1665.5, status: "succeeded", description: "Uber Eats marketplace settlement", occurred_at: "2026-07-15T22:10:00Z" },
+    { id: "pay-refund-1", processor_payment_id: "ch_refund_001", customer_email: "guest@example.com", amount: 126.75, status: "refunded", description: "Refunded private dining deposit", occurred_at: "2026-07-15T23:15:00Z" }
+  ];
+}
+
+function demoPayoutsForScenario(scenario: DemoScenario) {
+  if (!isRestaurantScenario(scenario)) return demoPayouts;
+  return [
+    { id: "po-restaurant-1", processor_payout_id: "po_toast_20260715", amount: 11612.23, status: "paid", expected_arrival_at: "2026-07-16T12:00:00Z" },
+    { id: "po-restaurant-2", processor_payout_id: "po_doordash_20260715", amount: 1968.1, status: "paid", expected_arrival_at: "2026-07-16T14:00:00Z" },
+    { id: "po-restaurant-3", processor_payout_id: "po_ubereats_20260715", amount: 1538.75, status: "paid", expected_arrival_at: "2026-07-16T14:30:00Z" }
+  ];
+}
+
+function demoBankTransactionsForScenario(scenario: DemoScenario) {
+  if (!isRestaurantScenario(scenario)) return demoBankTransactions;
+  return [
+    { id: "bank-restaurant-1", external_id: "bank_toast_20260716", amount: 11612.23, direction: "credit", description: "TOAST CARD SETTLEMENT", posted_at: "2026-07-16T12:15:00Z" },
+    { id: "bank-restaurant-2", external_id: "bank_doordash_20260716", amount: 1956.1, direction: "credit", description: "DOORDASH PAYOUT", posted_at: "2026-07-16T14:20:00Z" },
+    { id: "bank-restaurant-3", external_id: "bank_cash_deposit_20260716", amount: 1410, direction: "credit", description: "BRANCH CASH DEPOSIT", posted_at: "2026-07-16T18:05:00Z" },
+    { id: "bank-restaurant-4", external_id: "bank_food_supplier_20260716", amount: 2875.4, direction: "debit", description: "Freshline Foods invoice", posted_at: "2026-07-16T19:10:00Z" },
+    { id: "bank-restaurant-5", external_id: "bank_payroll_20260717", amount: 6845, direction: "debit", description: "Payroll funding", posted_at: "2026-07-17T08:00:00Z" }
+  ];
+}
+
+function demoExceptionsForScenario(scenario: DemoScenario) {
+  if (!isRestaurantScenario(scenario)) return demoExceptions;
+  return [
+    { id: "ex-restaurant-1", severity: "medium", title: "Delivery payout short by $12.00", explanation: "DoorDash payout po_doordash_20260715 is close to the bank deposit but differs by $12.00. Likely adjustment, commission correction, or delayed tip settlement.", status: "open", created_at: "2026-07-16T15:05:00Z" },
+    { id: "ex-restaurant-2", severity: "high", title: "Missing Uber Eats deposit", explanation: "Uber Eats payout po_ubereats_20260715 was expected on Jul 16 and has no matching bank deposit. Confirm provider settlement status before trusting cash.", status: "open", created_at: "2026-07-16T15:10:00Z" },
+    { id: "ex-restaurant-3", severity: "medium", title: "Cash deposit needs close note", explanation: "Branch cash deposit for $1,410.00 is not tied to a POS card payout. Attach the register close report or manager note.", status: "open", created_at: "2026-07-16T18:15:00Z" }
+  ];
+}
 
 function demoIntelligenceForecast(scenario: DemoScenario): CashflowForecast {
   const starting = Math.round(scenario.cashBalance * 100);
@@ -547,6 +592,70 @@ const demoCashRecommendations: CashRecommendation[] = [
   { type: "follow_up_missing_payout", priority: "high", title: "Follow up on missing payouts", description: "Confirm payout status before relying on expected processor cash.", currency: "USD" },
   { type: "reduce_fees", priority: "medium", title: "Review processor fees", description: "Fees are elevated relative to payout volume. Check payment method mix and pricing tier.", currency: "USD" }
 ];
+
+function demoAnomaliesForScenario(scenario: DemoScenario): AnomalyInsight[] {
+  if (!isRestaurantScenario(scenario)) return demoAnomalies;
+  return [
+    {
+      id: "restaurant_missing_delivery_payout",
+      type: "missing_payout",
+      severity: "high",
+      title: "Expected Uber Eats payout has not reached the bank",
+      description: "The provider payout was expected on Jul 16, but no matching bank deposit exists in the close window.",
+      resourceType: "processor_payout",
+      resourceId: "po-restaurant-3",
+      detectedAt: "2026-07-16T15:10:00Z",
+      recommendedAction: "Check the provider settlement dashboard and attach a note before marking yesterday's close complete."
+    },
+    {
+      id: "restaurant_cash_deposit_unexplained",
+      type: "cash_deposit_review",
+      severity: "medium",
+      title: "Cash deposit needs manager evidence",
+      description: "A $1,410 branch deposit is not tied to card processor data. This may be normal cash handling, but it needs the register close report.",
+      resourceType: "bank_transaction",
+      resourceId: "bank-restaurant-3",
+      detectedAt: "2026-07-16T18:15:00Z",
+      recommendedAction: "Attach the POS cash drawer report or manager note to close the exception."
+    },
+    {
+      id: "restaurant_refund_spike",
+      type: "refund_spike",
+      severity: "medium",
+      title: "Refunds are elevated for one service day",
+      description: "Refunds are above the restaurant's expected daily range and should be reviewed against comps, voids, and private event deposits.",
+      resourceType: "refunds",
+      detectedAt: "2026-07-16T20:00:00Z",
+      recommendedAction: "Compare refunds by shift and manager approval before finalizing the close."
+    }
+  ];
+}
+
+function demoSpendingInsightsForScenario(scenario: DemoScenario): SpendingInsights {
+  if (!isRestaurantScenario(scenario)) return demoSpendingInsights;
+  return {
+    totalSpendMinor: 972040,
+    currency: "USD",
+    categories: [
+      { category: "payroll", amountMinor: 684500, percentage: 70.4, changeVsPreviousPeriod: 4.6 },
+      { category: "food_cost", amountMinor: 287540, percentage: 29.6, changeVsPreviousPeriod: 8.2 }
+    ],
+    topMerchants: [
+      { merchant: "Payroll funding", amountMinor: 684500 },
+      { merchant: "Freshline Foods invoice", amountMinor: 287540 }
+    ],
+    notes: ["Payroll is the largest outflow this close period.", "Food cost is trending higher than the previous close window."]
+  };
+}
+
+function demoCashRecommendationsForScenario(scenario: DemoScenario): CashRecommendation[] {
+  if (!isRestaurantScenario(scenario)) return demoCashRecommendations;
+  return [
+    { type: "hold_close", priority: "high", title: "Do not mark the daily close complete yet", description: "One delivery payout is missing and one cash deposit needs manager evidence.", currency: "USD" },
+    { type: "cash_buffer", priority: "high", title: "Keep payroll cash protected", description: "Payroll funding is the largest near-term debit. Keep cash above the next payroll and supplier threshold before discretionary spend.", amountMinor: 972040, currency: "USD" },
+    { type: "refund_review", priority: "medium", title: "Review refund and comp activity", description: "Refunds are elevated for the close window. Compare by shift, manager, and reason code.", currency: "USD" }
+  ];
+}
 
 const demoPayoutExplanation: PayoutExplanation = {
   payoutId: "po-1",

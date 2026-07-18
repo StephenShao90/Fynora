@@ -17,10 +17,10 @@ export default function Home() {
       <section className="mx-auto grid min-h-screen max-w-7xl items-center gap-10 px-6 py-10 lg:grid-cols-[.9fr_1.1fr]">
         <div>
           <div className="mb-3 flex justify-start"><GuideMarker guide={{ number: 1, title: "Product entry", body: "Read the product promise, then click Try Demo to enter the guided Clearflow workflow with demo auth." }} /></div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-moss">Payment close software for small teams</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-moss">Daily revenue close for restaurants and small teams</p>
           <h1 className="mt-4 max-w-4xl text-5xl font-semibold leading-tight tracking-normal text-ink sm:text-6xl">Clearflow</h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-ink/70">
-            Clearflow helps operators answer one high-stakes question every week: did every processor payout actually land in the bank, and what cash can we trust now?
+            Clearflow helps owners answer one high-stakes question every day: did yesterday&apos;s POS sales, delivery payouts, refunds, fees, and bank deposits actually line up?
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <button onClick={tryDemo} className="rounded-md bg-ink px-5 py-3 text-sm font-semibold text-white">Open guided demo</button>
@@ -28,14 +28,14 @@ export default function Home() {
             <a href="/register" className="rounded-md border border-moss/25 bg-mint px-5 py-3 text-sm font-semibold text-moss">Create account</a>
           </div>
           <div className="mt-8 grid gap-3 text-sm leading-6 text-ink/65">
-            <p><span className="font-semibold text-ink">For:</span> student organizations, creator shops, nonprofits, and small SaaS teams taking payments through Stripe.</p>
-            <p><span className="font-semibold text-ink">Outcome:</span> fewer mystery deposits, faster month-end close, cleaner handoff to a treasurer, accountant, or operator.</p>
+            <p><span className="font-semibold text-ink">For:</span> restaurants, local merchants, creator shops, student organizations, nonprofits, and SaaS teams taking digital payments.</p>
+            <p><span className="font-semibold text-ink">Outcome:</span> fewer mystery deposits, faster daily close, clearer handoff to a manager, accountant, treasurer, or operator.</p>
             <p><span className="font-semibold text-ink">Safety:</span> Clearflow does not move money or store bank credentials. Plaid and Stripe handle authorization.</p>
           </div>
           <div className="mt-8 grid gap-3 rounded-md border border-ink/10 bg-white p-4 text-sm shadow-sm sm:grid-cols-3">
-            <StoryStep number="1" title="Connect" body="Bring in Stripe-style payouts and bank activity." />
-            <StoryStep number="2" title="Reconcile" body="Match each payout to the bank deposit it created." />
-            <StoryStep number="3" title="Decide" body="Resolve breaks and forecast usable cash." />
+            <StoryStep number="1" title="Connect" body="Bring in POS, delivery, processor, and bank activity." />
+            <StoryStep number="2" title="Reconcile" body="Match expected payouts to deposits and cash close evidence." />
+            <StoryStep number="3" title="Decide" body="Resolve breaks and know what cash is safe to use." />
           </div>
         </div>
 
@@ -59,16 +59,16 @@ export default function Home() {
             <div className="rounded-md border border-ink/10 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Exception workbench</p>
               <div className="mt-3 grid gap-3">
-                <PreviewBreak title="Likely payout amount mismatch" detail="Stripe payout is close to a bank deposit but differs by $11.00." />
-                <PreviewBreak title="Unmatched bank deposit" detail="A bank credit has no known processor payout." />
+                <PreviewBreak title="Delivery payout short by $12.00" detail="DoorDash settlement is close to the bank deposit but differs from expected net." />
+                <PreviewBreak title="Cash deposit needs manager note" detail="Branch cash deposit needs register close evidence before the day is complete." />
               </div>
             </div>
             <div className="rounded-md border border-ink/10 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Provider pipeline</p>
               <div className="mt-4 grid gap-2 text-sm">
-                <PipelineRow label="Processor data" status="loaded" />
+                <PipelineRow label="POS and processor data" status="loaded" />
                 <PipelineRow label="Bank data" status="loaded" />
-                <PipelineRow label="Payout matching" status="running" />
+                <PipelineRow label="Delivery payout matching" status="running" />
                 <PipelineRow label="Close evidence" status="saved" />
               </div>
             </div>

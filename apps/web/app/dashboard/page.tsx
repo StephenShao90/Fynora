@@ -8,6 +8,7 @@ import { DemoPilot } from "@/components/demo";
 import { GuideMarker } from "@/components/help";
 import { dashboardFallback, normalizeDashboardSummary, type DashboardSummary } from "@/components/dashboard/data";
 import { useApi } from "@/hooks/useApi";
+import { activeDemoScenario } from "@/lib/api";
 
 const CashForecastMiniChart = dynamic(() => import("@/components/charts/DashboardCharts").then((mod) => mod.CashForecastMiniChart), {
   ssr: false,
@@ -19,12 +20,17 @@ const PayoutVolumeChart = dynamic(() => import("@/components/charts/DashboardCha
 });
 
 export default function Dashboard() {
+  const scenario = activeDemoScenario();
   const fallback = dashboardFallback();
   const summary = useApi<DashboardSummary>("/api/v1/dashboard/summary", fallback, { instant: true });
   const data = normalizeDashboardSummary(summary.data, fallback);
   const { cash, forecast, exceptions, payouts, payments, bank_transactions: bank, connections, metrics } = data;
   const openBreaks = exceptions.filter((item) => item.status === "open");
   const completedJobs = metrics.jobs_completed_total || 0;
+  const expectedDeposits = payouts.reduce((sum, payout) => sum + (payout.amount || 0), 0);
+  const postedCredits = bank.filter((row) => row.direction === "credit").reduce((sum, row) => sum + (row.amount || 0), 0);
+  const depositGap = expectedDeposits - postedCredits;
+  const restaurantMode = scenario.type === "restaurant";
   const nextAction = openBreaks.length
     ? { label: "Review open breaks", href: "/reconciliation", detail: `${openBreaks.length} payout/deposit issue(s) need operator review.` }
     : payouts.length === 0 || bank.length === 0
@@ -33,20 +39,22 @@ export default function Dashboard() {
 
   return (
     <Shell>
-      <Header title="Home base" subtitle="A daily close view for small teams: explain payouts, fix breaks, and know what cash is safe to use." />
+      <Header title={restaurantMode ? "Daily revenue close" : "Home base"} subtitle={restaurantMode ? "Verify POS sales, delivery payouts, refunds, fees, cash deposits, and bank settlement before trusting today's cash." : "A daily close view for small teams: explain payouts, fix breaks, and know what cash is safe to use."} />
 
       <section className="mb-5 rounded-md border border-ink/10 bg-[#17211b] p-5 text-white shadow-sm">
         <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Customer question</p>
-            <h2 className="mt-2 max-w-3xl text-2xl font-semibold">Can we explain every Stripe payout that hit the bank?</h2>
+            <h2 className="mt-2 max-w-3xl text-2xl font-semibold">{restaurantMode ? "Did yesterday's sales actually become bank cash?" : "Can we explain every Stripe payout that hit the bank?"}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/65">
-              Clearflow turns processor payouts and bank deposits into a simple close checklist: connected data, matched payouts, resolved breaks, and a cash forecast you can act on.
+              {restaurantMode
+                ? "Clearflow compares POS batches, delivery settlements, processor fees, refunds, and bank deposits so an owner can close the day with evidence."
+                : "Clearflow turns processor payouts and bank deposits into a simple close checklist: connected data, matched payouts, resolved breaks, and a cash forecast you can act on."}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <StepLink number="1" label="Load data" href="/imports" />
+              <StepLink number="1" label={restaurantMode ? "Load POS + bank data" : "Load data"} href="/imports" />
               <StepLink number="2" label="Run reconciliation" href="/reconciliation" />
-              <StepLink number="3" label="Resolve breaks" href="/reconciliation" />
+              <StepLink number="3" label={restaurantMode ? "Explain exceptions" : "Resolve breaks"} href="/reconciliation" />
               <StepLink number="4" label="Forecast cash" href="/insights" />
             </div>
           </div>
@@ -73,11 +81,34 @@ export default function Dashboard() {
         <Kpi label="Open breaks" value={`${openBreaks.length}`} detail="requires review" tone={openBreaks.length ? "warn" : "good"} />
       </div>
 
+      {restaurantMode ? (
+        <div className="mt-4">
+          <Card title="Restaurant close verdict" guide={{ number: 3, title: "Restaurant close verdict", body: "This is the owner-facing answer: expected payouts versus posted deposits, open exceptions, and whether the day can be marked complete." }}>
+            <div className="grid gap-4 xl:grid-cols-[.9fr_1.1fr]">
+              <div className={`rounded-md border p-4 ${openBreaks.length ? "border-gold/40 bg-gold/10" : "border-moss/25 bg-mint/60"}`}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">Close status</p>
+                <p className="mt-2 text-2xl font-semibold">{openBreaks.length ? "Review required" : "Ready to close"}</p>
+                <p className="mt-2 text-sm leading-6 text-ink/60">
+                  {openBreaks.length
+                    ? `${openBreaks.length} exception(s) need evidence before yesterday's revenue can be trusted.`
+                    : "Expected payouts and bank deposits are explained for this close window."}
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <MiniMetric label="Expected deposits" value={money(expectedDeposits)} detail="processor + delivery payouts" />
+                <MiniMetric label="Posted credits" value={money(postedCredits)} detail="bank deposits found" />
+                <MiniMetric label="Unexplained gap" value={money(depositGap)} detail="positive means expected cash is missing" tone={Math.abs(depositGap) > 1 ? "warn" : "good"} />
+              </div>
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
       <div className="mt-4">
-        <Card title="Operator checklist" guide={{ number: 3, title: "Operator checklist", body: "Use this as the daily workflow map. Any card marked next tells you which page to open to finish setup or fix active issues." }}>
+        <Card title={restaurantMode ? "Daily close checklist" : "Operator checklist"} guide={{ number: restaurantMode ? 4 : 3, title: "Operator checklist", body: "Use this as the daily workflow map. Any card marked next tells you which page to open to finish setup or fix active issues." }}>
           <div className="grid gap-3 md:grid-cols-4">
             <ChecklistItem label="Bank connection" done={connections.length > 0} detail={connections.length ? "Plaid connection available" : "Connect Plaid or create sandbox bank"} href="/imports" />
-            <ChecklistItem label="Processor data" done={payouts.length > 0 && payments.length > 0} detail={payouts.length ? "Payouts and payments loaded" : "Run processor sync"} href="/reconciliation" />
+            <ChecklistItem label={restaurantMode ? "POS + delivery data" : "Processor data"} done={payouts.length > 0 && payments.length > 0} detail={payouts.length ? "Payouts and payments loaded" : "Run processor sync"} href="/reconciliation" />
             <ChecklistItem label="Close run completed" done={completedJobs > 0} detail={completedJobs ? `${completedJobs} completed background step(s)` : "Run the close checklist"} href="/reconciliation" />
             <ChecklistItem label="Open breaks" done={openBreaks.length === 0} detail={openBreaks.length ? `${openBreaks.length} break(s) need review` : "No active breaks"} href="/reconciliation" />
           </div>
@@ -105,7 +136,7 @@ export default function Dashboard() {
           <div className="mt-5 rounded-md bg-ink/[0.03] p-4">
             <p className="text-sm font-medium">Next operator action</p>
             <p className="mt-1 text-sm leading-6 text-ink/55">
-              Review unmatched deposits on the Reconciliation page, then resolve or annotate each exception before month-end reporting.
+              {restaurantMode ? "Review missing delivery payouts, short deposits, and cash deposits on the Reconciliation page before marking the daily close complete." : "Review unmatched deposits on the Reconciliation page, then resolve or annotate each exception before month-end reporting."}
             </p>
           </div>
         </Card>
@@ -142,6 +173,17 @@ export default function Dashboard() {
         <Ledger title="Recent bank activity" guide={{ number: 9, title: "Bank activity", body: "These are posted bank credits and debits. Reconciliation compares processor payouts against these deposits." }} rows={bank.map((row) => ({ id: row.id, label: row.description, detail: row.direction, date: row.posted_at, amount: row.direction === "credit" ? row.amount : -row.amount }))} />
       </div>
     </Shell>
+  );
+}
+
+function MiniMetric({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail: string; tone?: "neutral" | "good" | "warn" }) {
+  const color = tone === "good" ? "text-moss" : tone === "warn" ? "text-coral" : "text-ink";
+  return (
+    <div className="rounded-md border border-ink/10 bg-white p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">{label}</p>
+      <p className={`mt-2 text-xl font-semibold ${color}`}>{value}</p>
+      <p className="mt-1 text-xs leading-5 text-ink/50">{detail}</p>
+    </div>
   );
 }
 

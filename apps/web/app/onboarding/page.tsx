@@ -17,6 +17,7 @@ type StripeStatus = { connected: boolean; displayName?: string };
 type PlaidConnection = { id: string; institution_name: string; last_synced_at?: string };
 
 const businessTypes = [
+  ["restaurant", "Restaurant / local merchant"],
   ["small_business", "Small business"],
   ["creator", "Creator / online seller"],
   ["student_organization", "Student organization"],
@@ -101,12 +102,12 @@ export default function OnboardingPage() {
 
   return (
     <Shell>
-      <Header title="Start close setup" subtitle="Choose the kind of team you run, then prepare the data Clearflow needs to explain every payout." />
+      <Header title="Start daily revenue close" subtitle="Choose the business you run, then prepare the data Clearflow needs to prove yesterday's money landed." />
 
       <section className="mb-4 grid gap-3 rounded-md border border-ink/10 bg-white p-4 shadow-sm md:grid-cols-4">
         <SetupStep number="1" title="Name workspace" body="Set the team context for cash and payouts." />
-        <SetupStep number="2" title="Connect data" body="Bring in bank activity and processor payouts." />
-        <SetupStep number="3" title="Run close" body="Match payouts against posted deposits." />
+        <SetupStep number="2" title="Connect data" body="Bring in POS, delivery, processor, and bank activity." />
+        <SetupStep number="3" title="Run close" body="Match expected payouts against posted deposits." />
         <SetupStep number="4" title="Resolve breaks" body="Explain anything that does not match." />
       </section>
 
@@ -151,7 +152,7 @@ export default function OnboardingPage() {
             ))}
           </div>
           <div className="mt-4 rounded-md bg-ink/[0.03] p-3 text-sm leading-6 text-ink/60">
-            When these items are complete, the Home base can tell you whether payouts are explained and whether cash is trustworthy.
+            When these items are complete, the Home base can tell you whether sales, delivery payouts, refunds, fees, and deposits are explained.
           </div>
         </Card>
       </div>
@@ -166,8 +167,9 @@ export default function OnboardingPage() {
       ) : null}
 
       {demoSession ? <div className="mt-4">
-        <Card title="Sample workspace profiles" guide={{ number: 4, title: "Sample workspace profiles", body: "Switch the sample company profile so you can show Clearflow for student orgs, creators, SaaS teams, or nonprofits." }}>
-          <div className="grid gap-3 md:grid-cols-4">
+        <Card title="Sample workspace profiles" guide={{ number: 4, title: "Sample workspace profiles", body: "Restaurant is the flagship workflow. The other profiles show how the same backend adapts to adjacent payment-close markets." }}>
+          <div className="grid gap-3 md:grid-cols-5">
+            <ScenarioButton active={scenario.id === "restaurant"} title="Restaurant" detail="POS batches, delivery payouts, cash deposits, refunds, payroll." onClick={() => switchScenario("restaurant")} />
             <ScenarioButton active={scenario.id === "student_org"} title="Student org" detail="Dues, event tickets, sponsor payments, venue deposits." onClick={() => switchScenario("student_org")} />
             <ScenarioButton active={scenario.id === "creator"} title="Creator shop" detail="Stripe storefront payouts, refunds, platform tools." onClick={() => switchScenario("creator")} />
             <ScenarioButton active={scenario.id === "saas"} title="Small SaaS" detail="Subscription revenue, churn/refunds, software costs." onClick={() => switchScenario("saas")} />
@@ -205,6 +207,7 @@ function labelForType(value: string) {
 }
 
 function typeToScenario(value: string) {
+  if (value === "restaurant") return "restaurant";
   if (value === "creator") return "creator";
   if (value === "saas") return "saas";
   if (value === "nonprofit") return "nonprofit";

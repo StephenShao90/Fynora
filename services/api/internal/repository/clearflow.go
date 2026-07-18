@@ -259,6 +259,23 @@ func (r *ClearflowRepository) SyncStripeDemo(ctx context.Context, org models.Org
 		{ID: auth.NewID(), OrganizationID: org.ID, ProcessorFeeID: "fee_004", PaymentID: payments[3].ID, Amount: 3.78, Currency: org.Currency, OccurredAt: payments[3].OccurredAt, Description: "Stripe processing fee"},
 		{ID: auth.NewID(), OrganizationID: org.ID, ProcessorFeeID: "fee_005", PaymentID: payments[4].ID, Amount: 43.80, Currency: org.Currency, OccurredAt: payments[4].OccurredAt, Description: "Stripe processing fee"},
 	}
+	if org.Type == "restaurant" {
+		payments = []models.Payment{
+			{ID: auth.NewID(), OrganizationID: org.ID, Processor: "stripe", ProcessorPaymentID: "ch_pos_dinner_001", CustomerEmail: "pos@clearflow.local", Amount: 8420.35, Currency: org.Currency, Status: "succeeded", OccurredAt: now.AddDate(0, 0, -2), Description: "Toast POS card batch - dinner service", CreatedAt: now},
+			{ID: auth.NewID(), OrganizationID: org.ID, Processor: "stripe", ProcessorPaymentID: "ch_pos_lunch_001", CustomerEmail: "pos@clearflow.local", Amount: 3890.20, Currency: org.Currency, Status: "succeeded", OccurredAt: now.AddDate(0, 0, -2), Description: "Toast POS card batch - lunch service", CreatedAt: now},
+			{ID: auth.NewID(), OrganizationID: org.ID, Processor: "stripe", ProcessorPaymentID: "ch_doordash_001", CustomerEmail: "settlement@doordash.local", Amount: 2140.80, Currency: org.Currency, Status: "succeeded", OccurredAt: now.AddDate(0, 0, -2), Description: "DoorDash marketplace settlement", CreatedAt: now},
+			{ID: auth.NewID(), OrganizationID: org.ID, Processor: "stripe", ProcessorPaymentID: "ch_ubereats_001", CustomerEmail: "settlement@ubereats.local", Amount: 1665.50, Currency: org.Currency, Status: "succeeded", OccurredAt: now.AddDate(0, 0, -2), Description: "Uber Eats marketplace settlement", CreatedAt: now},
+			{ID: auth.NewID(), OrganizationID: org.ID, Processor: "stripe", ProcessorPaymentID: "ch_private_dining_refund_001", CustomerEmail: "guest@example.com", Amount: 126.75, Currency: org.Currency, Status: "refunded", OccurredAt: now.AddDate(0, 0, -1), Description: "Refunded private dining deposit", CreatedAt: now},
+		}
+		refund = models.Refund{ID: auth.NewID(), OrganizationID: org.ID, ProcessorRefundID: "re_private_dining_001", PaymentID: payments[4].ID, Amount: 126.75, Currency: org.Currency, OccurredAt: now.AddDate(0, 0, -1)}
+		fees = []models.Fee{
+			{ID: auth.NewID(), OrganizationID: org.ID, ProcessorFeeID: "fee_pos_dinner", PaymentID: payments[0].ID, Amount: 244.19, Currency: org.Currency, OccurredAt: payments[0].OccurredAt, Description: "POS card processing fee"},
+			{ID: auth.NewID(), OrganizationID: org.ID, ProcessorFeeID: "fee_pos_lunch", PaymentID: payments[1].ID, Amount: 112.82, Currency: org.Currency, OccurredAt: payments[1].OccurredAt, Description: "POS card processing fee"},
+			{ID: auth.NewID(), OrganizationID: org.ID, ProcessorFeeID: "fee_doordash", PaymentID: payments[2].ID, Amount: 172.70, Currency: org.Currency, OccurredAt: payments[2].OccurredAt, Description: "Delivery marketplace adjustment"},
+			{ID: auth.NewID(), OrganizationID: org.ID, ProcessorFeeID: "fee_ubereats", PaymentID: payments[3].ID, Amount: 126.75, Currency: org.Currency, OccurredAt: payments[3].OccurredAt, Description: "Delivery marketplace adjustment"},
+			{ID: auth.NewID(), OrganizationID: org.ID, ProcessorFeeID: "fee_refund", PaymentID: payments[4].ID, Amount: 3.65, Currency: org.Currency, OccurredAt: payments[4].OccurredAt, Description: "Refund processing fee"},
+		}
+	}
 	netMinor := int64(0)
 	for _, payment := range payments {
 		netMinor += toMinor(payment.Amount)
@@ -281,7 +298,11 @@ func (r *ClearflowRepository) SyncStripeDemo(ctx context.Context, org models.Org
 		}
 		paymentIDs[payment.ProcessorPaymentID] = id
 	}
-	refund.PaymentID = paymentIDs["ch_ticket_001"]
+	if org.Type == "restaurant" {
+		refund.PaymentID = paymentIDs["ch_private_dining_refund_001"]
+	} else {
+		refund.PaymentID = paymentIDs["ch_ticket_001"]
+	}
 	if err := upsertRefund(ctx, tx, refund); err != nil {
 		return nil, err
 	}
@@ -322,6 +343,15 @@ func (r *ClearflowRepository) SyncBankDemo(ctx context.Context, org models.Organ
 		{ID: auth.NewID(), OrganizationID: org.ID, Source: "plaid_or_csv", ExternalID: "bank_stripe_demo_001", Amount: payoutAmount, Direction: "credit", Currency: org.Currency, Description: "STRIPE PAYOUT", PostedAt: now.AddDate(0, 0, -2), CreatedAt: now},
 		{ID: auth.NewID(), OrganizationID: org.ID, Source: "plaid_or_csv", ExternalID: "bank_venue_001", Amount: 300, Direction: "debit", Currency: org.Currency, Description: "Venue deposit", PostedAt: now.AddDate(0, 0, -1), CreatedAt: now},
 		{ID: auth.NewID(), OrganizationID: org.ID, Source: "plaid_or_csv", ExternalID: "bank_unmatched_001", Amount: 212.45, Direction: "credit", Currency: org.Currency, Description: "Unknown deposit", PostedAt: now.AddDate(0, 0, -1), CreatedAt: now},
+	}
+	if org.Type == "restaurant" {
+		rows = []models.BankTransaction{
+			{ID: auth.NewID(), OrganizationID: org.ID, Source: "plaid_or_csv", ExternalID: "bank_toast_001", Amount: payoutAmount, Direction: "credit", Currency: org.Currency, Description: "TOAST CARD SETTLEMENT", PostedAt: now.AddDate(0, 0, -1), CreatedAt: now},
+			{ID: auth.NewID(), OrganizationID: org.ID, Source: "plaid_or_csv", ExternalID: "bank_delivery_short_001", Amount: 1956.10, Direction: "credit", Currency: org.Currency, Description: "DOORDASH PAYOUT", PostedAt: now.AddDate(0, 0, -1), CreatedAt: now},
+			{ID: auth.NewID(), OrganizationID: org.ID, Source: "plaid_or_csv", ExternalID: "bank_cash_deposit_001", Amount: 1410.00, Direction: "credit", Currency: org.Currency, Description: "BRANCH CASH DEPOSIT", PostedAt: now.AddDate(0, 0, -1), CreatedAt: now},
+			{ID: auth.NewID(), OrganizationID: org.ID, Source: "plaid_or_csv", ExternalID: "bank_food_supplier_001", Amount: 2875.40, Direction: "debit", Currency: org.Currency, Description: "Freshline Foods invoice", PostedAt: now, CreatedAt: now},
+			{ID: auth.NewID(), OrganizationID: org.ID, Source: "plaid_or_csv", ExternalID: "bank_payroll_001", Amount: 6845.00, Direction: "debit", Currency: org.Currency, Description: "Payroll funding", PostedAt: now, CreatedAt: now},
+		}
 	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
