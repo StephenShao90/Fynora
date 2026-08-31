@@ -122,7 +122,7 @@ func (a *app) issueAuthTokens(w http.ResponseWriter, r *http.Request, status int
 		return
 	}
 	a.writeAudit(r.Context(), r, "", user.ID, "auth.login", "session", session.ID, "{}")
-	writeJSON(w, status, map[string]interface{}{
+	writeAuthJSON(w, status, map[string]interface{}{
 		"token":         access,
 		"accessToken":   access,
 		"refreshToken":  refresh,
@@ -181,7 +181,7 @@ func (a *app) refreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = a.markRefreshSessionUsed(r.Context(), nextSession.ID)
 	a.writeAudit(r.Context(), r, "", user.ID, "auth.refresh_rotated", "session", nextSession.ID, "{}")
-	writeJSON(w, 200, map[string]interface{}{"accessToken": access, "token": access, "refreshToken": refresh})
+	writeAuthJSON(w, 200, map[string]interface{}{"accessToken": access, "token": access, "refreshToken": refresh})
 }
 
 func (a *app) logout(w http.ResponseWriter, r *http.Request) {
@@ -196,6 +196,7 @@ func (a *app) logout(w http.ResponseWriter, r *http.Request) {
 		_ = a.revokeRefreshSession(r.Context(), session.ID)
 		a.writeAudit(r.Context(), r, "", session.UserID, "auth.logout", "session", session.ID, "{}")
 	}
+	setAuthNoStore(w)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -214,8 +215,13 @@ func (a *app) revokeSession(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, r, 400, "VALIDATION_ERROR", err.Error())
 		return
 	}
-	if err := a.revokeRefreshSession(r.Context(), sessionID); err != nil {
+	revoked, err := a.revokeRefreshSessionForUser(r.Context(), userID(r), sessionID)
+	if err != nil {
 		errorJSON(w, r, 500, "DATABASE_ERROR", "could not revoke session")
+		return
+	}
+	if !revoked {
+		errorJSON(w, r, http.StatusNotFound, "NOT_FOUND", "session not found")
 		return
 	}
 	a.writeAudit(r.Context(), r, "", userID(r), "auth.session_revoked", "session", sessionID, "{}")
@@ -247,6 +253,22 @@ func (a *app) revokeRefreshSession(ctx context.Context, sessionID string) error 
 	s.RevokedAt = &now
 	a.store.refreshSessions[sessionID] = s
 	return nil
+}
+
+func (a *app) revokeRefreshSessionForUser(ctx context.Context, uid, sessionID string) (bool, error) {
+	if a.cfRepo != nil {
+		return a.cfRepo.RevokeRefreshSessionForUser(ctx, uid, sessionID)
+	}
+	a.store.mu.Lock()
+	defer a.store.mu.Unlock()
+	s, ok := a.store.refreshSessions[sessionID]
+	if !ok || s.UserID != uid {
+		return false, nil
+	}
+	now := time.Now().UTC()
+	s.RevokedAt = &now
+	a.store.refreshSessions[sessionID] = s
+	return true, nil
 }
 
 func (a *app) markRefreshSessionUsed(ctx context.Context, sessionID string) error {

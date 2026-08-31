@@ -5,8 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -18,6 +20,8 @@ import (
 	"github.com/StephenShao90/Fynora/services/api/internal/processors"
 	"github.com/StephenShao90/Fynora/services/api/internal/repository"
 )
+
+var processorProviderRE = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
 
 type opsMetrics struct {
 	HTTPRequestsTotal                     int64 `json:"http_requests_total"`
@@ -125,14 +129,23 @@ func (a *app) handleProcessorWebhook(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	r = r.WithContext(ctx)
 	body, err := readLimitedBody(r, 2<<20)
-	if err != nil || providerName == "" {
+	if err != nil || providerName == "" || !processorProviderRE.MatchString(strings.ToLower(providerName)) {
 		errorJSON(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid processor webhook")
+		return
+	}
+	orgID := organizationIDFromRequest(r)
+	if a.cfg.AppEnv == "production" && orgID == "" {
+		errorJSON(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "organizationId is required for production processor webhooks")
 		return
 	}
 	var provider processors.PaymentProcessorProvider
 	if strings.EqualFold(providerName, "stripe") {
 		provider = processors.StripeWebhookProvider{Verifier: processors.StripeWebhookVerifier{Secret: a.cfg.StripeWebhookSecret, AppEnv: a.cfg.AppEnv}}
 	} else {
+		if a.cfg.AppEnv == "production" {
+			errorJSON(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "unsupported processor provider")
+			return
+		}
 		provider = processors.MockProvider{Name: providerName}
 	}
 	result, err := provider.HandleWebhook(r.Context(), body, r.Header)
@@ -143,7 +156,6 @@ func (a *app) handleProcessorWebhook(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "invalid processor webhook")
 		return
 	}
-	orgID := organizationIDFromRequest(r)
 	event := models.WebhookEvent{ID: auth.NewID(), OrganizationID: orgID, Type: result.EventType, Code: result.EventType, ItemID: result.ExternalEventID, Provider: provider.ProviderName(), DedupeKey: processorWebhookDedupeKey(provider.ProviderName(), result.ExternalEventID, body), Status: "received", CreatedAt: time.Now().UTC()}
 	created, err := a.saveProcessorWebhookEvent(r.Context(), event, string(body))
 	if err != nil {
@@ -184,7 +196,14 @@ func processorWebhookDedupeKey(provider, externalID string, body []byte) string 
 }
 
 func readLimitedBody(r *http.Request, max int64) ([]byte, error) {
-	return io.ReadAll(io.LimitReader(r.Body, max+1))
+	body, err := io.ReadAll(io.LimitReader(r.Body, max+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > max {
+		return nil, errors.New("request body too large")
+	}
+	return body, nil
 }
 
 func (a *app) organizationForPlaidItem(ctx context.Context, itemID string) string {

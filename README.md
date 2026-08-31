@@ -193,9 +193,9 @@ Phase 7 adds an OAuth-ready Stripe integration shape:
 - `GET /api/v1/integrations/stripe/callback` validates state, protects provider tokens, stores account metadata, audits the connection, and emits an outbox event.
 - `GET /api/v1/integrations/stripe/status` returns safe connection metadata only.
 - `DELETE /api/v1/integrations/stripe` marks the local connection disconnected and emits an outbox event.
-- `POST /api/v1/webhooks/processors/stripe` verifies `Stripe-Signature` when `STRIPE_WEBHOOK_SECRET` is configured, persists and dedupes events, and queues relevant sync jobs.
+- `POST /api/v1/webhooks/processors/stripe` verifies `Stripe-Signature`, persists and dedupes events, and queues relevant sync jobs.
 
-Provider tokens are protected with `PROVIDER_TOKEN_ENCRYPTION_KEY`. Production mode fails fast if token encryption is missing. Plaid webhook verification can be required with `PLAID_WEBHOOK_VERIFICATION=true`; development mock bypass is only allowed outside production.
+Provider tokens are protected with `PROVIDER_TOKEN_ENCRYPTION_KEY`. Production mode fails fast if token encryption is missing or short, demo auth is enabled, CORS is wildcarded, Plaid is not in production mode, Plaid webhook verification is disabled, or Stripe webhook secrets are missing. Development mock webhook bypass is only allowed outside production.
 
 ## Production Reliability
 
@@ -223,7 +223,7 @@ make smoke
 
 Or use `make dev-smoke` to start the local stack, run smoke verification, and stop the app in one command.
 
-Detailed verification notes live in [`docs/verification.md`](docs/verification.md).
+Detailed verification notes live in [`docs/verification.md`](docs/verification.md). Customer launch gates live in [`docs/production-readiness.md`](docs/production-readiness.md). Do not claim real customer volume, production throughput, uptime, or deployed usage until those claims are backed by telemetry.
 
 ## Deployment
 

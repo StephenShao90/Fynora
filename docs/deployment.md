@@ -32,9 +32,10 @@ Required backend env examples:
 ```bash
 APP_ENV=production
 DATABASE_URL=...
-JWT_SECRET=...
+JWT_SECRET=... # at least 32 characters
 ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
-PROVIDER_TOKEN_ENCRYPTION_KEY=...
+ENABLE_DEMO_AUTH=false
+PROVIDER_TOKEN_ENCRYPTION_KEY=... # at least 32 characters
 PLAID_CLIENT_ID=...
 PLAID_SECRET=...
 PLAID_ENV=production
@@ -43,6 +44,7 @@ STRIPE_CLIENT_ID=...
 STRIPE_SECRET_KEY=...
 STRIPE_WEBHOOK_SECRET=...
 STRIPE_REDIRECT_URL=https://api.example.com/api/v1/integrations/stripe/callback
+FRONTEND_URL=https://your-vercel-app.vercel.app
 ```
 
 Required release checklist:
@@ -55,6 +57,8 @@ Required release checklist:
 - Confirm `GET /api/v1/onboarding/status` persists setup choices and reports provider readiness.
 - Confirm exception notes remain available through `GET /reconciliation/exceptions/{id}/notes`.
 - Confirm webhook secrets and provider token encryption are configured before using Stripe/Plaid in production mode.
+- Confirm `POST /api/v1/auth/demo-token` returns 404 in production.
+- Confirm processor webhooks reject unsigned `mock` providers and Stripe webhooks without an `organizationId`.
 
 Optional production env:
 
@@ -85,3 +89,13 @@ Open `http://localhost:3000`, click **Try Demo**, and walk through Dashboard, Re
 - Do not run the worker on Vercel serverless functions.
 - Do not put Plaid, Stripe, database, JWT, Redis, or OTEL secrets into the frontend environment.
 - Do not use Vercel demo mode as a substitute for the production backend architecture.
+
+## Customer Launch Blockers
+
+The current app is strong enough for a backend portfolio demo and controlled beta, but do not onboard real merchants until these are complete:
+
+- Replace browser-stored bearer tokens with secure HttpOnly cookie sessions or an equivalent hardened session model.
+- Complete a production Stripe Connect review and migrate away from legacy OAuth if your Stripe account requires Accounts v2 for the intended platform model.
+- Run a real load test before claiming a throughput number such as 5K requests/s.
+- Add infrastructure backups, restore drills, alerting, and secret rotation runbooks.
+- Publish legal terms, privacy policy, data deletion policy, and incident response contacts.

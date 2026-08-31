@@ -465,6 +465,10 @@ func (a *app) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) demoToken(w http.ResponseWriter, r *http.Request) {
+	if a.cfg.AppEnv == "production" || !redisEnabled(a.cfg.EnableDemoAuth) {
+		errorJSON(w, r, http.StatusNotFound, "NOT_FOUND", "demo auth is disabled")
+		return
+	}
 	if a.cfRepo != nil {
 		u, err := a.cfRepo.GetUserByEmail(r.Context(), "demo@clearflow.dev")
 		if err != nil {
@@ -480,17 +484,17 @@ func (a *app) demoToken(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			token, _ := auth.SignJWT(a.cfg.JWTSecret, u.ID, u.Email, 24*time.Hour)
-			writeJSON(w, 200, map[string]interface{}{"token": token, "user": u, "organizations": membershipOrganizations(memberships)})
+			writeAuthJSON(w, 200, map[string]interface{}{"token": token, "user": u, "organizations": membershipOrganizations(memberships)})
 			return
 		}
 		memberships, _ := a.cfRepo.ListUserMemberships(r.Context(), u.ID)
 		token, _ := auth.SignJWT(a.cfg.JWTSecret, u.ID, u.Email, 24*time.Hour)
-		writeJSON(w, 200, map[string]interface{}{"token": token, "user": u, "organizations": membershipOrganizations(memberships)})
+		writeAuthJSON(w, 200, map[string]interface{}{"token": token, "user": u, "organizations": membershipOrganizations(memberships)})
 		return
 	}
 	u := a.seedDemo()
 	token, _ := auth.SignJWT(a.cfg.JWTSecret, u.ID, u.Email, 24*time.Hour)
-	writeJSON(w, 200, map[string]interface{}{"token": token, "user": u})
+	writeAuthJSON(w, 200, map[string]interface{}{"token": token, "user": u})
 }
 
 func (a *app) me(w http.ResponseWriter, r *http.Request) {
@@ -1931,6 +1935,14 @@ func decode(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
 }
 func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
 	httpapi.WriteJSON(w, status, payload)
+}
+func setAuthNoStore(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+}
+func writeAuthJSON(w http.ResponseWriter, status int, payload interface{}) {
+	setAuthNoStore(w)
+	writeJSON(w, status, payload)
 }
 func errorJSON(w http.ResponseWriter, r *http.Request, status int, code, message string) {
 	httpapi.Error(w, r, status, code, message)

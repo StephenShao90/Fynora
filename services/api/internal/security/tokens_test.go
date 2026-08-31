@@ -10,18 +10,18 @@ func TestAESGCMTokenProtectorRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ciphertext, err := protector.Protect(context.Background(), "sk_live_secret")
+	ciphertext, err := protector.Protect(context.Background(), "stripe-secret-fixture")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ciphertext == "sk_live_secret" {
+	if ciphertext == "stripe-secret-fixture" {
 		t.Fatal("expected ciphertext to differ from plaintext")
 	}
 	plain, err := protector.Unprotect(context.Background(), ciphertext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plain != "sk_live_secret" {
+	if plain != "stripe-secret-fixture" {
 		t.Fatalf("expected round trip token, got %q", plain)
 	}
 }

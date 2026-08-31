@@ -12,8 +12,8 @@ import (
 func TestStripeWebhookSignatureVerification(t *testing.T) {
 	body := []byte(`{"id":"evt_1","type":"payout.paid"}`)
 	now := time.Unix(1000, 0)
-	verifier := StripeWebhookVerifier{Secret: "whsec_test", AppEnv: "production", Now: func() time.Time { return now }}
-	sig := BuildStripeTestSignature("whsec_test", now, body)
+	verifier := StripeWebhookVerifier{Secret: "stripe-webhook-secret-fixture", AppEnv: "production", Now: func() time.Time { return now }}
+	sig := BuildStripeTestSignature("stripe-webhook-secret-fixture", now, body)
 	if err := verifier.Verify(body, sig); err != nil {
 		t.Fatalf("expected valid signature: %v", err)
 	}
@@ -25,8 +25,8 @@ func TestStripeWebhookSignatureVerification(t *testing.T) {
 func TestStripeWebhookProviderSyncEvents(t *testing.T) {
 	body := []byte(`{"id":"evt_1","type":"charge.succeeded"}`)
 	now := time.Unix(1000, 0)
-	provider := StripeWebhookProvider{Verifier: StripeWebhookVerifier{Secret: "whsec_test", Now: func() time.Time { return now }}}
-	headers := http.Header{"Stripe-Signature": []string{BuildStripeTestSignature("whsec_test", now, body)}}
+	provider := StripeWebhookProvider{Verifier: StripeWebhookVerifier{Secret: "stripe-webhook-secret-fixture", Now: func() time.Time { return now }}}
+	headers := http.Header{"Stripe-Signature": []string{BuildStripeTestSignature("stripe-webhook-secret-fixture", now, body)}}
 	result, err := provider.HandleWebhook(nil, body, headers)
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +46,7 @@ func TestHTTPStripeOAuthClientExchangeAndRevoke(t *testing.T) {
 			if r.Form.Get("code") != "ac_test" {
 				t.Fatalf("unexpected code %q", r.Form.Get("code"))
 			}
-			_ = json.NewEncoder(w).Encode(map[string]string{"stripe_user_id": "acct_123", "access_token": "sk_test", "refresh_token": "rt_test", "scope": "read_write"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"stripe_user_id": "acct_123", "access_token": "stripe-access-fixture", "refresh_token": "rt_test", "scope": "read_write"})
 		case "/oauth/deauthorize":
 			sawRevoke = true
 			_ = json.NewEncoder(w).Encode(map[string]bool{"livemode": false})
@@ -60,7 +60,7 @@ func TestHTTPStripeOAuthClientExchangeAndRevoke(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if account.AccountID != "acct_123" || account.AccessToken != "sk_test" {
+	if account.AccountID != "acct_123" || account.AccessToken != "stripe-access-fixture" {
 		t.Fatalf("unexpected account: %#v", account)
 	}
 	if err := client.Revoke(context.Background(), account.AccountID, account.AccessToken); err != nil {

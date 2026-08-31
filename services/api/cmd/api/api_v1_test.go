@@ -17,7 +17,7 @@ import (
 func newAPITestApp(t *testing.T) *app {
 	t.Helper()
 	return &app{
-		cfg:    config.Config{JWTSecret: "test-secret"},
+		cfg:    config.Config{JWTSecret: "test-secret", EnableDemoAuth: "true"},
 		log:    logger.Logger{},
 		store:  newStore(),
 		raw:    storage.NewLocalStore(t.TempDir()),
@@ -104,7 +104,21 @@ func TestAPIV1ReadyReturnsJSON(t *testing.T) {
 
 func TestAPIV1DemoTokenWorks(t *testing.T) {
 	a := newAPITestApp(t)
-	_ = demoTokenForTest(t, a)
+	rec := performAPIRequest(a, http.MethodPost, "/api/v1/auth/demo-token", "", "req_demo", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected demo token status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	assertNoStore(t, rec)
+}
+
+func TestAPIV1DemoTokenDisabledInProduction(t *testing.T) {
+	a := newAPITestApp(t)
+	a.cfg.AppEnv = "production"
+	a.cfg.EnableDemoAuth = "false"
+	rec := performAPIRequest(a, http.MethodPost, "/api/v1/auth/demo-token", "", "req_demo_prod", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected production demo token 404, got %d: %s", rec.Code, rec.Body.String())
+	}
 }
 
 func TestAPIV1PaymentsRejectsMissingAuth(t *testing.T) {

@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -40,6 +42,7 @@ type Config struct {
 	OTELSampleRatio            string
 	AppEnv                     string
 	AllowedOrigins             string
+	EnableDemoAuth             string
 	MaxBodyBytes               int64
 	WorkerPollMS               int
 	WorkerID                   string
@@ -81,6 +84,7 @@ func Load() Config {
 		OTELSampleRatio:            env("OTEL_SAMPLE_RATIO", "1.0"),
 		AppEnv:                     env("APP_ENV", "development"),
 		AllowedOrigins:             env("ALLOWED_ORIGINS", "*"),
+		EnableDemoAuth:             env("ENABLE_DEMO_AUTH", "true"),
 		MaxBodyBytes:               envInt64("MAX_BODY_BYTES", 1<<20),
 		WorkerPollMS:               int(envInt64("WORKER_POLL_MS", 10000)),
 		WorkerID:                   env("WORKER_ID", ""),
@@ -115,17 +119,46 @@ func (c Config) ValidateProduction() error {
 	if c.JWTSecret == "" || c.JWTSecret == "dev-secret" {
 		return fmt.Errorf("JWT_SECRET must be set to a production secret")
 	}
+	if len(c.JWTSecret) < 32 {
+		return fmt.Errorf("JWT_SECRET must be at least 32 characters in production")
+	}
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("DATABASE_URL is required in production")
 	}
 	if c.AllowedOrigins == "" || c.AllowedOrigins == "*" {
 		return fmt.Errorf("ALLOWED_ORIGINS cannot be wildcard in production")
 	}
-	if c.PlaidEnv == "production" && (c.PlaidClientID == "" || c.PlaidSecret == "") {
-		return fmt.Errorf("Plaid production mode requires PLAID_CLIENT_ID and PLAID_SECRET")
+	for _, origin := range strings.Split(c.AllowedOrigins, ",") {
+		if err := requireHTTPSURL(strings.TrimSpace(origin), "ALLOWED_ORIGINS"); err != nil {
+			return err
+		}
+	}
+	if boolEnv(c.EnableDemoAuth) {
+		return fmt.Errorf("ENABLE_DEMO_AUTH must be false in production")
+	}
+	if c.PlaidClientID == "" || c.PlaidSecret == "" {
+		return fmt.Errorf("PLAID_CLIENT_ID and PLAID_SECRET are required in production")
+	}
+	if c.PlaidEnv != "production" {
+		return fmt.Errorf("PLAID_ENV must be production in production")
+	}
+	if !boolEnv(c.PlaidWebhookVerification) {
+		return fmt.Errorf("PLAID_WEBHOOK_VERIFICATION must be true in production")
+	}
+	if c.StripeClientID == "" || c.StripeSecretKey == "" || c.StripeWebhookSecret == "" {
+		return fmt.Errorf("STRIPE_CLIENT_ID, STRIPE_SECRET_KEY, and STRIPE_WEBHOOK_SECRET are required in production")
+	}
+	if err := requireHTTPSURL(c.StripeRedirectURL, "STRIPE_REDIRECT_URL"); err != nil {
+		return err
+	}
+	if err := requireHTTPSURL(c.FrontendURL, "FRONTEND_URL"); err != nil {
+		return err
 	}
 	if c.ProviderTokenEncryptionKey == "" {
 		return fmt.Errorf("PROVIDER_TOKEN_ENCRYPTION_KEY is required in production")
+	}
+	if len(strings.TrimSpace(c.ProviderTokenEncryptionKey)) < 32 {
+		return fmt.Errorf("PROVIDER_TOKEN_ENCRYPTION_KEY must be at least 32 characters in production")
 	}
 	if boolEnv(c.RedisEnabled) && c.RedisURL == "" {
 		return fmt.Errorf("REDIS_URL is required when REDIS_ENABLED=true")
@@ -151,4 +184,12 @@ func boolEnv(value string) bool {
 	default:
 		return false
 	}
+}
+
+func requireHTTPSURL(raw, field string) error {
+	parsed, err := url.Parse(raw)
+	if raw == "" || err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return fmt.Errorf("%s must be an https URL in production", field)
+	}
+	return nil
 }

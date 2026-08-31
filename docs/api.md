@@ -101,7 +101,7 @@ Portfolio CSV imports return row-level `errors` with row number, field, code, me
 
 Stripe OAuth creates a signed, expiring state tied to the organization and user. The callback validates the state, protects provider tokens server-side, stores account metadata, writes audit logs, and emits outbox events. Stripe status never returns raw access or refresh tokens.
 
-Stripe webhooks verify `Stripe-Signature` when `STRIPE_WEBHOOK_SECRET` is configured. Plaid webhook verification can be required with `PLAID_WEBHOOK_VERIFICATION=true`; development mock bypass is available outside production only.
+Stripe webhooks verify `Stripe-Signature`; production startup requires `STRIPE_WEBHOOK_SECRET`. Plaid webhook verification is required in production with `PLAID_WEBHOOK_VERIFICATION=true`; development mock bypass is available outside production only. Production processor webhooks reject unsupported providers and require `organizationId`.
 
 The Integrations UI includes local sandbox webhook testers. These are for development verification only; production webhook verification should be tested through Stripe/Plaid dashboards or signed webhook tooling.
 

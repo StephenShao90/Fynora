@@ -51,6 +51,15 @@ func (r *ClearflowRepository) RevokeRefreshSession(ctx context.Context, sessionI
 	return err
 }
 
+func (r *ClearflowRepository) RevokeRefreshSessionForUser(ctx context.Context, userID, sessionID string) (bool, error) {
+	res, err := r.db.ExecContext(ctx, `UPDATE refresh_tokens SET revoked_at = COALESCE(revoked_at, now()) WHERE id = $1 AND user_id = $2`, sessionID, userID)
+	if err != nil {
+		return false, err
+	}
+	rows, err := res.RowsAffected()
+	return rows > 0, err
+}
+
 func (r *ClearflowRepository) ListRefreshSessions(ctx context.Context, userID string) ([]models.RefreshSession, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, user_id, token_hash, expires_at, revoked_at, rotated_from_id::text, created_at, last_used_at, COALESCE(user_agent, ''), COALESCE(ip_address, '')

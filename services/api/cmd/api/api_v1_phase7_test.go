@@ -94,10 +94,10 @@ func TestAPIV1StripeOAuthCallbackRejectsOrganizationMismatch(t *testing.T) {
 
 func TestAPIV1StripeWebhookSignatureAndDedupe(t *testing.T) {
 	a := newAPITestApp(t)
-	a.cfg.StripeWebhookSecret = "whsec_test"
+	a.cfg.StripeWebhookSecret = "stripe-webhook-secret-fixture"
 	body := []byte(`{"id":"evt_sig_1","type":"payout.paid"}`)
 	headers := map[string]string{
-		"Stripe-Signature": processors.BuildStripeTestSignature("whsec_test", time.Now(), body),
+		"Stripe-Signature": processors.BuildStripeTestSignature("stripe-webhook-secret-fixture", time.Now(), body),
 	}
 	first := performAPIRequestWithHeaders(a, http.MethodPost, "/api/v1/webhooks/processors/stripe?organizationId=00000000-0000-0000-0000-000000000001", "", "req_stripe_hook_1", body, headers)
 	if first.Code != http.StatusAccepted {
@@ -134,9 +134,9 @@ func TestAPIV1PlaidWebhookVerificationMockAndInvalid(t *testing.T) {
 
 func TestAPIV1WebhookMetricsCounters(t *testing.T) {
 	a := newAPITestApp(t)
-	a.cfg.StripeWebhookSecret = "whsec_test"
+	a.cfg.StripeWebhookSecret = "stripe-webhook-secret-fixture"
 	body := []byte(`{"id":"evt_metrics_1","type":"balance.available"}`)
-	headers := map[string]string{"Stripe-Signature": processors.BuildStripeTestSignature("whsec_test", time.Now(), body)}
+	headers := map[string]string{"Stripe-Signature": processors.BuildStripeTestSignature("stripe-webhook-secret-fixture", time.Now(), body)}
 	rec := performAPIRequestWithHeaders(a, http.MethodPost, "/api/v1/webhooks/processors/stripe", "", "req_metrics_stripe", body, headers)
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("expected stripe webhook 202, got %d: %s", rec.Code, rec.Body.String())

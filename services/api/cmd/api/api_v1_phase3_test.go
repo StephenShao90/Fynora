@@ -14,6 +14,7 @@ func TestAPIV1RefreshTokenRotationAndLogout(t *testing.T) {
 	if login.Code != http.StatusOK {
 		t.Fatalf("expected login 200, got %d: %s", login.Code, login.Body.String())
 	}
+	assertNoStore(t, login)
 	if err := json.NewDecoder(login.Body).Decode(&first); err != nil {
 		t.Fatal(err)
 	}
@@ -25,6 +26,7 @@ func TestAPIV1RefreshTokenRotationAndLogout(t *testing.T) {
 	if refresh.Code != http.StatusOK {
 		t.Fatalf("expected refresh 200, got %d: %s", refresh.Code, refresh.Body.String())
 	}
+	assertNoStore(t, refresh)
 	var rotated struct {
 		RefreshToken string `json:"refreshToken"`
 		AccessToken  string `json:"accessToken"`
@@ -43,6 +45,7 @@ func TestAPIV1RefreshTokenRotationAndLogout(t *testing.T) {
 	if logout.Code != http.StatusNoContent {
 		t.Fatalf("expected logout 204, got %d: %s", logout.Code, logout.Body.String())
 	}
+	assertNoStore(t, logout)
 	revoked := performAPIRequestWithHeaders(a, http.MethodPost, "/api/v1/auth/refresh", "", "req_revoked", []byte(`{"refreshToken":"`+rotated.RefreshToken+`"}`), map[string]string{"X-Forwarded-For": "10.0.0.5"})
 	if revoked.Code != http.StatusUnauthorized {
 		t.Fatalf("expected revoked refresh token to fail, got %d: %s", revoked.Code, revoked.Body.String())
@@ -50,6 +53,54 @@ func TestAPIV1RefreshTokenRotationAndLogout(t *testing.T) {
 	sessions := performAPIRequest(a, http.MethodGet, "/api/v1/auth/sessions", created.Token, "req_sessions", nil)
 	if sessions.Code != http.StatusOK {
 		t.Fatalf("expected sessions 200, got %d: %s", sessions.Code, sessions.Body.String())
+	}
+}
+
+func TestAPIV1SessionRevokeRequiresOwnership(t *testing.T) {
+	a := newAPITestApp(t)
+	owner := registerAPITestUser(t, a, "session-owner@example.com")
+	attacker := registerAPITestUser(t, a, "session-attacker@example.com")
+	sessions := performAPIRequest(a, http.MethodGet, "/api/v1/auth/sessions", owner.Token, "req_owner_sessions", nil)
+	if sessions.Code != http.StatusOK {
+		t.Fatalf("expected sessions 200, got %d: %s", sessions.Code, sessions.Body.String())
+	}
+	var rows []struct {
+		ID        string  `json:"id"`
+		RevokedAt *string `json:"revoked_at"`
+	}
+	if err := json.NewDecoder(sessions.Body).Decode(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) == 0 || rows[0].ID == "" {
+		t.Fatalf("expected owner session row, got %#v", rows)
+	}
+	attackerRevoke := performAPIRequest(a, http.MethodDelete, "/api/v1/auth/sessions/"+rows[0].ID, attacker.Token, "req_attacker_revoke_session", nil)
+	if attackerRevoke.Code != http.StatusNotFound {
+		t.Fatalf("expected cross-user session revoke 404, got %d: %s", attackerRevoke.Code, attackerRevoke.Body.String())
+	}
+	ownerRevoke := performAPIRequest(a, http.MethodDelete, "/api/v1/auth/sessions/"+rows[0].ID, owner.Token, "req_owner_revoke_session", nil)
+	if ownerRevoke.Code != http.StatusNoContent {
+		t.Fatalf("expected owner session revoke 204, got %d: %s", ownerRevoke.Code, ownerRevoke.Body.String())
+	}
+}
+
+func TestAPIV1RegisterAuthResponseIsNotCacheable(t *testing.T) {
+	a := newAPITestApp(t)
+	body := []byte(`{"email":"nostore@example.com","password":"password123","organization_name":"No Store Cafe"}`)
+	rec := performAPIRequest(a, http.MethodPost, "/api/v1/auth/register", "", "req_register_nostore", body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	assertNoStore(t, rec)
+}
+
+func assertNoStore(t *testing.T, rec interface{ Header() http.Header }) {
+	t.Helper()
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("expected Cache-Control no-store, got %q", got)
+	}
+	if got := rec.Header().Get("Pragma"); got != "no-cache" {
+		t.Fatalf("expected Pragma no-cache, got %q", got)
 	}
 }
 

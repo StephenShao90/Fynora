@@ -134,17 +134,20 @@ async function waitForHttp(name, url) {
 }
 
 function shutdown(code = 0) {
-  if (shuttingDown) {
-    return;
-  }
-  shuttingDown = true;
-  log("stopping API, worker, and web");
-  for (const child of children) {
-    if (!child.killed) {
-      child.kill("SIGTERM");
-    }
-  }
-  setTimeout(() => process.exit(code), 750).unref();
+	if (shuttingDown) {
+		return;
+	}
+	shuttingDown = true;
+	log("stopping API, worker, and web");
+	if (children.length === 0) {
+		process.exit(code);
+	}
+	for (const child of children) {
+		if (!child.killed) {
+			child.kill("SIGTERM");
+		}
+	}
+	setTimeout(() => process.exit(code), 750);
 }
 
 process.on("SIGINT", () => shutdown(0));

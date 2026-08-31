@@ -2,12 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/StephenShao90/Fynora/services/api/internal/config"
 	"github.com/StephenShao90/Fynora/services/api/internal/models"
+	"github.com/StephenShao90/Fynora/services/api/internal/processors"
 )
 
 func TestAPIV1PlaidWebhookPersistsDedupesAndQueuesJob(t *testing.T) {
@@ -145,19 +148,63 @@ func TestProductionConfigRejectsUnsafeValues(t *testing.T) {
 	if err := cfg.ValidateProduction(); err == nil || !strings.Contains(err.Error(), "JWT_SECRET") {
 		t.Fatalf("expected JWT_SECRET production error, got %v", err)
 	}
-	cfg.JWTSecret = "real-secret"
+	cfg.JWTSecret = "real-secret-with-at-least-thirty-two-bytes"
 	if err := cfg.ValidateProduction(); err == nil || !strings.Contains(err.Error(), "ALLOWED_ORIGINS") {
 		t.Fatalf("expected ALLOWED_ORIGINS production error, got %v", err)
 	}
 	cfg.AllowedOrigins = "https://app.example.com"
+	cfg.EnableDemoAuth = "true"
+	if err := cfg.ValidateProduction(); err == nil || !strings.Contains(err.Error(), "ENABLE_DEMO_AUTH") {
+		t.Fatalf("expected demo auth production error, got %v", err)
+	}
+	cfg.EnableDemoAuth = "false"
+	if err := cfg.ValidateProduction(); err == nil || !strings.Contains(err.Error(), "PLAID_CLIENT_ID") {
+		t.Fatalf("expected Plaid production error, got %v", err)
+	}
+	cfg.PlaidClientID = "plaid-client"
+	cfg.PlaidSecret = "plaid-secret"
+	cfg.PlaidEnv = "production"
+	cfg.PlaidWebhookVerification = "true"
+	if err := cfg.ValidateProduction(); err == nil || !strings.Contains(err.Error(), "STRIPE_CLIENT_ID") {
+		t.Fatalf("expected Stripe production error, got %v", err)
+	}
+	cfg.StripeClientID = "ca_live_test"
+	cfg.StripeSecretKey = "stripe-secret-fixture"
+	cfg.StripeWebhookSecret = "stripe-webhook-secret-fixture"
+	cfg.StripeRedirectURL = "https://api.example.com/api/v1/integrations/stripe/callback"
+	cfg.FrontendURL = "https://app.example.com"
 	if err := cfg.ValidateProduction(); err == nil || !strings.Contains(err.Error(), "PROVIDER_TOKEN_ENCRYPTION_KEY") {
 		t.Fatalf("expected provider token encryption production error, got %v", err)
 	}
-	cfg.ProviderTokenEncryptionKey = "test-key"
+	cfg.ProviderTokenEncryptionKey = "test-key-with-at-least-thirty-two-bytes"
 	cfg.RedisEnabled = "true"
 	cfg.RedisURL = ""
 	if err := cfg.ValidateProduction(); err == nil || !strings.Contains(err.Error(), "REDIS_URL") {
 		t.Fatalf("expected REDIS_URL production error, got %v", err)
+	}
+}
+
+func TestProductionConfigAcceptsCustomerReadyValues(t *testing.T) {
+	cfg := config.Config{
+		AppEnv:                     "production",
+		JWTSecret:                  "real-secret-with-at-least-thirty-two-bytes",
+		DatabaseURL:                "postgres://example",
+		AllowedOrigins:             "https://app.example.com",
+		EnableDemoAuth:             "false",
+		PlaidClientID:              "plaid-client",
+		PlaidSecret:                "plaid-secret",
+		PlaidEnv:                   "production",
+		PlaidWebhookVerification:   "true",
+		StripeClientID:             "ca_live_test",
+		StripeSecretKey:            "stripe-secret-fixture",
+		StripeWebhookSecret:        "stripe-webhook-secret-fixture",
+		StripeRedirectURL:          "https://api.example.com/api/v1/integrations/stripe/callback",
+		FrontendURL:                "https://app.example.com",
+		ProviderTokenEncryptionKey: "test-key-with-at-least-thirty-two-bytes",
+		RedisEnabled:               "false",
+	}
+	if err := cfg.ValidateProduction(); err != nil {
+		t.Fatalf("expected production config to pass, got %v", err)
 	}
 }
 
@@ -168,6 +215,36 @@ func TestProductionCORSRejectsDisallowedOrigin(t *testing.T) {
 	rec := performAPIRequestWithHeaders(a, http.MethodGet, "/api/v1/health", "", "req_cors", nil, map[string]string{"Origin": "https://evil.example.com"})
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected disallowed origin 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProductionRejectsUnsignedMockProcessorWebhook(t *testing.T) {
+	a := newAPITestApp(t)
+	a.cfg.AppEnv = "production"
+	body := []byte(`{"id":"evt_mock_1","type":"payout.paid"}`)
+	rec := performAPIRequest(a, http.MethodPost, "/api/v1/webhooks/processors/mock?organizationId=00000000-0000-0000-0000-000000000001", "", "req_prod_mock_webhook", body)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected production mock webhook 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProductionStripeWebhookRequiresOrganization(t *testing.T) {
+	a := newAPITestApp(t)
+	a.cfg.AppEnv = "production"
+	a.cfg.StripeWebhookSecret = "stripe-webhook-secret-fixture"
+	body := []byte(`{"id":"evt_missing_org","type":"payout.paid"}`)
+	headers := map[string]string{"Stripe-Signature": processors.BuildStripeTestSignature("stripe-webhook-secret-fixture", time.Now(), body)}
+	rec := performAPIRequestWithHeaders(a, http.MethodPost, "/api/v1/webhooks/processors/stripe", "", "req_prod_stripe_missing_org", body, headers)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected missing organization 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestWebhookBodyLimitRejectsOversizedBody(t *testing.T) {
+	req := httptestRequest(http.MethodPost, "/api/v1/webhooks/processors/stripe", "")
+	req.Body = io.NopCloser(strings.NewReader(strings.Repeat("a", (2<<20)+1)))
+	if _, err := readLimitedBody(req, 2<<20); err == nil {
+		t.Fatal("expected oversized webhook body error")
 	}
 }
 

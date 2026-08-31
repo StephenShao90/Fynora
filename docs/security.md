@@ -9,7 +9,7 @@ Clearflow is a portfolio/backend project, not a regulated financial institution.
 - Clearflow never asks users for bank usernames or passwords.
 - Plaid and Stripe provider tokens stay server-side.
 - Provider tokens are protected with AES-GCM through `PROVIDER_TOKEN_ENCRYPTION_KEY`.
-- Production startup should fail if provider token encryption is missing.
+- Production startup fails if provider token encryption is missing or shorter than 32 characters.
 
 ## Data Stored
 
@@ -29,6 +29,7 @@ Clearflow does not store:
 - Plaid Link credentials
 - raw Stripe secret keys in frontend code
 - Plaid or Stripe provider tokens in API responses
+- refresh-token hashes, password hashes, or OAuth state hashes in API responses
 
 ## Auditability
 
@@ -48,9 +49,10 @@ Every HTTP response includes `X-Request-ID`. Frontend logs include the same requ
 
 ## Webhook Security
 
-- Stripe webhooks verify `Stripe-Signature` when `STRIPE_WEBHOOK_SECRET` is configured.
-- Plaid webhook verification can be required with `PLAID_WEBHOOK_VERIFICATION=true`.
+- Stripe webhooks verify `Stripe-Signature`; production startup requires `STRIPE_WEBHOOK_SECRET`.
+- Plaid webhook verification is required in production with `PLAID_WEBHOOK_VERIFICATION=true`.
 - Development mock webhook bypass is available only outside production.
+- Production processor webhooks reject unsupported providers and require an `organizationId`.
 - Webhook events are deduped by provider event ID where available.
 
 ## Operational Controls
@@ -59,6 +61,8 @@ Every HTTP response includes `X-Request-ID`. Frontend logs include the same requ
 - Idempotency keys protect financial write routes from accidental replay.
 - Background jobs use Postgres row locking so multiple workers can scale safely.
 - `/ready` verifies the database is reachable and critical tables are present.
+- Demo-token auth is disabled in production with `ENABLE_DEMO_AUTH=false`.
+- Auth responses return `Cache-Control: no-store` so token payloads are not cached by browsers or proxies.
 
 ## Remaining Compliance Work Before Real Customers
 
