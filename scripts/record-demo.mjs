@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 const require = createRequire(new URL("../apps/web/package.json", import.meta.url));
 const { chromium } = require("playwright");
 
-const baseURL = process.env.DEMO_BASE_URL || "http://127.0.0.1:3000";
+const baseURL = process.env.DEMO_BASE_URL || "http://localhost:3000";
 const outputDir = path.resolve(process.cwd(), "docs/assets/demo-video");
 
 async function wait(page, ms = 900) {
