@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GuideMarker } from "@/components/help";
+import { HelpFlow } from "@/components/help";
 import { api, clearAuth, clearDemoState, setToken } from "@/lib/api";
 
 export default function Register() {
@@ -27,6 +27,9 @@ export default function Register() {
   }
   return (
     <main className="min-h-screen bg-[#f4f6f2] px-4 py-8 text-ink">
+      <div className="fixed right-5 top-5 z-20">
+        <HelpFlow page="Create account" />
+      </div>
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-5xl items-center gap-8 lg:grid-cols-[.9fr_1.1fr]">
         <section>
           <Link href="/" className="text-xl font-semibold">Clearflow</Link>
@@ -51,7 +54,6 @@ export default function Register() {
               <h2 className="text-2xl font-semibold">Create account</h2>
               <p className="mt-1 text-sm text-ink/50">Set up secure access for your workspace.</p>
             </div>
-            <GuideMarker guide={{ number: 1, title: "Create account", body: "Create secure access, then continue to setup so the workspace can be configured." }} />
           </div>
           <label className="mt-6 grid gap-1 text-sm font-medium">
             Email

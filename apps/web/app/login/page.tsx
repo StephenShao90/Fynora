@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GuideMarker } from "@/components/help";
+import { HelpFlow } from "@/components/help";
 import { api, clearAuth, clearDemoState, setToken } from "@/lib/api";
 
 export default function Login() {
@@ -44,6 +44,9 @@ export default function Login() {
 function AuthForm({ title, error, busy, onSubmit, onDemo, button }: { title: string; error: string; busy: string; onSubmit: (e: FormEvent<HTMLFormElement>) => void; onDemo: () => void; button: string }) {
   return (
     <main className="min-h-screen bg-[#f4f6f2] px-4 py-8 text-ink">
+      <div className="fixed right-5 top-5 z-20">
+        <HelpFlow page="Log in" />
+      </div>
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-5xl items-center gap-8 lg:grid-cols-[.9fr_1.1fr]">
         <section>
           <Link href="/" className="text-xl font-semibold">Clearflow</Link>
@@ -64,7 +67,6 @@ function AuthForm({ title, error, busy, onSubmit, onDemo, button }: { title: str
               <h2 className="text-2xl font-semibold">{title}</h2>
               <p className="mt-1 text-sm text-ink/50">Continue to your cash close workspace.</p>
             </div>
-            <GuideMarker guide={{ number: 1, title: "Authentication", body: "Enter an existing email and password to open the workspace. Use the sample workspace when you only want to explore the flow." }} />
           </div>
           <label className="mt-6 grid gap-1 text-sm font-medium">
             Email
