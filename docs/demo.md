@@ -2,6 +2,18 @@
 
 Clearflow is a production-style payout reconciliation platform for small organizations. It reconciles Stripe-style processor payouts with bank deposits, explains payout composition, surfaces exceptions, forecasts operating cash, and exposes operational control evidence.
 
+## Video Demo
+
+Watch the main feature walkthrough: [`docs/assets/clearflow-main-feature-demo.webm`](assets/clearflow-main-feature-demo.webm).
+
+The recording covers the landing page, guided demo entry, onboarding, dashboard close view, data connections, payout reconciliation, cash forecast, transaction ledger, provider health, control center, and team settings.
+
+To regenerate it after UI changes, run the frontend first, then:
+
+```bash
+make record-demo
+```
+
 ## Two To Three Minute Script
 
 1. **Log in or use demo mode.** On local full stack, click **Try Demo**. On Vercel without `NEXT_PUBLIC_API_BASE_URL`, the UI intentionally shows sample financial data and a demo-mode badge.

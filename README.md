@@ -122,6 +122,8 @@ API contract: [`docs/openapi.yaml`](docs/openapi.yaml)
 
 Recruiter demo script: [`docs/recruiter-demo.md`](docs/recruiter-demo.md)
 
+Main feature video demo: [`docs/assets/clearflow-main-feature-demo.webm`](docs/assets/clearflow-main-feature-demo.webm)
+
 Code organization guide: [`docs/code-organization.md`](docs/code-organization.md)
 
 Performance model: [`docs/performance.md`](docs/performance.md)
@@ -222,6 +224,12 @@ make smoke
 ```
 
 Or use `make dev-smoke` to start the local stack, run smoke verification, and stop the app in one command.
+
+To regenerate the recorded product walkthrough while the frontend is running:
+
+```bash
+make record-demo
+```
 
 Detailed verification notes live in [`docs/verification.md`](docs/verification.md). Customer launch gates live in [`docs/production-readiness.md`](docs/production-readiness.md). Do not claim real customer volume, production throughput, uptime, or deployed usage until those claims are backed by telemetry.
 

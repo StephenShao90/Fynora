@@ -5,7 +5,7 @@ include .env
 export
 endif
 
-.PHONY: install docker-up docker-down ensure-db migrate seed api worker web dev dev-smoke local-env smoke test lint fmt build verify verify-backend verify-frontend verify-scripts compose-check vuln
+.PHONY: install docker-up docker-down ensure-db migrate seed api worker web dev dev-smoke local-env smoke test lint fmt build verify verify-backend verify-frontend verify-scripts compose-check vuln record-demo
 
 install:
 	cd apps/web && npm install
@@ -45,6 +45,9 @@ dev:
 
 dev-smoke:
 	node scripts/dev.mjs --smoke
+
+record-demo:
+	node scripts/record-demo.mjs
 
 local-env:
 	node scripts/use-local-env.mjs
